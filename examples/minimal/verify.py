@@ -168,7 +168,19 @@ def main() -> None:
                 print("status:", json.dumps(status), flush=True)
                 deadline = time.monotonic() + 5
                 while True:
+                    command_started_at = time.time()
                     observation = json.loads(command("logs", "-o", "json").stdout)
+                    print(
+                        "logs observation:",
+                        json.dumps(
+                            {
+                                "command_started_at": command_started_at,
+                                "checked_at": time.time(),
+                                "observation": observation,
+                            }
+                        ),
+                        flush=True,
+                    )
                     if len(observation["paths"]) == 2 and not observation["stale"]:
                         break
                     if time.monotonic() >= deadline:
@@ -201,6 +213,16 @@ def main() -> None:
                 console.flush()
                 console.seek(0)
                 print(console.read(), file=sys.stderr, flush=True)
+                for path in sorted((working / "logs").glob("*.log")):
+                    try:
+                        print(f"Worker log: {path}", file=sys.stderr, flush=True)
+                        print(
+                            path.read_text(encoding="utf-8", errors="replace"),
+                            file=sys.stderr,
+                            flush=True,
+                        )
+                    except OSError as diagnostic_error:
+                        print(f"Cannot read worker log: {diagnostic_error}", file=sys.stderr)
                 raise
             finally:
                 if not stopped and process.poll() is None:
