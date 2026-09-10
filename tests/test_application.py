@@ -74,8 +74,9 @@ def observed_runtime(monkeypatch: pytest.MonkeyPatch) -> ObservedRuntime:
 async def test_formal_configuration_defaults_and_worker_scope(configuration: Path) -> None:
     settings = await load_settings(configuration)
     assert settings.host == "127.0.0.1"
-    assert settings.state_dir == configuration.parent / "run"
-    assert settings.disk_paths == (configuration.parent, configuration.parent / "logs")
+    parent = configuration.parent.resolve()
+    assert settings.state_dir == parent / "run"
+    assert settings.disk_paths == (parent, parent / "logs")
     async with configuration_frame(configuration) as frame:
         assert await frame.get("worker_pid", fallback=None) is None
     async with configuration_frame(configuration, 123) as frame:

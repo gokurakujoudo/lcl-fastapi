@@ -183,12 +183,22 @@ def check_http(config: Path, state: dict[str, Any]) -> tuple[set[str], list[Path
     assert "/_lcl/shutdown" not in schema["paths"]
     for headers in ({}, {"X-LCL-Control-Token": "deliberately-wrong-token"}):
         assert http("/_lcl/shutdown", "POST", **headers)[0] == 403
-    logs = snapshot(config, "logs")
+    deadline = time.monotonic() + 10
+    while True:
+        logs = snapshot(config, "logs")
+        if len(logs["paths"]) == 2 and logs["stale"] is False:
+            break
+        if time.monotonic() >= deadline:
+            raise AssertionError(f"Live log observations did not become fresh: {logs}")
+        time.sleep(0.1)
     assert set(logs) == {"paths", "observed_at", "stale"}
     assert isinstance(logs["observed_at"], (int, float)) and logs["stale"] is False
     paths = [Path(path) for path in logs["paths"]]
     assert len(paths) == 2
-    assert all(path.is_absolute() and path.is_relative_to(config.parent / "logs") for path in paths)
+    assert all(
+        path.is_absolute() and path.resolve().is_relative_to((config.parent / "logs").resolve())
+        for path in paths
+    )
     assert set(cli(config, "logs").splitlines()) == set(logs["paths"])
     assert not (config.parent.parent / "logs").exists()
     return request_ids, paths
@@ -214,13 +224,16 @@ def main() -> None:
         assert snapshot(config, "logs") == {"paths": [], "observed_at": None, "stale": False}
         console = workspace / "console.txt"
         with console.open("w", encoding="utf-8") as stream:
+            creationflags = 0
+            if sys.platform == "win32":
+                creationflags = subprocess.CREATE_NO_WINDOW
             process = subprocess.Popen(
                 [str(CLI), "serve", "-o", "config", str(config)],
                 cwd=workspace,
                 stdout=stream,
                 stderr=subprocess.STDOUT,
                 text=True,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                creationflags=creationflags,
             )
             try:
                 state = ready(config, process)

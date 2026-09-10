@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import time
+from contextlib import suppress
 from html.parser import HTMLParser
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -96,13 +97,16 @@ def main() -> None:
         print("PASS: nginx/systemd render to stdout and files", flush=True)
 
         with (working / "console.log").open("w+", encoding="utf-8") as console:
+            creationflags = 0
+            if sys.platform == "win32":
+                creationflags = subprocess.CREATE_NO_WINDOW
             process = subprocess.Popen(
                 [str(cli), "serve", "-o", "config", str(config)],
                 cwd=working,
                 env=environment,
                 stdout=console,
                 stderr=subprocess.STDOUT,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                creationflags=creationflags,
             )
             stopped = False
             try:
@@ -171,7 +175,10 @@ def main() -> None:
                         raise AssertionError(observation)
                     time.sleep(0.2)
                 paths = [Path(path) for path in observation["paths"]]
-                assert all(path.is_absolute() and path.is_relative_to(working) for path in paths)
+                assert all(
+                    path.is_absolute() and path.resolve().is_relative_to(working.resolve())
+                    for path in paths
+                )
                 plain_paths = command("logs").stdout.splitlines()
                 assert set(plain_paths) == {str(path) for path in paths}, plain_paths
                 print("logs:", json.dumps(observation), flush=True)
@@ -190,10 +197,36 @@ def main() -> None:
                     "PASS: hello, Request-ID, health, docs, shutdown authorization, "
                     "status, logs, stop, two-worker lifespan flush"
                 )
+            except BaseException:
+                console.flush()
+                console.seek(0)
+                print(console.read(), file=sys.stderr, flush=True)
+                raise
             finally:
                 if not stopped and process.poll() is None:
-                    command("stop")
-                    process.wait(timeout=10)
+                    original_error = sys.exception()
+                    try:
+                        command("stop")
+                        process.wait(timeout=10)
+                    except Exception as cleanup_error:
+                        print(f"Service cleanup failed: {cleanup_error!r}", file=sys.stderr)
+                        # These are children of the process owned by this verifier.
+                        try:
+                            with suppress(psutil.NoSuchProcess):
+                                for child in psutil.Process(process.pid).children(recursive=True):
+                                    with suppress(psutil.NoSuchProcess):
+                                        child.kill()
+                            if process.poll() is None:
+                                process.kill()
+                                process.wait(timeout=10)
+                        except Exception as forced_cleanup_error:
+                            print(
+                                f"Owned-process cleanup failed: {forced_cleanup_error!r}",
+                                file=sys.stderr,
+                            )
+                        if original_error is None:
+                            raise
+                        original_error.add_note(f"Service cleanup also failed: {cleanup_error!r}")
 
 
 if __name__ == "__main__":

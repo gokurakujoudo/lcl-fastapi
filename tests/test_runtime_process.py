@@ -7,6 +7,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import sysconfig
 import time
 from contextlib import suppress
 from pathlib import Path
@@ -71,11 +72,13 @@ def test_native_workers_recover_and_finish_lifespans(tmp_path: Path) -> None:
         environment["COVERAGE_FILE"] = str(Path(coverage.config.data_file).resolve())
     external = tmp_path / "different-working-directory"
     external.mkdir()
-    entrypoint = Path(sys.executable).parent / (
+    entrypoint = Path(sysconfig.get_path("scripts")) / (
         "lcl-fastapi.exe" if sys.platform == "win32" else "lcl-fastapi"
     )
     output = tmp_path / "process-output.txt"
-    creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    creationflags = 0
+    if sys.platform == "win32":
+        creationflags = subprocess.CREATE_NO_WINDOW
     with output.open("wb") as stream:
         process = subprocess.Popen(
             [str(entrypoint), "serve", "-o", "config", str(source)],
@@ -220,11 +223,13 @@ def test_worker_startup_failure_returns_failure_and_cleans_state(
     environment.pop("PYTHONPATH", None)
     if (coverage := Coverage.current()) is not None:
         environment["COVERAGE_FILE"] = str(Path(coverage.config.data_file).resolve())
-    entrypoint = Path(sys.executable).parent / (
+    entrypoint = Path(sysconfig.get_path("scripts")) / (
         "lcl-fastapi.exe" if sys.platform == "win32" else "lcl-fastapi"
     )
     output = tmp_path / "process-output.txt"
-    creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    creationflags = 0
+    if sys.platform == "win32":
+        creationflags = subprocess.CREATE_NO_WINDOW
     with output.open("wb") as stream:
         process = subprocess.Popen(
             [str(entrypoint), "serve", "-o", "config", str(source)],

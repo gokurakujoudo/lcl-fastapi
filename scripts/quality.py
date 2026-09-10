@@ -25,6 +25,8 @@ def main() -> None:
         [sys.executable, "-m", "scripts.policy"],
         [sys.executable, "-m", "scripts.architecture"],
         [sys.executable, "-m", "mypy"],
+        [sys.executable, "-m", "mypy", "examples/minimal"],
+        [sys.executable, "-m", "mypy", "examples/composed"],
         [sys.executable, "-m", "pytest", "-m", "documentation", "--no-cov"],
         [sys.executable, "-m", "coverage", "erase"],
         [
@@ -48,9 +50,27 @@ def main() -> None:
                 [sys.executable, "-m", "scripts.artifacts"],
             ]
         )
-    for command in commands:
-        print("Running: " + " ".join(command), flush=True)
-        subprocess.run(command, check=True)
+    with Path("reports/quality.log").open("w", encoding="utf-8") as report:
+        for command in commands:
+            heading = "Running: " + " ".join(command)
+            print(heading, flush=True)
+            report.write(heading + "\n")
+            report.flush()
+            with subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+            ) as process:
+                assert process.stdout is not None
+                for line in process.stdout:
+                    print(line, end="", flush=True)
+                    report.write(line)
+                    report.flush()
+                if returncode := process.wait():
+                    raise subprocess.CalledProcessError(returncode, command)
 
 
 if __name__ == "__main__":
