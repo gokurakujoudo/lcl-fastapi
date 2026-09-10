@@ -1,0 +1,30 @@
+__LCL_VERSION__: 1
+app.name: "composed-catalog"
+app.version: "1.0.0"
+app.target: "catalog_service.app:service"
+server.host: "127.0.0.1"
+server.port: 18082
+server.workers: 2
+server.root_path: "https://catalog.example.com:8443"
+server.graceful_timeout_seconds: 30
+runtime.state_dir: "./run"
+health.sample_interval_seconds: 0.2
+health.disk_paths: [".", logger.file.default.directory]
+logger.file.default.directory: "./logs"
+logger.file.service.filename: f"{app.name}.{worker_pid}.log"
+logger.level: "INFO"
+business.name: "Reader"
+business.greeting: f"Welcome, {business.name}"
+business.items: ["notebook", "pencil"]
+nginx.server_name: "catalog.example.com"
+nginx.listen_port: 9443
+nginx.ssl_certificate: "/etc/catalog/tls/server.crt"
+nginx.ssl_certificate_key: "/etc/catalog/tls/server.key"
+systemd.service_name: "composed-catalog"
+systemd.description: "Composed Catalog Example"
+systemd.user: "catalog"
+systemd.group: "catalog"
+systemd.working_directory: "/opt/composed-catalog"
+systemd.config_path: "/etc/composed-catalog/service.lclcfg"
+systemd.restart: "on-failure"
+systemd.restart_seconds: 5

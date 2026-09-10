@@ -1,0 +1,15 @@
+__LCL_VERSION__: 1
+app.name: "minimal-example"
+app.version: "1.0.0"
+app.target: "minimal_service.app:service"
+server.port: 18081
+nginx.server_name: "minimal.example.invalid"
+nginx.listen_port: 443
+nginx.ssl_certificate: "/example-not-installed/cert.pem"
+nginx.ssl_certificate_key: "/example-not-installed/key.pem"
+systemd.service_name: "minimal-example"
+systemd.description: "Minimal example service"
+systemd.user: "minimal-example"
+systemd.group: "minimal-example"
+systemd.working_directory: "/example-not-installed/minimal"
+systemd.config_path: "/example-not-installed/minimal/service.lclcfg"
