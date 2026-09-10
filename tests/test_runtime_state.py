@@ -1,10 +1,13 @@
 """Observe identity, atomic state, and concurrent worker-lease contracts."""
 
 import asyncio
+import importlib
 import os
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 
 import psutil
 import pytest
@@ -169,3 +172,41 @@ def test_service_scope_preserves_another_start_identity(tmp_path: Path) -> None:
     with service_runtime(settings):
         atomic_write(settings.state_dir / "runtime.json", {"service_id": "replacement"})
     assert read_state(settings.state_dir / "runtime.json") == {"service_id": "replacement"}
+
+
+def test_inherited_service_scope_preserves_master_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "service.lclcfg"
+    source.write_text(CONFIG, encoding="utf-8")
+    settings = asyncio.run(load_settings(source))
+    module = importlib.import_module("lcl_fastapi.runtime.service")
+    with service_runtime(settings) as identity:
+        token = (settings.state_dir / "control.token").read_bytes()
+        monkeypatch.setattr(
+            module, "os", SimpleNamespace(name=os.name, getpid=lambda: os.getpid() + 1)
+        )
+    assert read_state(settings.state_dir / "runtime.json") == identity
+    assert (settings.state_dir / "control.token").read_bytes() == token
+    assert settings.pid_file.read_text() == str(identity["pid"])
+
+
+@pytest.mark.parametrize("child_exit", [False, True])
+def test_posix_lock_only_acquiring_process_unlocks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, child_exit: bool
+) -> None:
+    module = importlib.import_module("lcl_fastapi.runtime.state")
+    pid = [100]
+    calls: list[tuple[int, int]] = []
+    native = SimpleNamespace(
+        LOCK_EX=2, LOCK_NB=4, LOCK_UN=8, flock=lambda fd, mode: calls.append((fd, mode))
+    )
+    monkeypatch.setitem(sys.modules, "fcntl", native)
+    monkeypatch.setattr(module, "sys", SimpleNamespace(platform="linux"))
+    monkeypatch.setattr(module, "os", SimpleNamespace(getpid=lambda: pid[0]))
+    with file_lock(tmp_path / "owner.lock", blocking=False):
+        if child_exit:
+            pid[0] += 1
+    assert [mode for _, mode in calls] == ([6] if child_exit else [6, 8])
+    with pytest.raises(OSError):
+        os.fstat(calls[0][0])

@@ -20,9 +20,12 @@ def service_runtime(settings: Settings) -> Iterator[dict[str, object]]:
     :returns: Context manager yielding the non-secret service identity.
     :raises OSError: If another master owns the directory or storage fails.
     :raises subprocess.CalledProcessError: If Windows token permissions fail.
+
+    Forked children never clean the master's inherited service scope.
     """
     directory = settings.state_dir
     with file_lock(directory / "service.lock", blocking=False):
+        creator_pid = os.getpid()
         identity = process_identity()
         identity.update(
             {
@@ -51,12 +54,13 @@ def service_runtime(settings: Settings) -> Iterator[dict[str, object]]:
             settings.pid_file.write_text(str(identity["pid"]), encoding="ascii")
             yield identity
         finally:
-            if read_state(runtime_path).get("service_id") == identity["service_id"]:
-                cleanup_stale(settings)
-                runtime_path.unlink(missing_ok=True)
-                (directory / "shutdown.json").unlink(missing_ok=True)
-                settings.pid_file.unlink(missing_ok=True)
-            token_path.unlink(missing_ok=True)
+            if os.getpid() == creator_pid:
+                if read_state(runtime_path).get("service_id") == identity["service_id"]:
+                    cleanup_stale(settings)
+                    runtime_path.unlink(missing_ok=True)
+                    (directory / "shutdown.json").unlink(missing_ok=True)
+                    settings.pid_file.unlink(missing_ok=True)
+                token_path.unlink(missing_ok=True)
 
 
 def cleanup_stale(settings: Settings) -> None:

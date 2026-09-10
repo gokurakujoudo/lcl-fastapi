@@ -77,6 +77,9 @@ def file_lock(path: Path, blocking: bool = True) -> Iterator[None]:
     :param blocking: Whether to wait for a current owner.
     :returns: Context manager holding the lock.
     :raises OSError: If acquisition or filesystem access fails.
+
+    A forked child closes its inherited descriptor without unlocking the
+    parent's shared POSIX open file description.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a+b") as stream:
@@ -94,12 +97,14 @@ def file_lock(path: Path, blocking: bool = True) -> Iterator[None]:
         else:
             import fcntl
 
+            creator_pid = os.getpid()
             mode = fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB)
             fcntl.flock(stream.fileno(), mode)
             try:
                 yield
             finally:
-                fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+                if os.getpid() == creator_pid:
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
 
 
 def live_workers(directory: Path, service_id: object) -> list[dict[str, object]]:

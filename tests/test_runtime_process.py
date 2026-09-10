@@ -4,6 +4,7 @@ import asyncio
 import http.client
 import os
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -18,6 +19,7 @@ import pytest
 from coverage import Coverage
 
 from lcl_fastapi.runtime.common import active_logs, inspect_status, stop
+from lcl_fastapi.runtime.state import file_lock, read_state
 
 CONFIG = """__LCL_VERSION__: 1
 app.name: "runtime-probe"
@@ -136,6 +138,36 @@ def test_native_workers_recover_and_finish_lifespans(tmp_path: Path) -> None:
                 time.sleep(0.1)
             else:
                 raise AssertionError("native worker manager did not replace a killed worker")
+            retired: list[int] = []
+            if sys.platform == "linux":
+                master = read_state(tmp_path / "run/runtime.json")
+                token = (tmp_path / "run/control.token").read_bytes()
+                assert isinstance(replacement_pids[0], int)
+                retired.append(replacement_pids[0])
+                psutil.Process(retired[0]).send_signal(signal.SIGTERM)
+                deadline = time.monotonic() + 20
+                while time.monotonic() < deadline:
+                    health = asyncio.run(wait_ready(port, process))
+                    replacement_pids = health["worker_pids"]
+                    assert isinstance(replacement_pids, list)
+                    if retired[0] not in replacement_pids:
+                        break
+                    time.sleep(0.1)
+                else:
+                    raise AssertionError("native worker manager did not replace a retired worker")
+                assert (
+                    tmp_path / "run" / f"{retired[0]}.finished"
+                ).read_text() == "lifespan closed"
+                assert read_state(tmp_path / "run/runtime.json") == master
+                assert (tmp_path / "run/control.token").read_bytes() == token
+                with (
+                    pytest.raises(OSError),
+                    file_lock(tmp_path / "run/service.lock", blocking=False),
+                ):
+                    raise AssertionError("retiring a worker released the master's service lock")
+                assert (asyncio.run(inspect_status(source)))["status"] == "RUNNING"
+                paths = (asyncio.run(active_logs(source)))["paths"]
+                assert isinstance(paths, list) and len(paths) == 2
             current = health["worker_pids"]
             assert isinstance(current, list)
             with httpx.Client() as client:
@@ -151,7 +183,7 @@ def test_native_workers_recover_and_finish_lifespans(tmp_path: Path) -> None:
                 path.read_text(encoding="utf-8") for path in (tmp_path / "logs").glob("*")
             )
             assert "hello request" in logs
-            assert logs.count("business lifespan closed") == 2
+            assert logs.count("business lifespan closed") == 2 + len(retired)
             assert "uvicorn.access" not in logs
             assert "gunicorn.access" not in logs
             assert not (tmp_path / "run/control.token").exists()

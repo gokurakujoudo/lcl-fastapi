@@ -91,6 +91,12 @@ old process identity is no longer live. Master exit removes abandoned worker
 state and leases, its PID/state files, and its control token. Lock files remain
 as stable synchronization locations.
 
+Only the process that acquired a resource releases its ownership. On Linux,
+a gracefully exiting forked worker preserves the master's state, PID file,
+control token, and service lock. It closes inherited lock descriptors without
+unlocking the master's shared file description. Its own worker observation and
+lease are still cleaned before Gunicorn creates a replacement.
+
 Users may override predefined routes with the same HTTP method and exact path.
 This is not recommended unless you understand the consequences. In particular,
 overriding `POST /_lcl/shutdown` can prevent the stop command from working.
