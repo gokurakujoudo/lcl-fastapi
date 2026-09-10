@@ -11,6 +11,13 @@ lcl-fastapi serve -o config service.lclcfg
 `server.workers` in the configuration. The runtime uses Uvicorn's native
 multiprocess manager even for one worker, giving the service one consistent
 master identity and shutdown path. Uvicorn handles crashed-worker replacement.
+Workers use Python's native `ProactorEventLoop` through Uvicorn's loop-factory
+option. IOCP accepts let idle workers continue sampling without HTTP traffic.
+The master only binds and shares the listener; it does not attach that socket
+to an event loop. The real-process tests cover this arrangement with multiple
+workers, replacement, and graceful shutdown. See the upstream
+[loop-factory interface](https://uvicorn.dev/concepts/event-loop/) and Python's
+[Windows event loops](https://docs.python.org/3.14/library/asyncio-platforms.html).
 If worker configuration, application import, or lifespan initialization fails,
 the service stops, preserves the original error diagnostic on stderr, cleans
 its runtime files, and the console command returns a nonzero exit status. A

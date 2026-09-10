@@ -19,7 +19,7 @@ import pytest
 from coverage import Coverage
 
 from lcl_fastapi.runtime.common import active_logs, inspect_status, stop
-from lcl_fastapi.runtime.state import file_lock, read_state
+from lcl_fastapi.runtime.state import file_lock, live_workers, read_state
 
 CONFIG = """__LCL_VERSION__: 1
 app.name: "runtime-probe"
@@ -55,6 +55,26 @@ async def wait_ready(port: int, process: subprocess.Popen[bytes]) -> dict[str, o
                 pass
             await asyncio.sleep(0.1)
     raise AssertionError("workers did not become ready")
+
+
+def verify_idle_observations(directory: Path) -> None:
+    started = time.time()
+    deadline = time.monotonic() + 5
+    service_id = read_state(directory / "run/runtime.json")["service_id"]
+    records: list[dict[str, object]] = []
+    while time.monotonic() < deadline:
+        try:
+            records = live_workers(directory / "run/workers", service_id)
+        except PermissionError:
+            # Windows can briefly deny reads while a worker atomically replaces its state.
+            time.sleep(0.05)
+            continue
+        if len(records) == 2 and all(
+            float(str(record.get("observed_at", 0))) > started for record in records
+        ):
+            return
+        time.sleep(0.05)
+    raise AssertionError(f"idle workers stopped publishing without HTTP traffic: {records}")
 
 
 @pytest.mark.integration
@@ -127,6 +147,7 @@ def test_native_workers_recover_and_finish_lifespans(tmp_path: Path) -> None:
                     headers={"X-LCL-Control-Token": "wrong"},
                 )
                 assert denied.status_code == 403
+            verify_idle_observations(tmp_path)
             psutil.Process(initial[0]).kill()
             deadline = time.monotonic() + 20
             while time.monotonic() < deadline:
@@ -173,6 +194,7 @@ def test_native_workers_recover_and_finish_lifespans(tmp_path: Path) -> None:
             with httpx.Client() as client:
                 response = client.get(f"http://127.0.0.1:{port}/hello")
                 assert response.status_code == 200
+            verify_idle_observations(tmp_path)
             # A later port edit must not redirect stop to another listener.
             source.write_text(CONFIG.format(port=available_port()), encoding="utf-8")
             asyncio.run(stop(source))

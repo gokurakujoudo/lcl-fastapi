@@ -83,6 +83,8 @@ def run_windows(settings: Settings, identity: dict[str, object]) -> None:
         host=settings.host,
         port=settings.port,
         workers=settings.workers,
+        # IOCP accepts keep idle workers schedulable when they share the listener.
+        loop="asyncio:ProactorEventLoop",
         backlog=settings.backlog,
         timeout_keep_alive=settings.keep_alive_seconds,
         timeout_graceful_shutdown=settings.graceful_timeout_seconds,
