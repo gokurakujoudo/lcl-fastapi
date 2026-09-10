@@ -249,6 +249,11 @@ def main() -> None:
                         if original_error is None:
                             raise
                         original_error.add_note(f"Service cleanup also failed: {cleanup_error!r}")
+                if sys.exception() is not None:
+                    console.flush()
+                    console.seek(0)
+                    print("Console after cleanup:", file=sys.stderr, flush=True)
+                    print(console.read(), file=sys.stderr, flush=True)
 
 
 if __name__ == "__main__":
