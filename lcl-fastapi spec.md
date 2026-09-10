@@ -693,7 +693,7 @@ workers/28146.json
 }
 ```
 
-如果当前 active log segment 发生变化，worker 必须在下一次运行态刷新时更新 `log_files`。active log path 查询采用最终一致性，正常情况下的最大刷新延迟不得超过 `health.sample_interval_seconds` 加一次状态写入耗时；不得承诺轮转后瞬时可见。即使关闭健康 HTTP 接口，也必须维持此运行态刷新能力。
+如果当前 active log segment 发生变化，worker 必须在下一次运行态刷新时更新 `log_files`。active log path 查询采用最终一致性，正常情况下的最大刷新延迟不得超过 `health.sample_interval_seconds` 加一次指标采样和状态写入耗时；不得承诺轮转后瞬时可见。即使关闭健康 HTTP 接口，也必须维持此运行态刷新能力。
 
 状态文件必须使用 atomic replace 更新。
 
@@ -871,6 +871,8 @@ CLI 必须根据 live worker state 返回 active path，而不得通过目录中
 已经退出 worker 的日志文件不得作为当前 active log 返回。
 
 JSON 输出必须包含 `paths`、`observed_at` 和 `stale`：`paths` 是去重后的绝对路径列表；`observed_at` 是参与结果的 worker 日志视图中最早的采集 Unix 秒数，无视图时为 `null`；`stale` 表示仍存活 worker 的日志视图存在超期情况。已经退出的 worker 不得因为此标记重新进入结果。普通文本输出只逐行列出路径。
+
+`stale` 的超期判定为观测年龄超过配置采样间隔；该标记不表示 worker 已停止。一次刷新还需要指标采样和状态写入时间，CLI 本身也需要验证进程身份，因此正常工作的 worker 可能短暂返回 `stale: true`，不得承诺每次 CLI 调用都返回 `false`。
 
 ---
 

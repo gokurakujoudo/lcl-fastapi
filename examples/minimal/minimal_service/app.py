@@ -1,7 +1,5 @@
 """A hello route with observable business startup and teardown."""
 
-import faulthandler
-import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -19,11 +17,9 @@ async def business_lifespan(app: FastAPI) -> AsyncIterator[None]:
     """
     logger = await get_logger("minimal.business")
     logger.info("minimal business startup")
-    faulthandler.dump_traceback_later(2, repeat=True, file=sys.stderr)
     try:
         yield
     finally:
-        faulthandler.cancel_dump_traceback_later()
         logger.info("minimal business shutdown")
 
 

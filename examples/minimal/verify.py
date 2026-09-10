@@ -213,6 +213,12 @@ def main() -> None:
                 console.flush()
                 console.seek(0)
                 print(console.read(), file=sys.stderr, flush=True)
+                for path in sorted((working / "run/workers").glob("*.json")):
+                    try:
+                        print(f"Worker state: {path}", file=sys.stderr, flush=True)
+                        print(path.read_text(encoding="utf-8"), file=sys.stderr, flush=True)
+                    except OSError as diagnostic_error:
+                        print(f"Cannot read worker state: {diagnostic_error}", file=sys.stderr)
                 for path in sorted((working / "logs").glob("*.log")):
                     try:
                         print(f"Worker log: {path}", file=sys.stderr, flush=True)

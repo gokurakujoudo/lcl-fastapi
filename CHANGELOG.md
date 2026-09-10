@@ -11,6 +11,8 @@
   nonzero service exit after native worker cleanup on both platforms.
 - Keep master state, control tokens, and POSIX locks owned by their creating
   process when a forked worker exits and is replaced.
+- Publish worker observations outside the HTTP event loop and wait for active
+  writes before releasing worker resources during shutdown.
 - Add Nginx and systemd configuration renderers that produce files without performing deployment operations.
 - Establish executable documentation, independent downstream examples, and cross-platform engineering checks.
 

@@ -2,11 +2,14 @@
 
 import asyncio
 import socket
+import threading
 from pathlib import Path
 from typing import cast
 
 import psutil
 import pytest
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
 
 import lcl_fastapi.health.sampler as sampler_module
 from lcl_fastapi.health.sampler import HealthSampler, system_snapshot
@@ -19,6 +22,9 @@ class WarningRecorder:
 
     def warning(self, message: str, *args: object) -> None:
         self.messages.append(message % args)
+
+    def exception(self, message: str) -> None:
+        self.messages.append(message)
 
 
 def test_unavailable_metrics_are_independent(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -74,10 +80,15 @@ async def test_sampler_start_stop_and_publication_failure(monkeypatch: pytest.Mo
     recorder = WarningRecorder()
     observations: list[float] = []
 
+    def warning(message: str, *args: object) -> None:
+        recorder.messages.append(message % args)
+        failure_observed.set()
+
+    monkeypatch.setattr(recorder, "warning", warning)
+
     def publish(observed_at: float) -> None:
         observations.append(observed_at)
         if len(observations) > 1:
-            failure_observed.set()
             raise OSError("state unavailable")
 
     sampler = HealthSampler((), 0.001, cast(RequestLogger, recorder), publish)
@@ -97,6 +108,7 @@ async def test_sampler_recovers_after_one_sharing_violation(
 ) -> None:
     monkeypatch.setattr(sampler_module, "system_snapshot", lambda paths: {"cpu": {}})
     recovered = asyncio.Event()
+    loop = asyncio.get_running_loop()
     recorder = WarningRecorder()
     attempts: list[float] = []
     published: list[float] = []
@@ -107,7 +119,7 @@ async def test_sampler_recovers_after_one_sharing_violation(
             raise PermissionError("state replacement sharing violation")
         published.append(observed_at)
         if len(published) == 2:
-            recovered.set()
+            loop.call_soon_threadsafe(recovered.set)
 
     sampler = HealthSampler((), 0.001, cast(RequestLogger, recorder), publish)
     await sampler.start()
@@ -120,3 +132,68 @@ async def test_sampler_recovers_after_one_sharing_violation(
     assert recorder.messages == [
         "worker state publication failed: state replacement sharing violation"
     ]
+
+
+@pytest.mark.parametrize("write_fails", [False, True])
+async def test_publication_keeps_http_responsive_and_joins_before_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+    write_fails: bool,
+) -> None:
+    monkeypatch.setattr(sampler_module, "system_snapshot", lambda paths: {"cpu": {}})
+    entered = threading.Event()
+    release = threading.Event()
+    finished = threading.Event()
+    main_thread = threading.get_ident()
+    writes: list[float] = []
+    app = FastAPI()
+
+    @app.get("/ready")
+    async def ready() -> dict[str, bool]:
+        return {"ready": True}
+
+    def publish(observed_at: float) -> None:
+        if not writes:
+            writes.append(observed_at)
+            return
+        entered.set()
+        assert threading.get_ident() != main_thread, "publication must not block the event loop"
+        assert release.wait(timeout=5), "test must release the owned publication"
+        writes.append(observed_at)
+        finished.set()
+        if write_fails:
+            raise OSError("write failed while stopping")
+
+    recorder = WarningRecorder()
+    sampler = HealthSampler((), 0.001, cast(RequestLogger, recorder), publish)
+    await sampler.start()
+    refresh = sampler.task
+    assert refresh is not None
+    closing: asyncio.Task[None] | None = None
+    try:
+        assert await asyncio.to_thread(entered.wait, 1)
+        if refresh.done():
+            await refresh
+        async with AsyncClient(transport=ASGITransport(app), base_url="http://test") as client:
+            response = await client.get("/ready")
+        assert response.json() == {"ready": True}
+        assert not finished.is_set()
+        closing = asyncio.create_task(sampler.stop())
+        await asyncio.sleep(0)
+        assert not refresh.done(), "cancellation must wait for the in-flight write"
+        refresh.cancel()
+        await asyncio.sleep(0)
+        assert not refresh.done(), "repeated cancellation must still join the write"
+        release.set()
+        await asyncio.wait_for(closing, timeout=1)
+        assert refresh.cancelled() and sampler.task is None
+        assert finished.is_set() and len(writes) == 2
+        assert recorder.messages == (
+            ["worker state publication failed during cancellation"] if write_fails else []
+        )
+    finally:
+        release.set()
+        if not refresh.done():
+            refresh.cancel()
+        await asyncio.gather(refresh, return_exceptions=True)
+        if closing is not None:
+            await closing

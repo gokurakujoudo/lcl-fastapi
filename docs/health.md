@@ -17,6 +17,14 @@ for each configured path. Sampling runs outside request handling; `/health`
 copies the most recent observation instead of performing blocking CPU sampling.
 The first nonblocking CPU reading can be zero before an interval has elapsed.
 
+State publication also runs outside the request event loop. Each worker serializes
+its samples and publications. Shutdown waits for an in-flight publication to
+finish before releasing worker state and its lease, including when cancellation
+arrives during a filesystem write.
+Each background refresh takes the configured interval plus metrics-sampling
+and state-publication time. CLI log observations can therefore temporarily be
+older than the configured interval while a worker remains healthy.
+
 A failed CPU, memory, or disk read is represented by that field's
 `status: "unavailable"` and diagnostic `error`. It does not cause the whole
 endpoint to return HTTP 500. Repeated warnings are suppressed while the observed

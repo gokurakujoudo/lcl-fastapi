@@ -51,12 +51,16 @@ Logs JSON contains `paths`, `observed_at`, and `stale`. Paths are deduplicated
 absolute names reported by live workers, never guessed from file modification
 times. `observed_at` is the earliest participating observation in Unix seconds,
 or `null` when none exists. `stale` identifies live-worker observations older
-than the configured sampling interval. Dead workers never reenter the result
-because their observation is stale.
+than the configured sampling interval. This age flag does not mean that the
+worker has stopped. A healthy worker can temporarily report `stale: true`
+during sampling, state publication, or CLI identity checks. Dead workers never
+reenter the result because their observation is stale.
 
 Log paths are eventually consistent. Under normal operation a rotation appears
-within `health.sample_interval_seconds` plus one state-write duration. Upstream
-metrics can report the current or last path; this is not proof that a file is
+within `health.sample_interval_seconds` plus the time needed to collect metrics
+and write one state observation. The refresh loop sleeps for the interval before collecting and
+publishing its next observation; freshness is not guaranteed for every CLI
+invocation. Upstream metrics can report the current or last path; this is not proof that a file is
 still writable after a sink failure. Disabling the health HTTP endpoint does
 not disable observation refresh.
 

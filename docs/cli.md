@@ -47,7 +47,10 @@ Diagnostics go to stderr. Plain `logs` output contains one absolute path per
 line; JSON additionally contains `observed_at` (Unix seconds, or null for an
 empty observation) and `stale`. These paths are eventually consistent snapshots
 from live workers, not a filesystem-mtime guess. An exited worker's paths are
-excluded. See the runtime documentation for sampling and failure semantics.
+excluded. `stale` means that a participating observation is older than the
+configured interval, not that its worker is dead. It can temporarily be true
+while a healthy worker samples or publishes its next observation. See the
+runtime documentation for sampling and failure semantics.
 
 ## Status JSON contract
 

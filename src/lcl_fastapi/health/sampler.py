@@ -65,7 +65,10 @@ class HealthSampler:
     :param paths: Absolute disk paths to inspect.
     :param interval: Positive finite interval in seconds.
     :param logger: Worker logger used for changed sampling failures.
-    :param publish: Callback publishing current active logs and sample time.
+    :param publish: Callback publishing current logs and sample time in a worker thread.
+
+    One event-loop owner serializes refreshes. The callback must support calls
+    outside the event-loop thread; it is never called concurrently by this sampler.
     """
 
     def __init__(
@@ -80,7 +83,7 @@ class HealthSampler:
         :param paths: Absolute filesystem observation paths.
         :param interval: Refresh interval in seconds.
         :param logger: Worker-owned logger.
-        :param publish: Callback recording worker log state.
+        :param publish: Thread-safe callback recording worker log state.
         :raises ValueError: If the interval is not positive and finite.
         """
         if not math.isfinite(interval) or interval <= 0:
@@ -94,6 +97,12 @@ class HealthSampler:
         """Replace metrics and publish an observed worker-state timestamp.
 
         :raises OSError: If state publication cannot complete.
+        :raises CancelledError: After an in-flight publication finishes when cancelled.
+
+        Callers serialize refreshes. File observations retain the time immediately
+        before publication is queued; completion never fabricates a fresher time.
+        A simultaneous publication error is logged with its traceback while
+        cancellation remains the controlling exception for shutdown.
         """
         self.latest = await asyncio.to_thread(system_snapshot, self.paths)
         unavailable: list[str] = []
@@ -108,7 +117,23 @@ class HealthSampler:
         if warning and warning != self.last_warning:
             self.logger.warning("health metrics unavailable: %s", warning)
         self.last_warning = warning
-        self.publish(time())
+        publication = asyncio.create_task(asyncio.to_thread(self.publish, time()))
+        cancellation: asyncio.CancelledError | None = None
+        while not publication.done():
+            try:
+                await asyncio.shield(publication)
+            except asyncio.CancelledError as error:
+                cancellation = error
+            except Exception:
+                break
+        try:
+            publication.result()
+        except Exception:
+            if cancellation is None:
+                raise
+            self.logger.exception("worker state publication failed during cancellation")
+        if cancellation is not None:
+            raise cancellation
 
     async def run(self) -> None:
         """Refresh periodically until the owner cancels the task.
@@ -134,7 +159,11 @@ class HealthSampler:
         self.task = asyncio.create_task(self.run(), name="lcl-health-sampler")
 
     async def stop(self) -> None:
-        """Cancel and join the background task; repeated stops are harmless."""
+        """Cancel sampling and join any in-flight state write before releasing ownership.
+
+        Repeated stops are harmless. Cancellation cannot abandon a publication
+        thread which could recreate worker state after runtime cleanup.
+        """
         if self.task is not None:
             self.task.cancel()
             with suppress(asyncio.CancelledError):
