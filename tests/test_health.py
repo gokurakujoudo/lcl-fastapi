@@ -90,3 +90,33 @@ async def test_sampler_start_stop_and_publication_failure(monkeypatch: pytest.Mo
     await sampler.stop()
     assert recorder.messages == ["worker state publication failed: state unavailable"]
     assert sampler.task is None
+
+
+async def test_sampler_recovers_after_one_sharing_violation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sampler_module, "system_snapshot", lambda paths: {"cpu": {}})
+    recovered = asyncio.Event()
+    recorder = WarningRecorder()
+    attempts: list[float] = []
+    published: list[float] = []
+
+    def publish(observed_at: float) -> None:
+        attempts.append(observed_at)
+        if len(attempts) == 2:
+            raise PermissionError("state replacement sharing violation")
+        published.append(observed_at)
+        if len(published) == 2:
+            recovered.set()
+
+    sampler = HealthSampler((), 0.001, cast(RequestLogger, recorder), publish)
+    await sampler.start()
+    try:
+        await asyncio.wait_for(recovered.wait(), timeout=1)
+        assert sampler.task is not None and not sampler.task.done()
+    finally:
+        await sampler.stop()
+    assert published == [attempts[0], attempts[2]]
+    assert recorder.messages == [
+        "worker state publication failed: state replacement sharing violation"
+    ]
