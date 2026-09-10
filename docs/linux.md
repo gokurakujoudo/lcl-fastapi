@@ -14,6 +14,18 @@ creation time are recorded before workers are forked. Application preload is
 disabled. Each worker loads its application and fresh configuration, then owns
 its Frame, logging, Snowflake generator, and FastAPI lifespan.
 
+Startup failures stop the complete service with a nonzero exit status. Gunicorn
+26's ASGI runner logs lifespan startup errors but normally returns success after
+its cleanup. The framework uses Gunicorn's documented `worker_exit` hook to
+translate the native lifespan manager's final `_startup_failed` flag into the
+arbiter's `WORKER_BOOT_ERROR` exit status. The original diagnostic and native
+cleanup are retained. This compatibility adapter does not replace the ASGI worker
+or change recovery after a successfully started worker crashes.
+The flag and exit ordering were checked against the upstream 26.0.0 sources and
+the exact 26.2.0 wheel used by CI. This adapter is coupled to that Gunicorn 26
+interface; a missing flag is an incompatibility, not assumed startup success.
+The Linux real-process tests exercise this contract on the installed dependency.
+
 Gunicorn receives the configured IPv4 bind address, port, worker count, backlog,
 keep-alive timeout, and graceful timeout. Native ASGI lifespan support is
 required; its event loop is asyncio. Duplicate Gunicorn access logging is

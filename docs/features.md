@@ -14,9 +14,11 @@ claim a successful release or validation on an operating system without a run.
 | Deployment configuration rendering | Nginx and systemd text output; deterministic renderer and executable guide tests. |
 
 Windows process lifecycle checks have been exercised locally during development.
-Linux process behavior requires the Linux CI result before cross-platform
-acceptance is complete. The authoritative full gate and aggregate 100% production
-branch coverage remain acceptance conditions, not assumptions.
+Windows and Linux CI exercise the process lifecycle independently. Review the
+[latest development PR checks](https://github.com/gokurakujoudo/lcl-fastapi/pull/2/checks)
+for the exact tested revision and artifacts. The authoritative full gate and
+aggregate 100% production branch coverage remain acceptance conditions, not
+assumptions.
 
 The independently authored [minimal](../examples/minimal/README.md) and
 [composed](../examples/composed/README.md) downstream projects have passed local

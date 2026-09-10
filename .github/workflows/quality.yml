@@ -30,7 +30,7 @@ jobs:
         with:
           name: evidence-${{ matrix.os }}
           path: |
-            .coverage
+            .coverage*
             reports/
           include-hidden-files: true
           if-no-files-found: error

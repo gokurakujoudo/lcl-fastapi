@@ -249,6 +249,9 @@ def test_worker_startup_failure_returns_failure_and_cleans_state(
             assert not list((tmp_path / "run/leases").glob("*.json"))
             with socket.socket() as probe:
                 assert probe.connect_ex(("127.0.0.1", port)) != 0
+        except BaseException:
+            print(output.read_text(encoding="utf-8", errors="replace"))
+            raise
         finally:
             if process.poll() is None:
                 for child in psutil.Process(process.pid).children(recursive=True):

@@ -12,12 +12,14 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
+from starlette.types import Receive, Scope, Send
 from uvicorn import Config, Server
 
 from lcl_fastapi.config import Settings, load_settings
 from lcl_fastapi.runtime import common
 from lcl_fastapi.runtime.application import load_application
 from lcl_fastapi.runtime.common import active_logs, inspect_status, send_shutdown, stop
+from lcl_fastapi.runtime.linux import report_worker_exit
 from lcl_fastapi.runtime.service import service_runtime, shutdown_requested
 from lcl_fastapi.runtime.state import atomic_write, read_state
 from lcl_fastapi.runtime.windows import ServiceMultiprocess
@@ -262,3 +264,54 @@ def test_windows_factory_preserves_process_control_exceptions(
     with pytest.raises(type(error)) as caught:
         module.load_windows_application()
     assert caught.value is error
+
+
+@pytest.mark.parametrize("startup_failed", [None, False, True])
+def test_native_gunicorn_exit_hook_classifies_only_lifespan_startup_failure(
+    startup_failed: bool | None,
+) -> None:
+    arbiter = SimpleNamespace(WORKER_BOOT_ERROR=3)
+    lifespan = None if startup_failed is None else SimpleNamespace(_startup_failed=startup_failed)
+    worker = SimpleNamespace(lifespan=lifespan)
+    if startup_failed:
+        with pytest.raises(SystemExit) as caught:
+            report_worker_exit(arbiter, worker)
+        assert caught.value.code == arbiter.WORKER_BOOT_ERROR
+    else:
+        report_worker_exit(arbiter, worker)
+
+
+def test_native_gunicorn_configuration_and_worker_application_cache(
+    source: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = importlib.import_module("lcl_fastapi.runtime.linux")
+    settings = asyncio.run(load_settings(source))
+    options: dict[str, object] = {}
+    calls: list[str] = []
+
+    class Configuration:
+        def set(self, name: str, value: object) -> None:
+            options[name] = value
+
+    async def downstream(scope: Scope, receive: Receive, send: Send) -> None:
+        return None
+
+    def load() -> object:
+        calls.append("loaded")
+        return downstream
+
+    monkeypatch.setattr(
+        module,
+        "importlib",
+        SimpleNamespace(import_module=lambda name: SimpleNamespace(Config=Configuration)),
+    )
+    monkeypatch.setattr(module, "load_application", load)
+    application = module.GunicornApplication(settings)
+    assert options["worker_class"] == "asgi"
+    assert options["worker_exit"] is report_worker_exit
+    assert options["preload_app"] is False
+    assert application.wsgi() is downstream
+    assert application.wsgi() is downstream
+    application.reload()
+    assert calls == ["loaded"]

@@ -7,6 +7,8 @@
 - Return HTTP 503 with one failure access log when the upstream Snowflake generator
   reports clock rollback or sequence exhaustion; do not fabricate a fallback ID.
 - Add Windows Uvicorn and Linux Gunicorn runtimes with local status, log-path, and graceful-stop commands.
+- Propagate application import, configuration, and lifespan startup failures to a
+  nonzero service exit after native worker cleanup on both platforms.
 - Add Nginx and systemd configuration renderers that produce files without performing deployment operations.
 - Establish executable documentation, independent downstream examples, and cross-platform engineering checks.
 

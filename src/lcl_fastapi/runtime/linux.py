@@ -28,6 +28,43 @@ class GunicornRunner(Protocol):
         """Run master supervision until native graceful shutdown finishes."""
 
 
+class NativeLifespan(Protocol):
+    """Describe Gunicorn 26's completed ASGI startup outcome."""
+
+    _startup_failed: bool
+    """Native LifespanManager flag set by a failed ASGI startup message or task."""
+
+
+class NativeWorker(Protocol):
+    """Describe the existing ASGI worker passed to Gunicorn's exit hook."""
+
+    lifespan: NativeLifespan | None
+    """Native lifespan manager, absent when import fails before ASGI startup."""
+
+
+class NativeArbiter(Protocol):
+    """Describe the arbiter's established worker-startup failure exit code."""
+
+    WORKER_BOOT_ERROR: int
+    """Unitless process exit code owned by Gunicorn's Arbiter startup contract."""
+
+
+def report_worker_exit(arbiter: NativeArbiter, worker: NativeWorker) -> None:
+    """Report native ASGI startup failure after Gunicorn has cleaned the worker.
+
+    :param arbiter: Native master interface supplying its startup-failure status.
+    :param worker: Native ASGI worker whose run and cleanup have finished.
+    :raises SystemExit: With the native boot-error status when lifespan startup failed.
+    :raises AttributeError: If Gunicorn changes the required native lifespan interface.
+
+    Gunicorn 26's ASGI runner logs startup errors but returns normally. Reading
+    its final startup flag in the documented worker-exit hook prevents the
+    arbiter from mistaking failed initialization for a recoverable worker exit.
+    """
+    if worker.lifespan is not None and worker.lifespan._startup_failed is True:
+        raise SystemExit(arbiter.WORKER_BOOT_ERROR)
+
+
 class GunicornApplication:
     """Supply the documented application interface to Gunicorn's arbiter.
 
@@ -58,6 +95,7 @@ class GunicornApplication:
             "accesslog": None,
             "preload_app": False,
             "root_path": "",
+            "worker_exit": report_worker_exit,
         }
         for name, value in options.items():
             self.cfg.set(name, value)
