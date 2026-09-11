@@ -30,3 +30,8 @@ projects are excluded from the wheel.
 
 The framework does not implement authentication systems, a management service,
 HTTP log streaming, configuration watching, hot restart, or deployment commands.
+
+The [from-scratch catalog guide](build-a-service.md) teaches an independent
+read-only service. Its documentation test extracts the exact application,
+configuration, and verifier from Markdown, runs native workers, checks HTTP
+behavior and request logs, stops gracefully, and verifies deployment rendering.
