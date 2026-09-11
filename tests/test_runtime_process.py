@@ -12,6 +12,7 @@ import sysconfig
 import time
 from contextlib import suppress
 from pathlib import Path
+from unittest.mock import Mock
 
 import httpx
 import psutil
@@ -48,6 +49,7 @@ async def wait_ready(port: int, process: subprocess.Popen[bytes]) -> dict[str, o
                 raise AssertionError(f"service exited early with {process.returncode}")
             try:
                 response = await client.get(f"http://127.0.0.1:{port}/health", timeout=1)
+                response.raise_for_status()
                 value: dict[str, object] = response.json()["service"]
                 if value.get("running_workers") == 2:
                     return value
@@ -55,6 +57,26 @@ async def wait_ready(port: int, process: subprocess.Popen[bytes]) -> dict[str, o
                 pass
             await asyncio.sleep(0.1)
     raise AssertionError("workers did not become ready")
+
+
+async def test_readiness_retries_http_errors_before_parsing_health(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def response(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(500, text="Internal Server Error")
+        return httpx.Response(200, json={"service": {"running_workers": 2}})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(response))
+    monkeypatch.setattr(httpx, "AsyncClient", lambda: client)
+    process = Mock(spec=subprocess.Popen)
+    process.poll.return_value = None
+    assert await wait_ready(8080, process) == {"running_workers": 2}
+    assert calls == 2
 
 
 def verify_idle_observations(directory: Path) -> None:

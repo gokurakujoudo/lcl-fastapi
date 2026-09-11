@@ -30,6 +30,12 @@ A failed CPU, memory, or disk read is represented by that field's
 endpoint to return HTTP 500. Repeated warnings are suppressed while the observed
 failure remains unchanged. Health responses never contain control tokens.
 
+Service identity inspection also reads local worker observations. An inaccessible
+runtime file can produce HTTP 500; this is distinct from an unavailable sampled
+metric. A readiness probe may retry unsuccessful HTTP responses within its
+startup or worker-recovery deadline and must still require a successful response
+with the expected worker count before declaring the service ready.
+
 ```text
 health.enabled: True
 health.path: "/health"

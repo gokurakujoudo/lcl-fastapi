@@ -4,6 +4,8 @@
 
 - Fix CI lookup of unpublished GitHub release drafts and add GitHub-only recovery
   using an original successful PyPI run's source commit and tested artifacts.
+- Check HTTP status before parsing readiness responses in the native-worker
+  recovery verifier; retain its bounded retry and worker-count requirements.
 
 ## 0.1.0 - 2026-09-11
 
