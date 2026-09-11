@@ -91,10 +91,9 @@ class WorkerRuntime:
         current = read_state(self.directory / "runtime.json")
         if current != self.service or not is_live(current):
             raise RuntimeError("service identity changed before shutdown")
+        atomic_write(self.directory / "shutdown.json", {"service_id": current["service_id"]})
         if self.service["runtime"] == "gunicorn":
             os.kill(int(str(current["pid"])), signal.SIGTERM)
-        else:
-            atomic_write(self.directory / "shutdown.json", {"service_id": current["service_id"]})
 
 
 def uvicorn_server() -> Server:

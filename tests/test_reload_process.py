@@ -84,6 +84,9 @@ def test_reload_roots_replacement_and_failure(tmp_path: Path, failure: str | Non
     if (coverage := Coverage.current()) is not None:
         environment["COVERAGE_FILE"] = str(Path(coverage.config.data_file).resolve())
     output = tmp_path / "output.txt"
+    creationflags = 0
+    if sys.platform == "win32":
+        creationflags = subprocess.CREATE_NO_WINDOW
     with output.open("wb") as stream:
         process = subprocess.Popen(
             [str(entrypoint), "serve", "-o", "config", str(source), "-o", "hot_reload"],
@@ -91,7 +94,7 @@ def test_reload_roots_replacement_and_failure(tmp_path: Path, failure: str | Non
             env=environment,
             stdout=stream,
             stderr=subprocess.STDOUT,
-            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            creationflags=creationflags,
         )
         try:
             initial = response(port, process)

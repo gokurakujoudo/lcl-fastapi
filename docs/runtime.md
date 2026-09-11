@@ -38,7 +38,9 @@ release run before replacement. Requests may be unavailable briefly during reloa
 Changes during replacement are coalesced into a pending reload, and whole-service
 shutdown takes priority. On Windows an identity-specific `reload.json` marker drives
 the existing worker exit bridge without console signals. Linux signals the verified
-worker with SIGTERM. Master cleanup removes the marker and closes the watcher.
+worker with SIGTERM. Both platforms record an accepted whole-service shutdown before
+signaling, preventing a pending reload from retiring another worker. Master cleanup
+removes the markers and closes the watcher.
 
 Import or lifespan startup failures stop the complete service with the original
 diagnostic and a nonzero exit. Watcher failures also stop the service; they are not

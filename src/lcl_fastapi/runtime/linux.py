@@ -127,6 +127,8 @@ def run_linux(settings: Settings, identity: dict[str, object], hot_reload: bool 
     :param identity: Published master identity, owned by the surrounding scope.
     :param hot_reload: Watch explicit Python roots from the native arbiter loop.
     :raises ImportError: If Gunicorn is not installed on Linux.
+    :raises OSError: If configured watch directories cannot be opened.
+    :raises SystemExit: When the native arbiter exits, nonzero on service failure.
     """
     application = GunicornApplication(settings)
     factory = cast(
