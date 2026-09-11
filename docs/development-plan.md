@@ -17,7 +17,7 @@ request context, worker resources, local operations, and deployment rendering.
 
 The supported deployment is one service per machine on Windows or Linux.
 Authentication systems, a separate management service or port, HTTP log APIs or
-streams, hot restart, configuration watching/reload/snapshots, and automatic
+streams, configuration watching/reload/snapshots, and automatic
 deployment are outside the first-version scope. Snowflake generation and native
 worker supervision remain upstream responsibilities.
 
@@ -31,6 +31,7 @@ worker supervision remain upstream responsibilities.
 | Request IDs and logging | [Logging](logging.md) | Real upstream Snowflake IDs reach context, request state, headers, and business logs. Concurrent requests remain isolated and logs preserve business call sites. |
 | ID-generation failures | [Logging](logging.md) | Controlled upstream clock rollback and exhaustion return 503 without business dispatch or a fabricated ID, produce one failure access record, and restore context after send failures/cancellation. |
 | Worker coordination | [Runtime](runtime.md), [Windows](windows.md), [Linux](linux.md) | Unique concurrent worker leases, PID/creation-time and service-start identity checks, atomic observations, crash recovery, and owned-resource cleanup. |
+| Development reload | [CLI](cli.md), [configuration](configuration.md), [runtime](runtime.md) | Exact Python watch roots on both platforms, one effective worker and warning, repeated graceful replacement, failure exits, and stop during reload. |
 | Configuration changes | [Configuration](configuration.md), [runtime](runtime.md) | New workers read current files; existing workers and master listener settings do not reload. Local stop uses recorded identity/listener data after later configuration edits. |
 | Health and observations | [Health](health.md) | Service/worker/Gunicorn identities, sampled CPU/memory/disk metrics, partial unavailable fields, idle publication, and cancellation that waits for in-flight writes. |
 | Active log files | [Logging](logging.md), [CLI](cli.md) | Live-worker paths come from upstream sink metrics, update after rollover, and expose documented observation age/staleness without treating dead workers as active. |

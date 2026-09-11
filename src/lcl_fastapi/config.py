@@ -39,6 +39,7 @@ class Settings:
     :param id_header: ASCII HTTP response header carrying the request ID.
     :param worker_id_base: First allowed Snowflake worker ID.
     :param worker_id_count: Number of allowed consecutive worker IDs.
+    :param reload_dirs: Resolved Python watch roots, used only in hot reload mode.
     """
 
     app_name: str
@@ -64,6 +65,7 @@ class Settings:
     id_header: str
     worker_id_base: int
     worker_id_count: int
+    reload_dirs: tuple[Path, ...] = ()
 
 
 def text_value(value: object, name: str) -> str:
@@ -236,6 +238,13 @@ async def settings_from_frame(frame: Frame, config_path: Path) -> Settings:
         disk_path = base / text_value(item, "health.disk_paths")
         disk_paths.append(await asyncio.to_thread(disk_path.resolve))
     header = await text("request.id_header")
+    directories = await frame.get("server.reload_dirs")
+    if not isinstance(directories, list) or not directories:
+        raise ValueError("server.reload_dirs: expected a nonempty list of directory paths")
+    reload_dirs = []
+    for item in directories:
+        directory = base / text_value(item, "server.reload_dirs")
+        reload_dirs.append(await asyncio.to_thread(directory.resolve))
     if not all(char.isascii() and (char.isalnum() or char in "!#$%&'*+-.^_`|~") for char in header):
         raise ValueError("request.id_header: expected an ASCII HTTP header name")
     return Settings(
@@ -262,6 +271,7 @@ async def settings_from_frame(frame: Frame, config_path: Path) -> Settings:
         header,
         worker_base,
         worker_count,
+        tuple(dict.fromkeys(reload_dirs)),
     )
 
 

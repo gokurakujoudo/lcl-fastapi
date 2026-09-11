@@ -10,6 +10,7 @@ from uvicorn.supervisors import Multiprocess
 
 from lcl_fastapi.config import Settings
 from lcl_fastapi.runtime.application import load_application
+from lcl_fastapi.runtime.reload import ReloadWatcher
 from lcl_fastapi.runtime.service import shutdown_requested
 from lcl_fastapi.runtime.state import atomic_write
 
@@ -53,6 +54,16 @@ class ServiceMultiprocess(Multiprocess):
             },
         )
 
+    def keep_subprocess_alive(self) -> None:
+        """Retain native recovery and consume reload events in the master loop.
+
+        :raises OSError: If watching or control storage fails.
+        :raises RuntimeError: If the watcher terminates unexpectedly.
+        """
+        super().keep_subprocess_alive()
+        if self.reload_watcher is not None and not self.should_exit.is_set():
+            self.reload_watcher.tick()
+
     def watch_shutdown(self, finished: threading.Event) -> None:
         """Wake native process management after an accepted shutdown request.
 
@@ -67,13 +78,16 @@ class ServiceMultiprocess(Multiprocess):
     """Validated master settings; assigned before the manager starts."""
     identity: dict[str, object]
     """Complete-start record published before any worker is spawned."""
+    reload_watcher: ReloadWatcher | None = None
+    """Optional master-owned watcher, advanced only by the native manager loop."""
 
 
-def run_windows(settings: Settings, identity: dict[str, object]) -> None:
+def run_windows(settings: Settings, identity: dict[str, object], hot_reload: bool = False) -> None:
     """Run the upstream Uvicorn multiprocess manager, even for one worker.
 
     :param settings: Detached master listener and process-management settings.
     :param identity: Published master identity.
+    :param hot_reload: Watch explicit roots and gracefully retire changed workers.
     :raises OSError: If binding the listener or control storage fails.
     :raises RuntimeError: If Uvicorn reports a worker lifespan startup failure.
     """
@@ -91,11 +105,13 @@ def run_windows(settings: Settings, identity: dict[str, object]) -> None:
         lifespan="on",
         root_path="",
     )
+    reload_watcher = ReloadWatcher(settings, identity) if hot_reload else None
     listener = config.bind_socket()
     finished = threading.Event()
     manager = ServiceMultiprocess(config, sockets=[listener])
     manager.settings = settings
     manager.identity = identity
+    manager.reload_watcher = reload_watcher
     watcher = threading.Thread(target=manager.watch_shutdown, args=(finished,))
     watcher.start()
     try:
@@ -103,6 +119,11 @@ def run_windows(settings: Settings, identity: dict[str, object]) -> None:
         if any(process.exitcode == STARTUP_FAILURE for process in manager.processes):
             raise RuntimeError("Uvicorn worker startup failed; service stopped")
     finally:
+        manager.should_exit.set()
+        manager.terminate_all()
+        manager.join_all()
+        if reload_watcher is not None:
+            reload_watcher.close()
         finished.set()
         watcher.join()
         listener.close()

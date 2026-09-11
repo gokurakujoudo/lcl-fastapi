@@ -46,7 +46,8 @@ with Routers, business configuration, and lifespan resources.
 The initial validation matrix is CPython 3.14 on Windows and Linux. Deployment
 supports one service per machine. Windows uses Uvicorn with Winloop; Linux uses
 Gunicorn. Configuration is trusted and requires a complete restart for consistent
-changes. Authentication, hot reload, and automatic deployment are outside the
+changes. Python hot reload with configurable watch directories is available for development.
+Authentication and automatic deployment are outside the
 framework's scope. See the [implemented features](features.md) for evidence and
 limitations.
 

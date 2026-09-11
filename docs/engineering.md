@@ -20,7 +20,7 @@ Production dependencies flow toward configuration/context and core operations;
 CLI, runtime, filesystem, and rendering adapters depend on those contracts.
 Public re-exports are curated in package `__init__.py` files without starting
 resources. Do not add a second Snowflake algorithm, CLI parser, supervisor,
-authentication subsystem, management service, restart mechanism, or log-stream
+authentication subsystem, management service, configuration restart mechanism, or log-stream
 backend. The [development plan](development-plan.md) maps the accepted scope to
 reference pages and behavioral acceptance evidence.
 

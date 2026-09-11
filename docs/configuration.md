@@ -19,6 +19,7 @@ option instead of setting those variables themselves.
 | `server.host` | `127.0.0.1`; only this and `0.0.0.0` are accepted. |
 | `server.port` | `8080`, an integer from 1 through 65535. |
 | `server.workers` | `1`, bounded by the available Snowflake ID range. |
+| `server.reload_dirs` | `["."]`; nonempty list of Python watch directories, relative to this configuration file or absolute. An explicit list replaces the default. Used by `serve -o hot_reload`. |
 | `server.root_path` | Empty, or an HTTP(S) origin with hostname and optional port; no credentials, path, query, or fragment. |
 | `server.backlog` | `2048` pending connections. |
 | `server.keep_alive_seconds` | `5`; zero disables idle keep-alive waiting. |
@@ -65,6 +66,26 @@ extend the upstream generator's historical guarantees across crashes and rapid I
 reuse.
 
 ## Configuration changes
+
+For development, select one or more recursive Python watch roots:
+
+```text
+server.reload_dirs: ["./src", "../shared"]
+```
+
+Then run `lcl-fastapi serve -o config service.lclcfg -o hot_reload`.
+Include `"."` in the list to keep watching the configuration directory along with
+additional directories. Resolved duplicates are watched once. Selected directories
+must exist and be accessible when hot reload starts; invalid entries fail startup.
+Only `.py` additions, modifications, and deletions inside the selected roots trigger
+reload, including nested files. Configuration files, other extensions, and resolved
+paths outside those roots do not. Watch roots are fixed for the complete start;
+changing this list requires stopping and starting the service.
+
+Hot reload forces one effective worker and warns once on stderr when the configured
+count exceeds one. Configuration validation still applies before that override.
+Status and health report the effective count. The file itself is never rewritten.
+See [runtime lifecycle](runtime.md#development-hot-reload) for ownership and errors.
 
 The master reads service settings at complete startup. Every worker, including a
 replacement after a crash, independently loads the current file. Existing workers

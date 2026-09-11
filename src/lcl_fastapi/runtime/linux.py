@@ -8,6 +8,7 @@ from starlette.types import ASGIApp
 
 from lcl_fastapi.config import Settings
 from lcl_fastapi.runtime.application import load_application
+from lcl_fastapi.runtime.reload import ReloadWatcher
 
 
 class GunicornConfiguration(Protocol):
@@ -26,6 +27,11 @@ class GunicornRunner(Protocol):
 
     def run(self) -> None:
         """Run master supervision until native graceful shutdown finishes."""
+
+    wait_for_signals: Callable[[float], list[int]]
+    """Gunicorn 26's signal-queue wait boundary, wrapped for bounded watch polling."""
+    stop: Callable[[bool], None]
+    """Native worker shutdown accepting whether to drain requests gracefully."""
 
 
 class NativeLifespan(Protocol):
@@ -114,11 +120,12 @@ class GunicornApplication:
         """Keep master settings unchanged during Gunicorn-native worker reload."""
 
 
-def run_linux(settings: Settings, identity: dict[str, object]) -> None:
+def run_linux(settings: Settings, identity: dict[str, object], hot_reload: bool = False) -> None:
     """Run Gunicorn's arbiter in the already-recorded master process.
 
     :param settings: Detached settings used by the master for this complete start.
     :param identity: Published master identity, owned by the surrounding scope.
+    :param hot_reload: Watch explicit Python roots from the native arbiter loop.
     :raises ImportError: If Gunicorn is not installed on Linux.
     """
     application = GunicornApplication(settings)
@@ -126,4 +133,31 @@ def run_linux(settings: Settings, identity: dict[str, object]) -> None:
         Callable[[GunicornApplication], GunicornRunner],
         importlib.import_module("gunicorn.arbiter").Arbiter,
     )
-    factory(application).run()
+    arbiter = factory(application)
+    watcher = ReloadWatcher(settings, identity) if hot_reload else None
+    if watcher is not None:
+        native_wait = arbiter.wait_for_signals
+
+        def watch_signals(timeout: float = 1.0) -> list[int]:
+            """Preserve pending signal priority before polling Python changes.
+
+            :param timeout: Native signal-wait deadline in seconds.
+            :returns: Queued signals for the arbiter's normal dispatch.
+            :raises OSError: If watching or worker signaling fails.
+            :raises RuntimeError: If the watcher stops unexpectedly.
+            """
+            signals = native_wait(timeout)
+            if not signals:
+                try:
+                    watcher.tick()
+                except Exception:
+                    arbiter.stop(True)
+                    raise
+            return signals
+
+        arbiter.wait_for_signals = watch_signals
+    try:
+        arbiter.run()
+    finally:
+        if watcher is not None:
+            watcher.close()

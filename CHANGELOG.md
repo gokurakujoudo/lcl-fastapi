@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add `serve -o hot_reload` with configurable recursive Python watch directories,
+  one effective worker with a warning, and graceful native worker replacement.
+
 - Let documentation use the available browser width beside the navigation sidebar.
 
 - Add the project logo to the README and documentation home page.

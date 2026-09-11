@@ -9,19 +9,24 @@ from pathlib import Path
 
 from lcl_fastapi.config import load_settings
 from lcl_fastapi.runtime.service import service_runtime
+from lcl_fastapi.runtime.startup import startup_settings
 from lcl_fastapi.runtime.state import is_live, live_workers, read_state
 from lcl_fastapi.runtime.worker import WorkerRuntime, worker_runtime
 
 __all__ = ["WorkerRuntime", "active_logs", "inspect_status", "serve", "stop", "worker_runtime"]
 
 
-def serve(config_path: Path) -> None:
+def serve(config_path: Path, hot_reload: bool = False) -> None:
     """Load master settings and run the native platform service manager.
 
     :param config_path: Trusted .lclcfg file, relative to the caller's directory.
+    :param hot_reload: Enable Python watching with one effective worker.
+    :raises ValueError: If hot_reload is not a Boolean or configuration is invalid.
     :raises RuntimeError: If called from an active event loop or unsupported OS.
     :raises OSError: If service storage or the listener cannot be opened.
     """
+    if not isinstance(hot_reload, bool):
+        raise ValueError("hot_reload must be Boolean")
     try:
         asyncio.get_running_loop()
     except RuntimeError:
@@ -29,7 +34,7 @@ def serve(config_path: Path) -> None:
     else:
         raise RuntimeError("serve must run after the CLI event loop has closed")
     path = config_path.resolve()
-    settings = asyncio.run(load_settings(path))
+    settings = asyncio.run(startup_settings(path, hot_reload))
     previous = {name: os.environ.get(name) for name in ("LCL_FASTAPI_CONFIG", "LCL_FASTAPI_STATE")}
     os.environ["LCL_FASTAPI_CONFIG"] = str(path)
     os.environ["LCL_FASTAPI_STATE"] = str(settings.state_dir)
@@ -38,11 +43,17 @@ def serve(config_path: Path) -> None:
             if sys.platform == "win32":
                 from lcl_fastapi.runtime.windows import run_windows
 
-                run_windows(settings, identity)
+                if hot_reload:
+                    run_windows(settings, identity, hot_reload=True)
+                else:
+                    run_windows(settings, identity)
             elif sys.platform == "linux":
                 from lcl_fastapi.runtime.linux import run_linux
 
-                run_linux(settings, identity)
+                if hot_reload:
+                    run_linux(settings, identity, hot_reload=True)
+                else:
+                    run_linux(settings, identity)
             else:
                 raise RuntimeError("lcl-fastapi supports Windows and Linux only")
     finally:

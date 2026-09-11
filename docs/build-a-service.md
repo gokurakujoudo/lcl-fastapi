@@ -93,7 +93,11 @@ In terminal B, stop it before editing the application:
 ```
 
 Wait for terminal A to return to its prompt. Use this stop/edit/start sequence
-for every later change: there is no file watcher or hot reload.
+for configuration changes. For Python development, use
+`lcl-fastapi serve -o config service.lclcfg -o hot_reload`. Set
+`server.reload_dirs: [".", "../shared"]` to watch this directory and shared code,
+or replace the list with your source directories. Reload uses one worker and
+briefly interrupts service; see [the reload contract](runtime.md#development-hot-reload).
 
 ## 3. Load validated products during startup
 

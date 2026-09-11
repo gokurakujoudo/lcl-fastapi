@@ -110,8 +110,11 @@ Concurrent worker leases do not promise unlimited historical ID uniqueness
 across crashes or rapid reuse. Do not edit configuration while the service is
 running: a replacement worker reads the changed file while older workers retain
 their original values. Use a complete externally managed restart for consistent
-changes. There is no file watcher, hot restart, snapshot distribution, or restart
-API.
+changes. Development Python reload is available with `serve -o config service.lclcfg
+-o hot_reload`; configure one or more `server.reload_dirs` in the file. Reload forces
+one worker and warns if the configured count is higher. See the
+[runtime contract](docs/runtime.md#development-hot-reload). There is no configuration
+watching, snapshot distribution, or restart API.
 
 User routes with the same HTTP method and exact path override built-in routes.
 Overriding health or documentation replaces those defaults; overriding

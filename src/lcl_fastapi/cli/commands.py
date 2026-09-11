@@ -68,16 +68,25 @@ def renderer_command(kind: Literal["nginx", "systemd"]) -> Command:
     )(render_command)
 
 
-def command_group(pending: list[Path]) -> CommandGroup:
+def command_group(pending: list[tuple[Path, bool]]) -> CommandGroup:
     """Create an isolated CLI command tree and a deferred server-start handoff.
 
-    :param pending: Caller-owned empty list receiving the serve configuration path.
+    :param pending: Caller-owned list receiving the serve path and reload flag.
     :returns: Root lclang group containing only supported first-version commands.
     """
     config_doc = ParameterDoc("config", str, True, "Service .lclcfg file path.")
     json_doc = ParameterDoc("json", bool, False, "Return JSON; use -o json.", False)
 
-    @cli.command("serve", "Run the service until graceful shutdown.", (config_doc,))
+    @cli.command(
+        "serve",
+        "Run the service until graceful shutdown.",
+        (
+            config_doc,
+            ParameterDoc(
+                "hot_reload", bool, False, "Reload Python changes with one worker.", False
+            ),
+        ),
+    )
     async def serve_command(context: CliContext) -> CliResult:
         """Defer server startup until the command logger and event loop are closed.
 
@@ -85,7 +94,10 @@ def command_group(pending: list[Path]) -> CommandGroup:
         :returns: Empty success after retaining the service configuration path.
         :raises ValueError: If the config parameter is invalid.
         """
-        pending.append(await config_path(context))
+        hot_reload = await context.frame.get("hot_reload", fallback=False)
+        if not isinstance(hot_reload, bool):
+            raise ValueError('hot_reload must be Boolean; use -o hot_reload or "LCL[True]"')
+        pending.append((await config_path(context), hot_reload))
         return CliResult.success("")
 
     @cli.command(

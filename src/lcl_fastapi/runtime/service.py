@@ -46,6 +46,7 @@ def service_runtime(settings: Settings) -> Iterator[dict[str, object]]:
         runtime_path = directory / "runtime.json"
         try:
             (directory / "shutdown.json").unlink(missing_ok=True)
+            (directory / "reload.json").unlink(missing_ok=True)
             token_path.touch()
             private_file(token_path)
             token_path.write_text(secrets.token_urlsafe(32), encoding="ascii")
@@ -59,6 +60,7 @@ def service_runtime(settings: Settings) -> Iterator[dict[str, object]]:
                     cleanup_stale(settings)
                     runtime_path.unlink(missing_ok=True)
                     (directory / "shutdown.json").unlink(missing_ok=True)
+                    (directory / "reload.json").unlink(missing_ok=True)
                     settings.pid_file.unlink(missing_ok=True)
                 token_path.unlink(missing_ok=True)
 
