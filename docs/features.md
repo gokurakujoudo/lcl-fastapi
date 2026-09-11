@@ -13,12 +13,13 @@ claim a successful release or validation on an operating system without a run.
 | Health and offline API documentation | Nonblocking sampled system metrics and bundled Swagger UI resources. |
 | Deployment configuration rendering | Nginx and systemd text output; deterministic renderer and executable guide tests. |
 
-Windows process lifecycle checks have been exercised locally during development.
-Windows and Linux CI exercise the process lifecycle independently. Review the
-[latest development PR checks](https://github.com/gokurakujoudo/lcl-fastapi/pull/2/checks)
-for the exact tested revision and artifacts. The authoritative full gate and
-aggregate 100% production branch coverage remain acceptance conditions, not
-assumptions.
+Windows and Linux CI exercise the process lifecycle independently. The initial
+release's [implementation PR checks](https://github.com/gokurakujoudo/lcl-fastapi/pull/2/checks)
+retain its acceptance evidence; review the
+[quality workflow](https://github.com/gokurakujoudo/lcl-fastapi/actions/workflows/quality.yml)
+for later revisions. The [acceptance plan](development-plan.md) maps each area
+to its maintained reference contract. The authoritative full gate and aggregate
+100% production branch coverage remain requirements for every completed change.
 
 The independently authored [minimal](../examples/minimal/README.md) and
 [composed](../examples/composed/README.md) downstream projects have passed local

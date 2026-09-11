@@ -37,6 +37,12 @@ Snowflake worker number, actual lclang log paths, and observation time. The
 local commands verify both PID and creation time and require the current start's
 identifier. A reused PID or a previous start's state cannot become a live worker.
 
+Runtime JSON, PID files, control tokens, and worker-ID leases coordinate the
+current process lifecycle; they are not persistent business data. Leases assign
+distinct IDs in the configured range to live concurrent workers and reclaim an
+exited worker's ID only after validating its process identity. This coordination
+does not extend upstream Snowflake guarantees across crashes or rapid ID reuse.
+
 ```console
 lcl-fastapi status -o config service.lclcfg -o json
 lcl-fastapi logs -o config service.lclcfg -o json

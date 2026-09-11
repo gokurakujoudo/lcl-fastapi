@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Consolidate the reviewed requirements into existing reference and development
+  documentation, remove the standalone specification, and update source packaging.
 - Fix CI lookup of unpublished GitHub release drafts and add GitHub-only recovery
   using an original successful PyPI run's source commit and tested artifacts.
 - Check HTTP status before parsing readiness responses in the native-worker

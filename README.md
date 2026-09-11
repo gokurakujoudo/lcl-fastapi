@@ -109,6 +109,9 @@ streaming feature.
 
 ## Documentation
 
+The reference pages below own the public contracts. The development plan maps
+those contracts to acceptance requirements; AGENTS.md governs engineering policy.
+
 Two independent downstream projects demonstrate the installed public package:
 [minimal service](examples/minimal/README.md) and
 [composed Router, configuration, and lifespan](examples/composed/README.md).
@@ -124,7 +127,8 @@ commands, and graceful shutdown. The example projects are excluded from the whee
 - [CLI reference](docs/cli.md)
 - [Windows runtime](docs/windows.md) and [Linux runtime](docs/linux.md)
 - [Nginx rendering](docs/nginx.md) and [systemd rendering](docs/systemd.md)
-- [Development plan and acceptance evidence](docs/development-plan.md)
+- [Runtime ownership and state](docs/runtime.md)
+- [Development plan and acceptance requirements](docs/development-plan.md)
 - [Implemented feature inventory](docs/features.md) and [engineering checks](docs/engineering.md)
 
 The Python package is MIT-licensed. Bundled Swagger UI retains its Apache 2.0

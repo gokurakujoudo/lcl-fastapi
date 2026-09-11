@@ -72,7 +72,6 @@ def main() -> None:
         "AGENTS.md",
         "pyproject.toml",
         "PKG-INFO",
-        "lcl-fastapi spec.md",
     }
     forbidden = {"__pycache__", "venv", ".venv", "run", "logs", "reports", ".pytest_cache"}
     for parts in source_names:

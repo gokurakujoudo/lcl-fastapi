@@ -33,6 +33,8 @@ replace a POST route on the same path.
 Overriding `/health`, `/docs`, `/openapi.json`, or `POST /_lcl/shutdown` changes the
 corresponding framework behavior. Replacing shutdown can make `stop` fail. The
 framework does not assert its default endpoint guarantees for user replacements.
+Overriding built-in routes is discouraged unless you understand and accept these
+consequences.
 
 ## Business resources
 
@@ -80,3 +82,17 @@ active worker scope raise `RuntimeError`; do not call it during module import.
 The frame is process-local and follows the worker's async lifespan. Request
 bindings are task-local and reset after completion. Framework request metadata
 does not promise inheritance into detached jobs that outlive their request.
+
+## Offline API documentation
+
+With `docs.enabled: True`, the framework provides a Swagger page at `docs.path`
+and an OpenAPI schema at `docs.openapi_path`, defaulting to `/docs` and
+`/openapi.json`. Its JavaScript, CSS, and favicon are packaged under
+`lcl_fastapi/static/swagger` and served from `/_lcl/static/swagger`. The HTML
+uses local URLs and disables the remote validator, so loading the schema and
+executing requests requires no CDN. ReDoc is not provided.
+
+Setting `docs.enabled: False` removes all framework documentation routes and
+static resources; explicitly registered business routes remain available. The
+internal shutdown operation is excluded from OpenAPI. Both distributions carry
+the bundled assets and their [upstream provenance and licenses](../src/lcl_fastapi/static/swagger/NOTICE.md).

@@ -63,6 +63,16 @@ failure response is cancelled or fails. The framework does not retry, synthesize
 a fallback ID, or change the upstream clock/sequence algorithm. A later request
 can succeed once the upstream generator can issue an ID again.
 
+## Request IDs
+
+Each actual worker owns one `lclang.utils.SnowflakeGenerator` for its lifespan.
+The pure ASGI middleware calls `next_id()` once per HTTP request and uses its
+decimal string as the server ID. On success it binds that ID in the task-local
+`RequestContext`, `request.state.request_id`, and the configured response header
+(default `X-Request-ID`). A client-supplied ID never replaces this value. The
+framework leases concurrent worker IDs but does not implement Snowflake's
+timestamp, sequence, bit composition, clock handling, or locks.
+
 ## Observing active files
 
 ```console
@@ -76,6 +86,6 @@ timestamp, or null without an observation. `stale` identifies a live worker's
 overdue view; exited workers' paths are excluded.
 
 Rollover is eventually consistent: a normal change becomes visible by the next
-`health.sample_interval_seconds` refresh plus the state write. Refresh continues
+`health.sample_interval_seconds` refresh plus metric sampling and the state write. Refresh continues
 when the health endpoint is disabled. Inspecting paths does not stream or read
 log content. Business teardown logs are flushed before worker shutdown finishes.
