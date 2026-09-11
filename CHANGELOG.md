@@ -2,7 +2,8 @@
 
 ## Unreleased
 
-No unreleased changes.
+- Fix CI lookup of unpublished GitHub release drafts and add GitHub-only recovery
+  using an original successful PyPI run's source commit and tested artifacts.
 
 ## 0.1.0 - 2026-09-11
 

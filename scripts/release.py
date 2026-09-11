@@ -83,13 +83,14 @@ def verify_pypi(files: list[Path], version: str) -> None:
 
 
 def read_release(repository: str, version: str) -> dict[str, Any] | None:
-    """Read a release, treating only an explicit GitHub 404 as absence."""
-    result = command(["gh", "api", f"repos/{repository}/releases/tags/{version}"], check=False)
-    if result.returncode and "(HTTP 404)" in result.stderr:
-        return None
+    """Find published releases and drafts across authenticated collection pages."""
+    result = command(["gh", "api", "--paginate", "--slurp", f"repos/{repository}/releases"])
     result.check_returncode()
-    value: dict[str, Any] = json.loads(result.stdout)
-    return value
+    pages: list[list[dict[str, Any]]] = json.loads(result.stdout)
+    matches = [item for page in pages for item in page if item["tag_name"] == version]
+    if len(matches) > 1:
+        raise ValueError("multiple releases claim the selected version")
+    return matches[0] if matches else None
 
 
 def publish_github(root: Path, version: str, notes: str, revision: str) -> None:
