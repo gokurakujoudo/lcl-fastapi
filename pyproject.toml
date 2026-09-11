@@ -45,7 +45,7 @@ dev = [
 packages = ["src/lcl_fastapi"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/tests", "/scripts", "/docs", "/examples", "/README.md", "/LICENSE", "/CHANGELOG.md", "/AGENTS.md", "/pyproject.toml", "/lcl-fastapi spec.md"]
+include = ["/src", "/tests", "/scripts", "/docs", "/examples", "/README.md", "/LICENSE", "/CHANGELOG.md", "/AGENTS.md", "/pyproject.toml"]
 exclude = ["**/__pycache__", "**/*.pyc", "**/.pytest_cache", "**/pytest-cache-files-*", "**/run", "**/logs", "**/.venv", "**/venv"]
 
 [tool.ruff]

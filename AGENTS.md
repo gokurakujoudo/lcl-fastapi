@@ -1,11 +1,11 @@
 # lcl-fastapi project facts
 
-This repository implements the reviewed `lcl-fastapi spec.md`. Development discussions may be Chinese; public documentation and production docstrings are English.
+The maintained reference pages under `docs/` own the reviewed public contracts; `docs/development-plan.md` maps them to implementation and acceptance requirements. Development discussions may be Chinese; public documentation and production docstrings are English.
 
 - Distribution: `lcl-fastapi`; import package: `lcl_fastapi`; production root: `src/lcl_fastapi`.
 - License: MIT. Python metadata requires >=3.14; the initial target validation matrix is CPython 3.14 on Windows and Linux. Future versions are not claimed as tested.
 - Runtime dependencies: lclang==1.0.10, FastAPI >=0.141,<0.142, Uvicorn >=0.52,<0.53, psutil >=7.2,<8, Winloop ==0.6.3 on Windows only, and Gunicorn >=26,<27 on Linux only. Use lclang.cli; argparse, Click and Typer are not allowed.
-- Configuration comes from .lclcfg. The reviewed specification governs actual key names and semantics, including the complete public origin. Use lclang's formal logger settings and Snowflake implementation.
+- Configuration comes from .lclcfg. `docs/configuration.md` governs key names and semantics, including the complete public origin. Use lclang's formal logger settings and Snowflake implementation.
 - Default branch: main; persistent publication branch: release; feature prefix: codex/. The user has authorized reviewing and squash-merging the implementation PR, then publishing the first 0.1.0 release through CI to PyPI and GitHub. Keep main and release; clean up the completed feature branch only after verified publication.
 - This was an empty GitHub repository. An empty main bootstrap commit may establish a PR base. All product changes belong in the implementation PR.
 - Version authority: pyproject.toml; any runtime version uses installed distribution metadata.
