@@ -14,7 +14,7 @@
 
 项目采用 MIT License。本需求说明记录经用户确认的业务契约；工程与交付要求由根 `AGENTS.md` 管理，实施顺序见 `docs/development-plan.md`。这些文件中的要求和计划不得被描述为已经完成的功能。
 
-本次工作范围为实现、测试、文档、独立下游示例和开发 PR。不得合并 PR、推进 release 分支、创建发布标签、发布 PyPI 包或 GitHub Release。
+实现阶段范围为实现、测试、文档、独立下游示例和开发 PR。用户随后已授权审阅并 squash 合并 PR，再通过 CI 发布首个 0.1.0 版本至 PyPI 和 GitHub Release；发布流程见 docs/releasing.md。
 
 ---
 

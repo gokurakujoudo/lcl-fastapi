@@ -19,7 +19,8 @@ semantic requirements.
 The Windows and Linux CI jobs use `python -m scripts.quality --collect-coverage`
 to retain platform measurements without prematurely rejecting genuine paths
 that belong to the other operating system. The dependent job combines both
-datasets and enforces 100% production branch coverage before building artifacts.
+datasets and enforces 100% production branch coverage. The separate artifact
+build can run concurrently, but publication waits for the complete quality gate.
 Subprocess and multiprocessing instrumentation is configured in pyproject.toml;
 normal workers must exit gracefully to preserve their measurements.
 The implementation follows the [coverage process guidance](https://coverage.readthedocs.io/en/latest/subprocess.html).
@@ -38,8 +39,8 @@ Version `0.1.0` is maintained in pyproject.toml. Later releases use PEP 440
 versions with compatibility-aware increments and exact version tags without a
 `v` prefix, following the root release policy.
 
-The current delivery ends at a pull request linked to its implementation issue.
-An empty initial commit supplies the review base in the previously empty
-repository. No merge or publication is authorized by this development delivery.
-Future publication requires a separately requested release and its configured
-Trusted Publishing credentials/environment; no release workflow is active yet.
+Changes are reviewed and squash-merged through a pull request linked to their
+issue. An explicitly requested release advances `release` to the selected
+verified commit on `main`. The [release workflow](releasing.md) repeats the
+complete quality gate, publishes the tested distributions with PyPI Trusted
+Publishing, and creates the matching version tag and GitHub Release.

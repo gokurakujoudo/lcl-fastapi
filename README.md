@@ -6,9 +6,9 @@ Write business routes, a trusted `.lclcfg` file, and an optional business lifesp
 The framework owns worker startup, request IDs, health sampling, local operations,
 and bundled offline Swagger UI.
 
-This is the initial development version. Delivery ends at a pull request for
-review; publishing the package is a separate operation. Install the wheel built
-from this repository rather than assuming that this version is already on PyPI.
+Install the first release with `python -m pip install lcl-fastapi==0.1.0` in a
+Python 3.14 virtual environment. See the [release process](docs/releasing.md)
+for version notes, publication requirements, and artifact verification.
 
 ## Start a service
 

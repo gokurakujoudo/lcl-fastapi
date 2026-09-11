@@ -1,5 +1,10 @@
 # Development plan
 
+This records the original implementation plan. The user subsequently ended
+subagent delegation and authorized review, squash merge, and the first `0.1.0`
+release. That current authorization supersedes the historical PR-only delivery
+and delegation instructions below. See [the release procedure](releasing.md).
+
 This document describes planned work and acceptance evidence. It does not claim
 that any component, check, example, or supported platform is implemented yet.
 The Chinese requirements in [the specification](../lcl-fastapi%20spec.md) own the
