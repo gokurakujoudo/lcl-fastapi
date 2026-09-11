@@ -1,5 +1,9 @@
 # lcl-fastapi
 
+<p align="center">
+  <img src="docs/assets/logo.png" alt="lcl-fastapi logo" width="320">
+</p>
+
 [Documentation](https://gokurakujoudo.github.io/lcl-fastapi/) ·
 [Wiki](https://github.com/gokurakujoudo/lcl-fastapi/wiki) ·
 [PyPI](https://pypi.org/project/lcl-fastapi/) ·
@@ -16,6 +20,10 @@ Python 3.14 virtual environment. See the [release process](docs/releasing.md)
 for version notes, publication requirements, and artifact verification.
 
 ## Start a service
+
+New to the framework? Follow [Build a product catalog service from scratch](docs/build-a-service.md)
+for a complete step-by-step project with configuration, routes, logging, verification,
+and deployment preparation.
 
 Use a Python 3.14+ virtual environment. Install the built artifact with
 `python -m pip install path/to/lcl_fastapi-0.1.0-py3-none-any.whl`. Dependencies must

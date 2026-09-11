@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add the project logo to the README and documentation home page.
+
+- Add a from-scratch product catalog guide with executable source, native service
+  verification, local operations, and deployment preparation.
+
 - Publish searchable MkDocs documentation with the Read the Docs theme on GitHub
   Pages, and add a curated GitHub Wiki entry point and repository homepage.
 

@@ -27,6 +27,7 @@ validation:
 
 nav:
   - Home: index.md
+  - Build a service: build-a-service.md
   - Reference:
       - Application and lifespan: application.md
       - Configuration: configuration.md

@@ -1,5 +1,9 @@
 # lcl-fastapi
 
+<p align="center">
+  <img src="assets/logo.png" alt="lcl-fastapi logo" width="320">
+</p>
+
 **Business routes in. A managed FastAPI service out.**
 
 A lightweight Python framework combining FastAPI with LCL configuration,
@@ -8,6 +12,10 @@ contextual logging, and Snowflake request IDs. Supply your routes, a trusted
 startup, health sampling, local operations, and bundled offline Swagger UI.
 
 ## Start here
+
+Follow [Build a product catalog service from scratch](build-a-service.md) to go
+from an empty directory to a validated API with logs, HTTP checks, and deployment
+configuration.
 
 Install in a Python 3.14 virtual environment:
 
