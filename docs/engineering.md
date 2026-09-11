@@ -1,6 +1,6 @@
 # Engineering and delivery
 
-Read [the root policy](../AGENTS.md), [the implementation plan](development-plan.md),
+Read [the root policy](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/AGENTS.md), [the implementation plan](development-plan.md),
 and [the feature inventory](features.md) before changing public behavior.
 
 ## Responsibility boundaries
@@ -23,6 +23,27 @@ resources. Do not add a second Snowflake algorithm, CLI parser, supervisor,
 authentication subsystem, management service, restart mechanism, or log-stream
 backend. The [development plan](development-plan.md) maps the accepted scope to
 reference pages and behavioral acceptance evidence.
+
+## Documentation website
+
+The [documentation site](https://gokurakujoudo.github.io/lcl-fastapi/) renders
+canonical `docs/` Markdown with MkDocs and its bundled Read the Docs theme.
+The GitHub Wiki provides a curated entry point linking to these maintained pages.
+Keep reference text and executable examples in `docs/`; do not copy them into
+the Wiki. Add published pages to the navigation in `mkdocs.yml`.
+
+Install the documentation tools in your development environment with
+`python -m pip install -e ".[dev,docs]"`. Run
+`python -m pytest -m documentation --no-cov` and
+`python -m mkdocs build --strict` before publishing. Preview locally with
+`python -m mkdocs serve`; generated HTML lives in the ignored `site/` directory.
+Links to repository files outside `docs/` use GitHub URLs so they work both in
+the Markdown source and on the published site.
+
+The Documentation workflow validates examples and builds the site on pull
+requests. On `main`, it publishes the checked site artifact using GitHub Pages
+Actions. The repository's Pages source must be **GitHub Actions**. Site deployment
+does not advance `release`, upload packages, or create a version tag.
 
 ## Quality and artifact verification
 

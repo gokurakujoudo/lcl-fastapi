@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Publish searchable MkDocs documentation with the Read the Docs theme on GitHub
+  Pages, and add a curated GitHub Wiki entry point and repository homepage.
+
 - Consolidate the reviewed requirements into existing reference and development
   documentation, remove the standalone specification, and update source packaging.
 - Fix CI lookup of unpublished GitHub release drafts and add GitHub-only recovery

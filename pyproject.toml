@@ -21,6 +21,7 @@ dependencies = [
 ]
 
 [project.urls]
+Documentation = "https://gokurakujoudo.github.io/lcl-fastapi/"
 Repository = "https://github.com/gokurakujoudo/lcl-fastapi"
 Issues = "https://github.com/gokurakujoudo/lcl-fastapi/issues"
 
@@ -28,6 +29,7 @@ Issues = "https://github.com/gokurakujoudo/lcl-fastapi/issues"
 lcl-fastapi = "lcl_fastapi.cli.main:main"
 
 [project.optional-dependencies]
+docs = ["mkdocs==1.6.1"]
 dev = [
   "build>=1.2,<2",
   "coverage[toml]>=7.10,<8",
@@ -45,7 +47,7 @@ dev = [
 packages = ["src/lcl_fastapi"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/tests", "/scripts", "/docs", "/examples", "/README.md", "/LICENSE", "/CHANGELOG.md", "/AGENTS.md", "/pyproject.toml"]
+include = ["/src", "/tests", "/scripts", "/docs", "/examples", "/README.md", "/LICENSE", "/CHANGELOG.md", "/AGENTS.md", "/pyproject.toml", "/mkdocs.yml"]
 exclude = ["**/__pycache__", "**/*.pyc", "**/.pytest_cache", "**/pytest-cache-files-*", "**/run", "**/logs", "**/.venv", "**/venv"]
 
 [tool.ruff]

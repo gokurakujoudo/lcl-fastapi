@@ -1,7 +1,7 @@
 # Configuration reference
 
 A trusted `.lclcfg` file is the formal configuration source. Framework defaults
-are shipped as [a `.lclcfg` resource](../src/lcl_fastapi/static/defaults.lclcfg)
+are shipped as [a `.lclcfg` resource](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/src/lcl_fastapi/static/defaults.lclcfg)
 and combined using the upstream LCL configuration model. The downstream file
 overrides these defaults. This per-start parsing is not a persistent snapshot or
 a file watcher. Never treat LCL expressions as a hostile-code sandbox.

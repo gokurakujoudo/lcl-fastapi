@@ -1,0 +1,47 @@
+site_name: lcl-fastapi
+site_description: A lightweight LCL-powered FastAPI framework with native Windows and Linux runtimes, request logging, health checks, and offline Swagger UI.
+site_url: https://gokurakujoudo.github.io/lcl-fastapi/
+repo_url: https://github.com/gokurakujoudo/lcl-fastapi
+edit_uri: blob/main/docs/
+copyright: MIT licensed · lcl-fastapi contributors
+
+theme:
+  name: readthedocs
+  navigation_depth: 3
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - toc:
+      permalink: true
+
+validation:
+  nav:
+    omitted_files: warn
+  links:
+    not_found: warn
+    anchors: warn
+    unrecognized_links: warn
+
+nav:
+  - Home: index.md
+  - Reference:
+      - Application and lifespan: application.md
+      - Configuration: configuration.md
+      - Request logging: logging.md
+      - Health and observations: health.md
+      - CLI: cli.md
+  - Operations:
+      - Runtime ownership: runtime.md
+      - Windows: windows.md
+      - Linux: linux.md
+      - Nginx: nginx.md
+      - systemd: systemd.md
+  - Project:
+      - Implemented features: features.md
+      - Engineering: engineering.md
+      - Development plan: development-plan.md
+      - Releases: releasing.md
+  - GitHub Wiki: https://github.com/gokurakujoudo/lcl-fastapi/wiki
