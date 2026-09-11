@@ -1,5 +1,9 @@
 # lcl-fastapi
 
+<p align="center">
+  <img src="docs/assets/logo.png" alt="lcl-fastapi logo" width="320">
+</p>
+
 [Documentation](https://gokurakujoudo.github.io/lcl-fastapi/) ·
 [Wiki](https://github.com/gokurakujoudo/lcl-fastapi/wiki) ·
 [PyPI](https://pypi.org/project/lcl-fastapi/) ·

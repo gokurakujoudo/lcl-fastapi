@@ -1,5 +1,9 @@
 # lcl-fastapi
 
+<p align="center">
+  <img src="assets/logo.png" alt="lcl-fastapi logo" width="320">
+</p>
+
 **Business routes in. A managed FastAPI service out.**
 
 A lightweight Python framework combining FastAPI with LCL configuration,

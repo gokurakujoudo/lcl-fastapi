@@ -4,6 +4,7 @@ import json
 import re
 import subprocess
 import sys
+import sysconfig
 import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -13,7 +14,7 @@ from urllib.request import urlopen
 import pytest
 
 GUIDE = Path(__file__).resolve().parents[1] / "docs" / "build-a-service.md"
-CLI = Path(sys.executable).parent / (
+CLI = Path(sysconfig.get_path("scripts")) / (
     "lcl-fastapi.exe" if sys.platform == "win32" else "lcl-fastapi"
 )
 
