@@ -8,7 +8,24 @@ from pathlib import Path
 
 import pytest
 
-from scripts import release
+from scripts import recover_release, release
+
+
+def test_release_lookup_finds_drafts_missing_from_the_tag_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    draft = {"tag_name": "0.1.0", "draft": True, "id": 123}
+
+    def command(arguments: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
+        if "/releases/tags/" in " ".join(arguments):
+            return subprocess.CompletedProcess(arguments, 1, "", "gh: Not Found (HTTP 404)")
+        assert "--paginate" in arguments and "--slurp" in arguments
+        return subprocess.CompletedProcess(
+            arguments, 0, json.dumps([[{"tag_name": "later"}], [draft]]), ""
+        )
+
+    monkeypatch.setattr(release, "command", command)
+    assert release.read_release("example/repository", "0.1.0") == draft
 
 
 def release_files(tmp_path: Path) -> list[Path]:
@@ -116,14 +133,19 @@ def test_github_publication_resumes_matching_draft_and_checks_assets(
         output = ""
         if arguments[:2] == ["gh", "api"]:
             if not created:
-                return subprocess.CompletedProcess(arguments, 1, "", "gh: Not Found (HTTP 404)")
+                return subprocess.CompletedProcess(arguments, 0, "[[]]", "")
             output = json.dumps(
-                {
-                    "target_commitish": "selected",
-                    "body": "- First release\n",
-                    "draft": True,
-                    "assets": [{"name": name} for name in uploaded],
-                }
+                [
+                    [
+                        {
+                            "tag_name": "0.1.0",
+                            "target_commitish": "selected",
+                            "body": "- First release\n",
+                            "draft": True,
+                            "assets": [{"name": name} for name in uploaded],
+                        }
+                    ]
+                ]
             )
         elif arguments[:3] == ["gh", "release", "create"]:
             created = True
@@ -201,3 +223,90 @@ def test_release_ref_guard_prevents_publication(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(release, "publish_github", lambda *args: pytest.fail("must not publish"))
     with pytest.raises(ValueError, match="release branch"):
         release.main()
+
+
+@pytest.mark.parametrize("invalid", ["id", "branch", "workflow", "status", "pypi", "sha", None])
+def test_recovery_requires_the_original_successful_pypi_run(
+    monkeypatch: pytest.MonkeyPatch, invalid: str | None
+) -> None:
+    revision = "a" * 40
+    run = {
+        "event": "push",
+        "head_branch": "other" if invalid == "branch" else "release",
+        "path": "other" if invalid == "workflow" else ".github/workflows/release.yml",
+        "status": "in_progress" if invalid == "status" else "completed",
+        "head_repository": {"full_name": "example/repository"},
+        "head_sha": "wrong" if invalid == "sha" else revision,
+    }
+
+    def command(arguments: list[str]) -> subprocess.CompletedProcess[str]:
+        if "--is-ancestor" in arguments:
+            assert arguments[-2:] == [revision, "origin/main"]
+            return subprocess.CompletedProcess(arguments, 0, "", "")
+        if "jobs?filter=all" in arguments[-1]:
+            payload: object = [
+                {
+                    "jobs": [
+                        {
+                            "name": "publish-pypi",
+                            "conclusion": "failure" if invalid == "pypi" else "success",
+                        }
+                    ]
+                }
+            ]
+        else:
+            payload = run
+        return subprocess.CompletedProcess(arguments, 0, json.dumps(payload), "")
+
+    monkeypatch.setattr(recover_release, "command", command)
+    if invalid:
+        with pytest.raises(ValueError):
+            recover_release.source_revision(
+                "example/repository", "bad" if invalid == "id" else "123"
+            )
+    else:
+        assert recover_release.source_revision("example/repository", "123") == revision
+
+
+@pytest.mark.parametrize("failure", [False, True])
+def test_recovery_keeps_original_source_and_artifacts_and_cleans_its_checkout(
+    monkeypatch: pytest.MonkeyPatch, failure: bool
+) -> None:
+    revision = "b" * 40
+    actions: list[str] = []
+    monkeypatch.setenv("GITHUB_REF", "refs/heads/main")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "example/repository")
+    monkeypatch.setenv("PUBLICATION_RUN_ID", "123")
+    monkeypatch.setattr(recover_release, "source_revision", lambda *args: revision)
+    monkeypatch.setattr(recover_release, "metadata", lambda *args: ("0.1.0", "- Original notes"))
+    monkeypatch.setattr(recover_release, "verify_source", lambda *args: None)
+
+    def command(arguments: list[str]) -> subprocess.CompletedProcess[str]:
+        if arguments[:3] == ["git", "worktree", "add"]:
+            assert arguments[-1] == revision
+            Path(arguments[-2]).mkdir()
+            actions.append("checkout")
+        elif arguments[:3] == ["gh", "run", "download"]:
+            assert arguments[3] == "123"
+            assert arguments[arguments.index("--name") + 1] == "current-head-distributions"
+            actions.append("download")
+        else:
+            assert arguments[:4] == ["git", "worktree", "remove", "--force"]
+            actions.append("cleanup")
+        return subprocess.CompletedProcess(arguments, 0, "", "")
+
+    def publish(root: Path, version: str, notes: str, selected: str) -> None:
+        assert root == Path.cwd()
+        assert (version, notes, selected) == ("0.1.0", "- Original notes", revision)
+        actions.append("publish-github")
+        if failure:
+            raise RuntimeError("publication failed")
+
+    monkeypatch.setattr(recover_release, "command", command)
+    monkeypatch.setattr(recover_release, "publish_github", publish)
+    if failure:
+        with pytest.raises(RuntimeError, match="publication failed"):
+            recover_release.main()
+    else:
+        recover_release.main()
+    assert actions == ["checkout", "download", "publish-github", "cleanup"]

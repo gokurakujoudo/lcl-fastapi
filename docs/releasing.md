@@ -51,8 +51,20 @@ Inspect the workflow result rather than assuming dispatch means success. If
 PyPI publication succeeds and GitHub publication fails, rerun only failed jobs.
 The GitHub stage accepts an existing matching draft, verifies existing assets,
 and uploads only missing files; it never replaces a published version's bytes.
+Draft lookup uses the authenticated release collection because GitHub's
+release-by-tag endpoint does not return unpublished drafts.
 Do not rerun a successful PyPI upload, enable `skip-existing`, move a released
 tag, or rebuild replacement artifacts for an existing version.
+
+If the failure requires fixing publication tooling, review and merge that fix
+into `main` without advancing `release` for the already-published version.
+Run [Recover GitHub publication](../.github/workflows/recover-release.yml) on
+`main`, supplying the original release workflow's `publication_run_id`. It
+requires a completed release-branch run with a successful PyPI job, checks out
+that run's original source, downloads its retained distribution artifact, and
+executes only the GitHub stage using the corrected tooling. It neither builds
+distributions nor invokes the PyPI uploader. The tag and assets retain the
+original release identity even though recovery tooling comes from newer `main`.
 
 Confirm the PyPI version and hashes, Git tag target, public GitHub Release, and
 attached wheel/source archive all refer to the selected source and artifacts.

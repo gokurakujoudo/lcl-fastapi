@@ -1,0 +1,36 @@
+name: Recover GitHub publication
+
+on:
+  workflow_dispatch:
+    inputs:
+      publication_run_id:
+        description: Original release workflow run with a successful PyPI upload
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: lcl-fastapi-publication
+  cancel-in-progress: false
+
+jobs:
+  recover-github:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Complete only the original GitHub publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLICATION_RUN_ID: ${{ inputs.publication_run_id }}
+        run: python -m scripts.recover_release
