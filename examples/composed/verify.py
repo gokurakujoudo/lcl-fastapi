@@ -9,7 +9,7 @@ import socket
 import subprocess
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from html.parser import HTMLParser
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -133,6 +133,33 @@ def ready(config: Path, process: subprocess.Popen[str]) -> dict[str, Any]:
     raise AssertionError("Two workers did not become ready within 40 seconds")
 
 
+def catalog_responses() -> list[tuple[int, Any, bytes]]:
+    """Exercise both shared-listener workers without assuming OS fairness."""
+    first = http("/api/v1/catalog", **{"X-Request-ID": "client-owned-id"})
+    # Windows AcceptEx can favor the most recent accept queue indefinitely.
+    # Pause the observed worker briefly and exceed libuv's 32 pending accepts;
+    # its sibling must answer before we resume it and validate every response.
+    with ThreadPoolExecutor(max_workers=64) as clients:
+        active = psutil.Process(json.loads(first[2])["pid"])
+        paused = os.name == "nt"
+        if paused:
+            active.suspend()
+        try:
+            requests = [
+                clients.submit(http, "/api/v1/catalog", **{"X-Request-ID": "client-owned-id"})
+                for _ in range(64)
+            ]
+            completed, _ = wait(requests, timeout=3, return_when=FIRST_COMPLETED)
+            assert completed, "A sibling worker must serve while the observed worker is paused"
+            if paused:
+                for request in completed:
+                    assert json.loads(request.result()[2])["pid"] != active.pid
+        finally:
+            if paused:
+                active.resume()
+        return [first, *(request.result() for request in requests)]
+
+
 def check_http(config: Path, state: dict[str, Any]) -> tuple[set[str], list[Path]]:
     runtime = "uvicorn" if os.name == "nt" else "gunicorn"
     service = state["service"]
@@ -154,25 +181,18 @@ def check_http(config: Path, state: dict[str, Any]) -> tuple[set[str], list[Path
     observed: set[int] = set()
     request_ids: set[str] = set()
     deadline = time.monotonic() + 15
-    # Shared listeners do not promise round-robin assignment for serial connections.
-    with ThreadPoolExecutor(max_workers=16) as clients:
-        while time.monotonic() < deadline and (observed != worker_pids or len(request_ids) < 8):
-            requests = [
-                clients.submit(http, "/api/v1/catalog", **{"X-Request-ID": "client-owned-id"})
-                for _ in range(16)
-            ]
-            for request in requests:
-                status, headers, body = request.result()
-                catalog = json.loads(body)
-                assert status == 200 and catalog["items"] == ["notebook", "pencil"]
-                assert catalog["greeting"] == "Welcome, Reader"
-                assert catalog["public_origin"] == "https://catalog.example.com:8443"
-                assert catalog["asgi_root_path"] == ""
-                request_id = headers["X-Request-ID"]
-                assert request_id == catalog["request_id"] and request_id.isdecimal()
-                assert request_id not in request_ids and request_id != "client-owned-id"
-                request_ids.add(request_id)
-                observed.add(catalog["pid"])
+    while time.monotonic() < deadline and (observed != worker_pids or len(request_ids) < 8):
+        for status, headers, body in catalog_responses():
+            catalog = json.loads(body)
+            assert status == 200 and catalog["items"] == ["notebook", "pencil"]
+            assert catalog["greeting"] == "Welcome, Reader"
+            assert catalog["public_origin"] == "https://catalog.example.com:8443"
+            assert catalog["asgi_root_path"] == ""
+            request_id = headers["X-Request-ID"]
+            assert request_id == catalog["request_id"] and request_id.isdecimal()
+            assert request_id not in request_ids and request_id != "client-owned-id"
+            request_ids.add(request_id)
+            observed.add(catalog["pid"])
     assert observed == worker_pids, "Both initialized worker catalogs must be observable"
     assert json.loads(http("/about")[2]) == {"application": "composed-catalog"}
     assert http("/catalog")[0] == 404 and http("/api/v1/about")[0] == 404

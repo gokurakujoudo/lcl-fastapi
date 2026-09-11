@@ -123,6 +123,13 @@ checks successful process exit, resource teardown messages, flushed request logs
 and removal of owned runtime observations and secrets. Failure cleanup uses the
 same private configuration and the public authenticated `stop` command.
 
+On Windows, shared-listener scheduling can favor one worker indefinitely. To
+verify both catalogs, the script briefly pauses the worker observed in the first
+response, opens a bounded burst of independent connections, requires its sibling
+to answer within three seconds, and resumes the paused worker in `finally`.
+Every request must then succeed with a distinct server-generated ID. This is
+controlled test scheduling; the service itself does not pause or balance workers.
+
 Only a successful run on a platform proves its runtime behavior. A Windows pass
 does not substitute for the Linux/Gunicorn CI result.
 

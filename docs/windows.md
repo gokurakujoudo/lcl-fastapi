@@ -19,6 +19,13 @@ The master only binds and shares the listener; it does not run an event loop.
 Real-process tests require idle sampling, crashed-worker replacement, and
 graceful shutdown; the composed example requires both workers to serve HTTP.
 See Uvicorn's [event-loop integration](https://uvicorn.dev/concepts/event-loop/).
+Shared-listener connection assignment follows Windows scheduling; the framework
+does not promise round-robin or evenly distributed requests. A lightly loaded
+service may send all new connections to one worker while its siblings remain
+ready. The composed verifier briefly pauses the observed worker under a bounded
+connection burst, requires a sibling response, resumes it in `finally`, and
+then validates every response. This checks both workers without assuming fair
+assignment by the operating system.
 If worker configuration, application import, or lifespan initialization fails,
 the service stops, preserves the original error diagnostic on stderr, cleans
 its runtime files, and the console command returns a nonzero exit status. A
