@@ -78,7 +78,8 @@ graceful termination, including business teardown and logger flush.
 
 ## Application and deployment boundaries
 
-Windows uses Uvicorn; Linux uses Gunicorn to manage ASGI workers. You run the same
+Windows uses Uvicorn with automatically installed Winloop; Linux uses Gunicorn
+to manage ASGI workers. You run the same
 `lcl-fastapi serve` command on both. Only `127.0.0.1` and `0.0.0.0` are accepted
 listener addresses; the default is loopback. Nginx can provide external HTTPS
 and port forwarding, and systemd is optional. The render commands produce files

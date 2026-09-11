@@ -85,6 +85,7 @@ dependencies = [
     "lclang==1.0.10",
     "fastapi>=0.141,<0.142",
     "uvicorn>=0.52,<0.53",
+    "winloop==0.6.3; sys_platform == 'win32'",
     "psutil>=7.2,<8",
     "gunicorn>=26,<27; sys_platform == 'linux'",
 ]
@@ -353,6 +354,8 @@ Gunicorn 自带的重复 access log 必须默认关闭。
 ## 7.2 Windows
 
 Windows 必须使用 Uvicorn。
+
+Windows worker 通过 Uvicorn 正式支持的 `winloop:new_event_loop` 接口使用 Winloop；该依赖仅在 Windows 自动安装。进程管理与 worker 恢复仍由 Uvicorn 原生 multiprocess manager 负责。验收必须验证两个 worker 均可处理 HTTP、空闲采样持续更新、worker 恢复及优雅关闭。
 
 ```text
 lcl-fastapi serve

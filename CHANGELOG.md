@@ -13,7 +13,7 @@
   process when a forked worker exits and is replaced.
 - Publish worker observations outside the HTTP event loop and wait for active
   writes before releasing worker resources during shutdown.
-- Use native Windows Proactor event loops so every idle worker keeps publishing
+- Use Uvicorn's Winloop integration on Windows so every idle worker keeps publishing
   observations after startup and replacement without new HTTP connections.
 - Add Nginx and systemd configuration renderers that produce files without performing deployment operations.
 - Establish executable documentation, independent downstream examples, and cross-platform engineering checks.

@@ -9,6 +9,7 @@ import socket
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from html.parser import HTMLParser
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -153,18 +154,25 @@ def check_http(config: Path, state: dict[str, Any]) -> tuple[set[str], list[Path
     observed: set[int] = set()
     request_ids: set[str] = set()
     deadline = time.monotonic() + 15
-    while time.monotonic() < deadline and (observed != worker_pids or len(request_ids) < 8):
-        status, headers, body = http("/api/v1/catalog", **{"X-Request-ID": "client-owned-id"})
-        catalog = json.loads(body)
-        assert status == 200 and catalog["items"] == ["notebook", "pencil"]
-        assert catalog["greeting"] == "Welcome, Reader"
-        assert catalog["public_origin"] == "https://catalog.example.com:8443"
-        assert catalog["asgi_root_path"] == ""
-        request_id = headers["X-Request-ID"]
-        assert request_id == catalog["request_id"] and request_id.isdecimal()
-        assert request_id not in request_ids and request_id != "client-owned-id"
-        request_ids.add(request_id)
-        observed.add(catalog["pid"])
+    # Shared listeners do not promise round-robin assignment for serial connections.
+    with ThreadPoolExecutor(max_workers=16) as clients:
+        while time.monotonic() < deadline and (observed != worker_pids or len(request_ids) < 8):
+            requests = [
+                clients.submit(http, "/api/v1/catalog", **{"X-Request-ID": "client-owned-id"})
+                for _ in range(16)
+            ]
+            for request in requests:
+                status, headers, body = request.result()
+                catalog = json.loads(body)
+                assert status == 200 and catalog["items"] == ["notebook", "pencil"]
+                assert catalog["greeting"] == "Welcome, Reader"
+                assert catalog["public_origin"] == "https://catalog.example.com:8443"
+                assert catalog["asgi_root_path"] == ""
+                request_id = headers["X-Request-ID"]
+                assert request_id == catalog["request_id"] and request_id.isdecimal()
+                assert request_id not in request_ids and request_id != "client-owned-id"
+                request_ids.add(request_id)
+                observed.add(catalog["pid"])
     assert observed == worker_pids, "Both initialized worker catalogs must be observable"
     assert json.loads(http("/about")[2]) == {"application": "composed-catalog"}
     assert http("/catalog")[0] == 404 and http("/api/v1/about")[0] == 404
