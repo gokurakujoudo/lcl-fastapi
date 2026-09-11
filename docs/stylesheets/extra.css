@@ -1,0 +1,4 @@
+/* Let documentation fill the space beside the theme's responsive sidebar. */
+.wy-nav-content {
+  max-width: none;
+}

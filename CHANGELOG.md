@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Let documentation use the available browser width beside the navigation sidebar.
+
 - Add the project logo to the README and documentation home page.
 
 - Add a from-scratch product catalog guide with executable source, native service
