@@ -21,8 +21,8 @@ for later revisions. The [acceptance plan](development-plan.md) maps each area
 to its maintained reference contract. The authoritative full gate and aggregate
 100% production branch coverage remain requirements for every completed change.
 
-The independently authored [minimal](../examples/minimal/README.md) and
-[composed](../examples/composed/README.md) downstream projects have passed local
+The independently authored [minimal](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/examples/minimal/README.md) and
+[composed](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/examples/composed/README.md) downstream projects have passed local
 Windows checks against an installed wheel. Four GitHub Actions jobs validate
 both projects on Windows/Uvicorn and Linux/Gunicorn in isolated environments.
 Their full API/CLI and cleanup checks must pass on the final PR head. Both

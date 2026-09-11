@@ -95,4 +95,4 @@ executing requests requires no CDN. ReDoc is not provided.
 Setting `docs.enabled: False` removes all framework documentation routes and
 static resources; explicitly registered business routes remain available. The
 internal shutdown operation is excluded from OpenAPI. Both distributions carry
-the bundled assets and their [upstream provenance and licenses](../src/lcl_fastapi/static/swagger/NOTICE.md).
+the bundled assets and their [upstream provenance and licenses](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/src/lcl_fastapi/static/swagger/NOTICE.md).

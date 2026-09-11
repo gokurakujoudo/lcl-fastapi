@@ -34,7 +34,7 @@ guard and select the resulting commit on `main`. Create `release` at that commit
 for the first publication, or fast-forward it for later versions; never force
 the publication branch or add release-only commits.
 
-The [release workflow](../.github/workflows/release.yml) verifies the changelog
+The [release workflow](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/.github/workflows/release.yml) verifies the changelog
 and `main` ancestry, then invokes the same complete quality workflow. Only
 after all checks pass does the dedicated `pypi` job acquire an OIDC identity and
 publish the tested distributions. The following job compares PyPI SHA-256
@@ -58,7 +58,7 @@ tag, or rebuild replacement artifacts for an existing version.
 
 If the failure requires fixing publication tooling, review and merge that fix
 into `main` without advancing `release` for the already-published version.
-Run [Recover GitHub publication](../.github/workflows/recover-release.yml) on
+Run [Recover GitHub publication](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/.github/workflows/recover-release.yml) on
 `main`, supplying the original release workflow's `publication_run_id`. It
 requires a completed release-branch run with a successful PyPI job, checks out
 that run's original source, downloads its retained distribution artifact, and

@@ -71,6 +71,7 @@ def main() -> None:
         "CHANGELOG.md",
         "AGENTS.md",
         "pyproject.toml",
+        "mkdocs.yml",
         "PKG-INFO",
     }
     forbidden = {"__pycache__", "venv", ".venv", "run", "logs", "reports", ".pytest_cache"}

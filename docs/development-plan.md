@@ -2,14 +2,14 @@
 
 The reviewed requirements are maintained in the existing reference pages below.
 This plan records how to change and verify the project; it is not a second API
-specification or a claim that an unrun check passed. [AGENTS.md](../AGENTS.md)
+specification or a claim that an unrun check passed. [AGENTS.md](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/AGENTS.md)
 owns engineering and delivery policy, and [the feature inventory](features.md)
 describes implemented capability.
 
 ## Scope and responsibility
 
 Deliver a Python 3.14+ MIT distribution named `lcl-fastapi`, imported as
-`lcl_fastapi`. Use the dependency versions in [pyproject.toml](../pyproject.toml)
+`lcl_fastapi`. Use the dependency versions in [pyproject.toml](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/pyproject.toml)
 and the native integrations described in [engineering](engineering.md).
 Downstream applications supply business routes, trusted LCL configuration, and
 an optional async lifespan. The framework supplies application assembly,
@@ -39,7 +39,7 @@ worker supervision remain upstream responsibilities.
 | Deployment rendering | [Nginx](nginx.md), [systemd](systemd.md) | Correct independently configured listener/TLS fields, loopback upstream, shutdown blocking, quoted values, and no installation or system-command side effects. |
 | Packaging and documentation | [Engineering](engineering.md), [release procedure](releasing.md) | Executable canonical examples, valid links, accurate metadata/license/typing/resources, and source/wheel contents without secrets, environments, reports, or downstream projects in the wheel. |
 
-Behavioral test ownership follows these subsystems in [tests](../tests).
+Behavioral test ownership follows these subsystems in [tests](https://github.com/gokurakujoudo/lcl-fastapi/tree/main/tests).
 Requirements establish the acceptance target; the latest revision's actual
 test reports establish compliance.
 
@@ -66,8 +66,8 @@ test reports establish compliance.
 
 ## Downstream and platform acceptance
 
-The [minimal](../examples/minimal/README.md) and
-[composed](../examples/composed/README.md) projects are independent downstream
+The [minimal](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/examples/minimal/README.md) and
+[composed](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/examples/composed/README.md) projects are independent downstream
 applications. The first teaches a small business route and configuration; the
 second composes Router prefixes, business configuration, lifespan, and logging.
 Their instructions must remain sufficient without private implementation

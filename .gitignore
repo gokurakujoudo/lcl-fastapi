@@ -12,6 +12,7 @@ htmlcov/
 reports/
 dist/
 build/
+site/
 run/
 logs/
 *.log

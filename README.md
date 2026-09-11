@@ -1,5 +1,10 @@
 # lcl-fastapi
 
+[Documentation](https://gokurakujoudo.github.io/lcl-fastapi/) ·
+[Wiki](https://github.com/gokurakujoudo/lcl-fastapi/wiki) ·
+[PyPI](https://pypi.org/project/lcl-fastapi/) ·
+[Changelog](CHANGELOG.md)
+
 `lcl-fastapi` is a small Python 3.14+ service framework combining FastAPI with
 `lclang==1.0.10` configuration, logging, CLI infrastructure, and Snowflake IDs.
 Write business routes, a trusted `.lclcfg` file, and an optional business lifespan.
