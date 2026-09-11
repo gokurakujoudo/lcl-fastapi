@@ -1,0 +1,30 @@
+__LCL_VERSION__: 1
+
+server.host: "127.0.0.1"
+server.port: 8080
+server.workers: 1
+server.root_path: ""
+server.backlog: 2048
+server.keep_alive_seconds: 5
+server.graceful_timeout_seconds: 30
+
+runtime.state_dir: "./run"
+runtime.pid_file: f"{runtime.state_dir}/{app.name}.pid"
+runtime.worker_state_dir: f"{runtime.state_dir}/workers"
+
+health.enabled: True
+health.path: "/health"
+health.sample_interval_seconds: 1
+health.disk_paths: [".", logger.file.default.directory]
+
+docs.enabled: True
+docs.path: "/docs"
+docs.openapi_path: "/openapi.json"
+
+request.id_header: "X-Request-ID"
+snowflake.worker_id_base: 0
+snowflake.worker_id_count: 64
+
+logger.file.default.directory: "./logs"
+logger.file.service.filename: f"{app.name}.{worker_pid}.log"
+logger.level: "INFO"

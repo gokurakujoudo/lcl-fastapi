@@ -1,0 +1,1 @@
+"""Independent catalog application package."""
