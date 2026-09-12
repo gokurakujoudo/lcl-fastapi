@@ -1,13 +1,14 @@
 # lcl-fastapi
 
 <p align="center">
-  <img src="docs/assets/logo.png" alt="lcl-fastapi logo" width="320">
+  <img src="https://raw.githubusercontent.com/gokurakujoudo/lcl-fastapi/main/docs/assets/logo.png" alt="lcl-fastapi logo" width="320">
 </p>
 
+[Homepage](https://gokurakujoudo.github.io/lcl-fastapi/) ·
 [Documentation](https://gokurakujoudo.github.io/lcl-fastapi/) ·
 [Wiki](https://github.com/gokurakujoudo/lcl-fastapi/wiki) ·
 [PyPI](https://pypi.org/project/lcl-fastapi/) ·
-[Changelog](CHANGELOG.md)
+[Changelog](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/CHANGELOG.md)
 
 `lcl-fastapi` is a small Python 3.14+ service framework combining FastAPI with
 `lclang==1.0.10` configuration, logging, CLI infrastructure, and Snowflake IDs.
@@ -15,18 +16,18 @@ Write business routes, a trusted `.lclcfg` file, and an optional business lifesp
 The framework owns worker startup, request IDs, health sampling, local operations,
 and bundled offline Swagger UI.
 
-Install the first release with `python -m pip install lcl-fastapi==0.1.0` in a
-Python 3.14 virtual environment. See the [release process](docs/releasing.md)
+Install version 0.1.1 with `python -m pip install lcl-fastapi==0.1.1` in a
+Python 3.14 virtual environment. See the [release process](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/releasing.md)
 for version notes, publication requirements, and artifact verification.
 
 ## Start a service
 
-New to the framework? Follow [Build a product catalog service from scratch](docs/build-a-service.md)
+New to the framework? Follow [Build a product catalog service from scratch](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/build-a-service.md)
 for a complete step-by-step project with configuration, routes, logging, verification,
 and deployment preparation.
 
 Use a Python 3.14+ virtual environment. Install the built artifact with
-`python -m pip install path/to/lcl_fastapi-0.1.0-py3-none-any.whl`. Dependencies must
+`python -m pip install path/to/lcl_fastapi-0.1.1-py3-none-any.whl`. Dependencies must
 also be installed; offline Swagger means that documentation serving does not
 require a CDN after installation.
 
@@ -113,7 +114,7 @@ their original values. Use a complete externally managed restart for consistent
 changes. Development Python reload is available with `serve -o config service.lclcfg
 -o hot_reload`; configure one or more `server.reload_dirs` in the file. Reload forces
 one worker and warns if the configured count is higher. See the
-[runtime contract](docs/runtime.md#development-hot-reload). There is no configuration
+[runtime contract](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/runtime.md#development-hot-reload). There is no configuration
 watching, snapshot distribution, or restart API.
 
 User routes with the same HTTP method and exact path override built-in routes.
@@ -129,24 +130,24 @@ The reference pages below own the public contracts. The development plan maps
 those contracts to acceptance requirements; AGENTS.md governs engineering policy.
 
 Two independent downstream projects demonstrate the installed public package:
-[minimal service](examples/minimal/README.md) and
-[composed Router, configuration, and lifespan](examples/composed/README.md).
+[minimal service](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/examples/minimal/README.md) and
+[composed Router, configuration, and lifespan](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/examples/composed/README.md).
 GitHub Actions builds the current source wheel, then installs that artifact and
 each example in a separate environment on Windows/Uvicorn and Linux/Gunicorn.
 Each run checks service availability, business and built-in HTTP APIs, all CLI
 commands, and graceful shutdown. The example projects are excluded from the wheel.
 
-- [Application and lifespan](docs/application.md)
-- [Configuration](docs/configuration.md)
-- [Request logging](docs/logging.md)
-- [Health and observations](docs/health.md)
-- [CLI reference](docs/cli.md)
-- [Windows runtime](docs/windows.md) and [Linux runtime](docs/linux.md)
-- [Nginx rendering](docs/nginx.md) and [systemd rendering](docs/systemd.md)
-- [Runtime ownership and state](docs/runtime.md)
-- [Development plan and acceptance requirements](docs/development-plan.md)
-- [Implemented feature inventory](docs/features.md) and [engineering checks](docs/engineering.md)
+- [Application and lifespan](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/application.md)
+- [Configuration](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/configuration.md)
+- [Request logging](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/logging.md)
+- [Health and observations](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/health.md)
+- [CLI reference](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/cli.md)
+- [Windows runtime](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/windows.md) and [Linux runtime](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/linux.md)
+- [Nginx rendering](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/nginx.md) and [systemd rendering](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/systemd.md)
+- [Runtime ownership and state](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/runtime.md)
+- [Development plan and acceptance requirements](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/development-plan.md)
+- [Implemented feature inventory](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/features.md) and [engineering checks](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/engineering.md)
 
 The Python package is MIT-licensed. Bundled Swagger UI retains its Apache 2.0
 license and third-party notices; see
-[asset provenance](src/lcl_fastapi/static/swagger/NOTICE.md).
+[asset provenance](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/src/lcl_fastapi/static/swagger/NOTICE.md).

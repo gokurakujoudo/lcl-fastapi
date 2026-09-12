@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 0.1.1 - 2026-09-12
+
+- Make README links and the logo absolute for PyPI, add the project homepage
+  metadata, and update installation examples for 0.1.1.
+
 - Add `serve -o hot_reload` with configurable recursive Python watch directories,
   one effective worker with a warning, and graceful native worker replacement.
 
