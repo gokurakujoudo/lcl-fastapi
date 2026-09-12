@@ -57,6 +57,9 @@ def test_effective_workers_and_warning(
     source: Path, workers: int, enabled: bool, capsys: pytest.CaptureFixture[str]
 ) -> None:
     source.write_text(CONFIG + f"server.workers: {workers}\n", encoding="utf-8")
+    (source.parent / "app.py").write_text(
+        "from lcl_fastapi import LclFastAPI\nservice = LclFastAPI()\n"
+    )
     original = source.read_bytes()
     settings = asyncio.run(startup_settings(source, enabled))
     assert settings.workers == (1 if enabled else workers)
@@ -111,11 +114,14 @@ def test_retirement_coalesces_changes_and_waits_for_replacement(
     second = first | {"pid": 101}
     workers = [first]
     live = True
+    events: list[str] = []
+    monkeypatch.setattr(reload, "controller_event", events.append)
     monkeypatch.setattr(reload, "live_workers", lambda directory, identity: workers)
     monkeypatch.setattr(reload, "is_live", lambda identity: live)
     watcher.changes = batches(watcher, False, True, True, False, False)
     watcher.tick()
     assert watcher.retiring is None
+    assert events == ["hot-reload watcher ready"]
     watcher.tick()
     assert read_state(watcher.settings.state_dir / "reload.json") == first
     watcher.tick()
@@ -128,6 +134,7 @@ def test_retirement_coalesces_changes_and_waits_for_replacement(
     watcher.tick()
     assert not watcher.pending and watcher.retiring == second
     assert read_state(watcher.settings.state_dir / "reload.json") == second
+    assert events.count("hot-reload watcher ready") == 1
 
 
 def test_shutdown_and_fork_ownership(
@@ -224,9 +231,14 @@ def test_gunicorn_watch_adapter_preserves_signals_and_cleanup(
             self.spawn_worker: Callable[[], object] = lambda: None
             self.wait_for_signals = native_wait
             self.stop = lambda graceful: events.append(f"stop {graceful}")
+            self.reap_workers: Callable[[], None] = lambda: None
+            self.kill_workers: Callable[[int], None] = lambda sig: None
 
         def run(self) -> None:
             assert self.spawn_worker() is None
+            self.reap_workers()
+            self.kill_workers(9)
+            self.kill_workers(signal.SIGTERM)
             assert self.wait_for_signals(timeout=1.0) == signals
 
     runner = Runner()

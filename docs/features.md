@@ -6,6 +6,9 @@ claim a successful release or validation on an operating system without a run.
 
 | Capability | Contract and evidence |
 | --- | --- |
+| Managed background workers | Code-only callables on dedicated threads/loops, service bridges, restart/shutdown, dedicated logs and controller events; unit and native-process tests. |
+| Uncaught HTTP exceptions | Typed custom callbacks, default detailed argument tracebacks and generic 500 fallback; response, precedence, streaming and diagnostic-failure tests. |
+| Scoped configuration Frames | `use_lcl_frame()` derives and owns nested task-local Frames; behavioral tests verify inheritance, restoration, concurrency and cancellation. |
 | LCL configuration and typed application | Native using inheritance with portable bundled defaults and lazy CLI precedence; Router/lifespan composition; application behavior tests. |
 | Request context and logs | Server-generated lclang Snowflake IDs, response headers, isolated context, and separate controller/worker upstream logging with lifecycle observations. Upstream clock/sequence failures return 503 without an ID and record one failure access log. |
 | Windows and Linux service runtimes | Uvicorn with Winloop and Gunicorn respectively; real-process tests run separately on each platform. |

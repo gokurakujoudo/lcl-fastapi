@@ -8,8 +8,16 @@ from starlette.types import ASGIApp
 
 from lcl_fastapi.config import Settings
 from lcl_fastapi.runtime.application import load_application
-from lcl_fastapi.runtime.controller import controller_fork, controller_tick
+from lcl_fastapi.runtime.controller import (
+    controller_background_tick,
+    controller_fork,
+    controller_retiring,
+    controller_tick,
+)
 from lcl_fastapi.runtime.reload import ReloadWatcher
+
+# Linux/POSIX SIGKILL number; this Linux adapter is type-checked on Windows as well.
+FORCED_TERMINATION_SIGNAL = 9
 
 
 class GunicornConfiguration(Protocol):
@@ -35,6 +43,10 @@ class GunicornRunner(Protocol):
     """Gunicorn 26's signal-queue wait boundary, wrapped for bounded watch polling."""
     stop: Callable[[bool], None]
     """Native worker shutdown accepting whether to drain requests gracefully."""
+    reap_workers: Callable[[], None]
+    """Native reap boundary, also called during graceful shutdown waiting."""
+    kill_workers: Callable[[int], None]
+    """Native signaling boundary, including its final SIGKILL sweep."""
 
 
 class NativeLifespan(Protocol):
@@ -142,6 +154,28 @@ def run_linux(settings: Settings, identity: dict[str, object], hot_reload: bool 
     watcher = ReloadWatcher(settings, identity) if hot_reload else None
     native_wait = arbiter.wait_for_signals
     native_spawn = arbiter.spawn_worker
+    native_reap, native_kill = arbiter.reap_workers, arbiter.kill_workers
+
+    def reap_workers() -> None:
+        """Keep controller deadlines active while the native manager waits for exit.
+
+        :raises OSError: If journal inspection fails.
+        """
+        controller_background_tick()
+        native_reap()
+
+    def kill_workers(sig: int) -> None:
+        """Record background timeout failures before the native final kill sweep.
+
+        :param sig: Signal selected by Gunicorn's native lifecycle.
+        :raises OSError: If journal inspection fails.
+        """
+        if sig != FORCED_TERMINATION_SIGNAL:
+            controller_retiring()
+        controller_background_tick(force_kill=sig == FORCED_TERMINATION_SIGNAL)
+        native_kill(sig)
+
+    arbiter.reap_workers, arbiter.kill_workers = reap_workers, kill_workers
 
     def spawn_worker() -> object:
         """Keep logger resources out of native worker forks.

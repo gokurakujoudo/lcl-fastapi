@@ -9,7 +9,7 @@ import psutil
 from watchfiles import Change, watch
 
 from lcl_fastapi.config import Settings
-from lcl_fastapi.runtime.controller import controller_event
+from lcl_fastapi.runtime.controller import controller_event, controller_retiring
 from lcl_fastapi.runtime.service import shutdown_requested
 from lcl_fastapi.runtime.state import atomic_write, is_live, live_workers
 
@@ -40,6 +40,7 @@ class ReloadWatcher:
         self.identity = identity
         self.owner = os.getpid()
         self.pending = False
+        self.started = False
         self.retiring: dict[str, object] | None = None
         self.changes: Generator[set[tuple[Change, str]]] = watch(
             *settings.reload_dirs,
@@ -81,8 +82,12 @@ class ReloadWatcher:
         if os.getpid() != self.owner or shutdown_requested(self.settings.state_dir, self.identity):
             return
         try:
+            changes = next(self.changes)
+            if not self.started:
+                controller_event("hot-reload watcher ready")
+                self.started = True
             self.pending |= any(
-                self.accept_change(change, filename) for change, filename in next(self.changes)
+                self.accept_change(change, filename) for change, filename in changes
             )
         except StopIteration as error:
             raise RuntimeError("hot reload watcher stopped unexpectedly") from error
@@ -94,6 +99,7 @@ class ReloadWatcher:
         self.retiring = None
         if self.pending and not shutdown_requested(self.settings.state_dir, self.identity):
             worker = workers[0]
+            controller_retiring(worker)
             if self.identity["runtime"] == "uvicorn":
                 atomic_write(self.settings.state_dir / "reload.json", worker)
             else:

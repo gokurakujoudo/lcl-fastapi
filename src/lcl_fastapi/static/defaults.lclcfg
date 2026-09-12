@@ -6,6 +6,9 @@ output: None
 server.host: "127.0.0.1"
 server.port: 8080
 server.workers: 1
+
+background_worker.default.enabled: True
+background_worker.default.auto_restart: True
 server.reload_dirs: ["."]
 server.root_path: ""
 server.backlog: 2048

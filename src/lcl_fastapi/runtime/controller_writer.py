@@ -56,6 +56,27 @@ class ControllerWriter:
             raise RuntimeError("controller logger is not active")
         self.runner.run(write_events(events))
 
+    def emit_records(self, events: list[tuple[int, str]]) -> None:
+        """Queue severity-preserving background events inside the controller scope.
+
+        :param events: Logging levels and lifecycle messages from API journals.
+        :raises RuntimeError: If the writer is suspended or closed.
+        """
+        if self.runner is None:
+            raise RuntimeError("controller logger is not active")
+        self.runner.run(write_records(events))
+
+
+async def write_records(events: list[tuple[int, str]]) -> None:
+    """Emit background lifecycle records to the controller's own file sinks.
+
+    :param events: Ordered logging levels and messages without HTTP request context.
+    :raises RuntimeError: If the controller's logging scope is unavailable.
+    """
+    logger = await use_logger(name="lcl_fastapi.controller")
+    for level, message in events:
+        logger.log(level, message, extra={FILE_ONLY_ATTRIBUTE: True})
+
 
 async def write_events(events: list[str]) -> None:
     """Queue file-only controller records for the persistent upstream writer.

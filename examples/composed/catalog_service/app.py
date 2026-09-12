@@ -6,7 +6,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, Request
 
-from lcl_fastapi import LclFastAPI, get_config, get_logger, get_request_context
+from catalog_service.errors import catalog_error
+from catalog_service.workers import heartbeat, inventory_once
+from lcl_fastapi import LclFastAPI, get_config, get_logger, get_request_context, use_lcl_frame
 
 
 @asynccontextmanager
@@ -30,7 +32,11 @@ async def catalog_lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info(f"catalog shutdown pid={os.getpid()} items={len(app.state.catalog)}")
 
 
-service = LclFastAPI(lifespan=catalog_lifespan)
+service = LclFastAPI(
+    lifespan=catalog_lifespan,
+    uncaught_exception_handler=catalog_error,
+    background_workers={"inventory": inventory_once, "heartbeat": heartbeat},
+)
 router = APIRouter()
 
 
@@ -64,6 +70,34 @@ async def about() -> dict[str, str]:
     :returns: A stable business application name.
     """
     return {"application": "composed-catalog"}
+
+
+@router.get("/scope")
+async def scoped_configuration() -> dict[str, object]:
+    """Demonstrate nested local configuration without changing runtime bindings.
+
+    :returns: Original, local and restored names.
+    """
+    original = await get_config("business.name")
+    async with use_lcl_frame(values={"business.name": "Scoped Reader"}) as frame:
+        assert await frame.get("business.name") == "Scoped Reader"
+        async with use_lcl_frame(values={"business.name": "Nested Reader"}):
+            assert await get_config("business.name") == "Nested Reader"
+        local = await get_config("business.name")
+        assert local == "Scoped Reader"
+    assert await get_config("business.name") == original
+    return {"original": original, "local": local, "restored": await get_config("business.name")}
+
+
+@router.get("/errors/{mode}")
+async def error_example(mode: str, quantity: int = 3) -> None:
+    """Raise a controlled error to exercise each callback path.
+
+    :param mode: default, custom or callback demonstration path.
+    :param quantity: Example argument included in the original traceback log.
+    :raises ValueError: Deliberate demonstration failure.
+    """
+    raise ValueError(f"demonstration route failure: {mode}, quantity={quantity}")
 
 
 service.include_router(router, prefix="/api/v1")

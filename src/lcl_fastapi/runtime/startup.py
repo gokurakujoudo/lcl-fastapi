@@ -6,6 +6,7 @@ from pathlib import Path
 from lclang.logger import LoggerHandlerConfig, use_logger, use_logger_handler
 
 from lcl_fastapi.config import Settings, load_settings
+from lcl_fastapi.runtime.probe import has_background_workers
 
 
 async def startup_settings(path: Path, hot_reload: bool) -> Settings:
@@ -17,15 +18,17 @@ async def startup_settings(path: Path, hot_reload: bool) -> Settings:
     :raises ValueError: If configuration is invalid.
     :raises OSError: If configuration cannot be read.
     :raises LclError: If LCL evaluation or logger initialization fails.
+    :raises RuntimeError: If disposable application registration probing fails.
+    :raises OSError: If the registration interpreter cannot be started.
     """
     settings = await load_settings(path)
-    if not hot_reload:
-        return settings
-    if settings.workers > 1:
+    if settings.workers > 1 and (hot_reload or await has_background_workers(path)):
         async with use_logger_handler(LoggerHandlerConfig(console={"stream": "stderr"}, file={})):
             logger = await use_logger(name="lcl_fastapi")
             logger.warning(
-                "hot_reload enabled: server.workers=%s has been forced to 1",
+                "%s enabled: server.workers=%s has been forced to 1",
+                "hot_reload" if hot_reload else "background_workers",
                 settings.workers,
             )
-    return replace(settings, workers=1)
+        return replace(settings, workers=1)
+    return settings

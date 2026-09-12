@@ -32,6 +32,9 @@ docs.enabled: False
 
 
 class ObservedRuntime:
+    directory: Path
+    identity: dict[str, object]
+    service: dict[str, object]
     worker_id = 3
     control_token = "test-secret"
 

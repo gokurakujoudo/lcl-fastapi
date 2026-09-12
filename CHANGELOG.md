@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## 0.3.0 - 2026-09-12
+
+- Fix review-discovered lifecycle races: drain submitted API Tasks through their
+  cancellation cleanup before worker restart or business teardown; supervise
+  runtime journal failure and enforce independent controller retirement deadlines.
+  Preserve configured Exception/500 handlers even in debug mode.
+
+- Add code-registered background workers with dedicated threads/event loops,
+  nested configuration scopes, explicit service-resource bridges, restart controls,
+  controller lifecycle events, isolated log files and status/health observations.
+  Background registration forces one API worker; shutdown timeout terminates that
+  process. Extend the composed example and verifier with finite and cooperative tasks.
+
+- Add configurable uncaught HTTP exception callbacks, original traceback argument
+  diagnostics and resilient JSON 500 fallback; document and demonstrate default,
+  custom and callback-failure responses in the composed example.
+
+- Add `use_lcl_frame()` with nested task-local configuration scopes, native Frame
+  inheritance, and cleanup on exceptions and cancellation; demonstrate it in the
+  composed catalog example and installed-wheel verifier.
+
 ## 0.2.0 - 2026-09-12
 
 - Replace the README and documentation logo with the updated project artwork.

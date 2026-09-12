@@ -25,6 +25,9 @@ worker supervision remain upstream responsibilities.
 
 | Area | Maintained contract | Required evidence |
 | --- | --- | --- |
+| Background workers | [Background workers](background-workers.md) | Code-only registration, one API worker, independent Frames/loops, resource bridges, cancellation-cleanup barriers before restart/teardown, runtime journal fault supervision, independent retirement deadlines and native reload. |
+| Uncaught HTTP errors | [Application](application.md#uncaught-http-exceptions), [logging](logging.md#uncaught-exception-diagnostics) | Original traceback arguments, callback precedence/fallback including native generic handlers in debug mode, response IDs, streaming and cancellation. |
+| Scoped configuration | [Application](application.md#scoped-lcl-frames) | Derived Frame ownership, nested lookup restoration, concurrency isolation, cancellation and parent caching. |
 | Application and resource scopes | [Application](application.md) | Native decorators and Routers, business configuration and lifespan, startup failure/cancellation cleanup, and import without runtime side effects. |
 | Route precedence and origin | [Application](application.md), [configuration](configuration.md) | Exact method/path business overrides work both directly and through Routers. Origin validation does not change routes, ASGI root paths, or listener ports. |
 | LCL configuration | [Configuration](configuration.md) | Native using with bundled defaults, command-line precedence through worker replacement, config-relative paths, framework-owned worker PID, supported IPv4 binds, and LCL environment expressions for non-overlapping machine ID ranges. |

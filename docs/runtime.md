@@ -10,6 +10,8 @@ On [Windows](windows.md), Uvicorn owns worker creation and recovery. On
 [Linux](linux.md), Gunicorn's native ASGI worker and arbiter own them. A worker
 loads the current configuration and creates its own Frame, logger, Snowflake
 generator, and application lifespan. The framework does not add a supervisor.
+Code-registered background threads are managed inside that API lifespan, without
+another API process supervisor; see [background workers](background-workers.md).
 The configuration file's directory is available on each worker's Python import
 path, so an adjacent `app.py` can be the target `app:service` even when the
 installed console command is invoked from a different working directory.
@@ -37,6 +39,10 @@ for filename patterns and the observation consistency contract.
 One master-owned iterator groups editor changes and is advanced from the native
 process manager loop. Native automatic reload watchers remain disabled, so imported
 modules outside the selected roots cannot trigger a reload.
+
+The controller records `hot-reload watcher ready` after the first native watch
+poll initializes filesystem monitoring. API startup can finish before this poll;
+automation that immediately edits source should wait for that controller event.
 
 Each change batch gracefully retires the current worker. Uvicorn or Gunicorn owns
 its replacement; the master PID, listener, service-start identity, and control token
@@ -126,8 +132,15 @@ launch-time listener information from that state. A later port edit does not
 redirect stop to another service. If the state directory changes, use a
 configuration that still locates the original state to manage the old service.
 
-Business lifespan exits before framework logging is flushed and closed. Normal
-worker cleanup removes its observation and lease. Kernel file locks release
+Business lifespan exits before framework logging is flushed and closed.
+Background retirement finishes before that business teardown. A noncooperative
+background thread causes controller-logged termination of the entire API process
+after the graceful deadline; forced termination cannot guarantee cleanup.
+Retirement deadlines are armed by the controller before native stop/reload and
+do not rely on the API journal remaining writable. Actual submitted API Tasks,
+including asynchronous cancellation cleanup, settle before background attempts
+finish and before business resources close.
+Normal worker cleanup removes its observation and lease. Kernel file locks release
 after a process crash; the next allocation can reclaim a lease only after its
 old process identity is no longer live. Master exit removes abandoned worker
 state and leases, its PID/state files, and its control token. Lock files remain

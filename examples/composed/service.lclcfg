@@ -5,6 +5,11 @@ app.target: "catalog_service.app:service"
 server.host: "127.0.0.1"
 server.port: 18082
 server.workers: 2
+
+background_worker.inventory.auto_restart: False
+background_worker.heartbeat.schedule.seconds: 0.5
+logger.file.inventory.filename: f"{app.name}.inventory.{worker_pid}.log"
+logger.file.heartbeat.filename: f"{app.name}.heartbeat.{worker_pid}.log"
 server.root_path: "https://catalog.example.com:8443"
 server.graceful_timeout_seconds: 30
 runtime.state_dir: "./run"

@@ -20,7 +20,7 @@ configuration.
 Install in a Python 3.14 virtual environment:
 
 ```console
-python -m pip install lcl-fastapi==0.2.0
+python -m pip install lcl-fastapi==0.3.0
 ```
 
 Follow the [quick start](https://github.com/gokurakujoudo/lcl-fastapi#start-a-service)
@@ -34,6 +34,7 @@ with Routers, business configuration, and lifespan resources.
 | Your next step | Read |
 | --- | --- |
 | Compose routes and own startup resources | [Application and lifespan](application.md) |
+| Run managed work outside the API loop | [Background workers](background-workers.md) |
 | Configure the service and public origin | [Configuration](configuration.md) |
 | Trace requests through business logs | [Request logging](logging.md) |
 | Inspect service and worker observations | [Health](health.md) and [CLI](cli.md) |
