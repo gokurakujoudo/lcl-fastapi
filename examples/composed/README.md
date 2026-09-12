@@ -6,7 +6,9 @@ documented `lcl_fastapi` and FastAPI APIs. Install the built framework wheel and
 this package into the example's own `.venv`; no framework source path is needed.
 
 Use CPython 3.14 on Windows or Linux. The server listens on `127.0.0.1:18082`
-with two workers: native Uvicorn on Windows and native Gunicorn ASGI on Linux.
+with one effective API worker and two background threads: native Uvicorn on Windows
+and native Gunicorn ASGI on Linux. The file deliberately requests two API workers;
+the registered background callables produce one warning and force the count to one.
 Run one example service at a time because the framework's supported deployment
 scope is one service per machine.
 
@@ -28,8 +30,9 @@ python3.14 -m venv .venv
 .venv/bin/lcl-fastapi serve -o config service.lclcfg
 ```
 
-The wheel must already have been built from the framework repository; these
-commands do not assume that development version `0.2.0` is published to PyPI.
+The wheel must have been built from this feature branch. The new APIs are Unreleased
+and are not in the existing PyPI 0.2.0 package; the development wheel retains that
+metadata version until a separately requested release preparation.
 The application is installed as `lcl-fastapi-composed-example`, importing
 `catalog_service`. When copying this project elsewhere, replace the wheel path
 with its actual location. Dependencies require package-index access or an
@@ -65,6 +68,35 @@ Its response ID matches the `X-Request-ID` header and the corresponding business
 and access logs. Client-supplied IDs are replaced by server-generated IDs.
 Do not edit `.lclcfg` during a running service: stop and start the complete
 service to avoid workers retaining different configuration values.
+
+## Background tasks
+
+`catalog_service/workers.py` registers the asynchronous `inventory` finite task and
+the synchronous `heartbeat` loop from application code. Inventory uses
+`submit_to_service()` to read the initialized catalog on the API loop and demonstrates
+nested local Frames. Its `auto_restart: False` makes normal completion final.
+Heartbeat reads `background_worker.heartbeat.schedule.seconds` through `context.run`
+and waits on `stop_event`, so it exits before catalog teardown.
+
+Both inherit `background_worker.default.enabled: True` and default restart policy
+unless overridden. To observe normal repeated task completion, set inventory's
+auto_restart to True before starting the service. Every return then waits one second
+before restart; controller events show INFO for normal completion/restart. Exceptions
+use ERROR followed by WARNING for restart, with details in the task file. Application
+code controls the executable; `.lclcfg` only controls parameters and policy.
+
+Run `status` to see inventory `completed` with one attempt and heartbeat `running`.
+`logs` reports three files: API, inventory and heartbeat. Background files contain
+their own messages without HTTP request IDs. Their filenames and native rotation
+settings are controlled by `logger.file.inventory` and `logger.file.heartbeat`.
+
+Callables must cooperate with stopping. If one cannot exit within the graceful
+deadline, the controller logs the failure and terminates the entire API process;
+business teardown and buffered API/background logs cannot then be guaranteed.
+Normal stop prevents restart; development reload replaces the retired API process.
+Do not use loop-bound API resources directly from the worker thread. Await all
+submitted service operations; keep those callbacks nonblocking and never make them
+wait synchronously for the background thread.
 
 ## Local operations
 
@@ -133,7 +165,7 @@ local child processes. It installs nothing and never deploys renderer output.
 The verifier copies the exact service configuration into a fresh temporary
 directory whose name contains spaces and launches from its parent directory.
 The business target resolves from the installed downstream package. It checks
-two real workers, master process identity, both worker catalogs, LCL values,
+one real API worker, two managed background tasks, master identity, catalog state, LCL values,
 route prefixes, local documentation assets, OpenAPI, server IDs, wrong/missing
 shutdown-token rejection, JSON/plain status and logs, and complete Nginx/systemd
 render output in both stdout and explicit-file forms. After normal `stop`, it

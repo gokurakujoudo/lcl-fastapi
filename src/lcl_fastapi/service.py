@@ -3,7 +3,7 @@
 import asyncio
 import os
 import secrets
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -16,6 +16,11 @@ from starlette.middleware.errors import ServerErrorMiddleware
 from starlette.responses import Response
 from starlette.types import ASGIApp, Lifespan, Receive, Scope, Send
 
+from lcl_fastapi.background.config import worker_policies, worker_registry
+from lcl_fastapi.background.context import BackgroundWorker
+from lcl_fastapi.background.journal import BackgroundJournal
+from lcl_fastapi.background.logging import background_log_config, background_log_routing
+from lcl_fastapi.background.manager import BackgroundManager
 from lcl_fastapi.config import configuration_frame, settings_from_frame
 from lcl_fastapi.context import CONFIG_FRAME, get_request_context
 from lcl_fastapi.docs.swagger import register_documentation
@@ -41,6 +46,7 @@ class LclFastAPI(FastAPI):
     :param lifespan: Optional business lifespan following FastAPI's convention.
     :param config_path: Optional path to the formal LCL file; CLI supplies it internally.
     :param uncaught_exception_handler: Optional asynchronous unhandled HTTP error callback.
+    :param background_workers: Code-registered synchronous or asynchronous background callables.
     :param kwargs: Native FastAPI business options except framework-owned docs and root_path.
     """
 
@@ -50,6 +56,7 @@ class LclFastAPI(FastAPI):
         lifespan: Lifespan[FastAPI] | None = None,
         config_path: str | Path | None = None,
         uncaught_exception_handler: UncaughtExceptionHandler | None = None,
+        background_workers: Mapping[str, BackgroundWorker] | None = None,
         **kwargs: Any,
     ) -> None:
         """Create an application without opening files or runtime resources.
@@ -57,6 +64,7 @@ class LclFastAPI(FastAPI):
         :param lifespan: Optional business initialization and teardown context.
         :param config_path: Formal configuration source path, when explicitly supplied.
         :param uncaught_exception_handler: Optional unhandled HTTP failure callback.
+        :param background_workers: Code-only registration of managed background workers.
         :param kwargs: Native FastAPI business configuration.
         :raises ValueError: If framework-owned URL settings are passed to the constructor.
         """
@@ -66,6 +74,8 @@ class LclFastAPI(FastAPI):
         self.config_path = None if config_path is None else Path(config_path)
         self.business_lifespan = lifespan
         self.uncaught_exception_handler = uncaught_exception_handler
+        self.background_workers = worker_registry(background_workers)
+        self.background_manager: BackgroundManager | None = None
         self.worker_requests: RequestRuntime | None = None
         self.worker_identity: WorkerRuntime | None = None
         self.health_sampler: HealthSampler | None = None
@@ -151,7 +161,12 @@ class LclFastAPI(FastAPI):
             raise RuntimeError("health requires an initialized worker")
         return {
             "status": "UP",
-            "service": self.worker_identity.service_info(),
+            "service": self.worker_identity.service_info()
+            | (
+                {"background_workers": self.background_manager.snapshot()}
+                if self.background_manager is not None
+                else {}
+            ),
             "server": self.health_sampler.snapshot(),
         }
 
@@ -195,11 +210,17 @@ class LclFastAPI(FastAPI):
             frame_token = CONFIG_FRAME.set(frame)
             stack.callback(CONFIG_FRAME.reset, frame_token)
             settings = await settings_from_frame(frame, config_path)
+            policies = await worker_policies(frame, self.background_workers)
             logger_config = resolve_log_directories(
                 await resolve_logger_config(frame),
                 config_path.parent,
             )
+            logger_config = background_log_config(
+                logger_config, policies, settings.app_name, os.getpid()
+            )
+            logger_config = resolve_log_directories(logger_config, config_path.parent)
             logger_runtime = await stack.enter_async_context(use_logger_handler(logger_config))
+            stack.enter_context(background_log_routing(logger_runtime, bool(policies)))
             stack.enter_context(suppress_server_access_logs())
             runtime = stack.enter_context(worker_runtime(settings))
             logger = await get_logger("lcl_fastapi")
@@ -216,6 +237,8 @@ class LclFastAPI(FastAPI):
 
                 :param observed_at: Collection time in Unix seconds.
                 """
+                if self.background_manager is not None:
+                    runtime.background_workers = self.background_manager.snapshot()
                 runtime.publish(active_log_paths(logger_runtime), observed_at)
 
             self.health_sampler = HealthSampler(
@@ -245,12 +268,33 @@ class LclFastAPI(FastAPI):
                         )
                 register_documentation(self, settings)
                 self.openapi_schema = None
-                if self.business_lifespan is None:
-                    yield None
-                else:
-                    async with self.business_lifespan(app) as state:
-                        yield state
+                async with AsyncExitStack() as business:
+                    state = None
+                    if self.business_lifespan is not None:
+                        state = await business.enter_async_context(self.business_lifespan(app))
+                    if self.background_workers:
+                        if int(str(runtime.service["configured_workers"])) != 1:
+                            raise RuntimeError(
+                                "background workers require one effective API worker"
+                            )
+                        journal = BackgroundJournal(
+                            runtime.directory,
+                            runtime.identity | {"service_id": runtime.service["service_id"]},
+                        )
+                        self.background_manager = BackgroundManager(
+                            self.background_workers,
+                            policies,
+                            app,
+                            state,
+                            config_path,
+                            journal,
+                            settings.graceful_timeout_seconds,
+                        )
+                        business.push_async_callback(self.background_manager.stop)
+                        await self.background_manager.start()
+                    yield state
             finally:
+                self.background_manager = None
                 self.worker_requests = None
                 self.worker_identity = None
                 self.router.routes[:] = original_routes

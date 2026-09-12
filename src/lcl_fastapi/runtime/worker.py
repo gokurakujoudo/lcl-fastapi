@@ -6,7 +6,7 @@ import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import MethodType
 
@@ -34,6 +34,7 @@ class WorkerRuntime:
     :param identity: Actual worker process identity.
     :param control_token: Secret shared by workers of this complete start.
     :param directory: Master state directory, unaffected by worker config changes.
+    :param background_workers: Detached background thread observations, updated before publication.
     """
 
     worker_id: int
@@ -42,6 +43,7 @@ class WorkerRuntime:
     identity: dict[str, object]
     control_token: str
     directory: Path
+    background_workers: dict[str, object] = field(default_factory=dict)
 
     def service_info(self) -> dict[str, object]:
         """Read verified sibling identities for a public health snapshot.
@@ -79,6 +81,8 @@ class WorkerRuntime:
             "log_files": sorted(set(log_files)),
             "observed_at": observed_at,
         }
+        if self.background_workers:
+            record["background_workers"] = self.background_workers
         path = Path(str(self.service["worker_state_dir"])) / f"{self.identity['pid']}.json"
         atomic_write(path, record)
 

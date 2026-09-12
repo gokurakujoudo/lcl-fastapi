@@ -25,6 +25,7 @@ worker supervision remain upstream responsibilities.
 
 | Area | Maintained contract | Required evidence |
 | --- | --- | --- |
+| Background workers | [Background workers](background-workers.md) | Code-only registration, one API worker, independent Frames/loops, resource bridges, restart levels, cancellation, journal integrity, timeout termination and native reload. |
 | Uncaught HTTP errors | [Application](application.md#uncaught-http-exceptions), [logging](logging.md#uncaught-exception-diagnostics) | Original traceback arguments, callback precedence/fallback, response IDs, streaming and cancellation. |
 | Scoped configuration | [Application](application.md#scoped-lcl-frames) | Derived Frame ownership, nested lookup restoration, concurrency isolation, cancellation and parent caching. |
 | Application and resource scopes | [Application](application.md) | Native decorators and Routers, business configuration and lifespan, startup failure/cancellation cleanup, and import without runtime side effects. |

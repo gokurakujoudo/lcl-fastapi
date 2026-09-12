@@ -18,7 +18,9 @@ and bundled offline Swagger UI.
 
 Development source also provides `use_lcl_frame()` for nested configuration scopes
 and `uncaught_exception_handler` for custom HTTP error responses with detailed
-default traceback logging. See the application reference and composed example;
+default traceback logging, plus managed `background_workers` on dedicated threads
+and event loops. Background registration forces one API worker. See the application
+reference and composed example;
 this addition is not part of the published 0.2.0 artifact.
 
 Install version 0.2.0 with `python -m pip install lcl-fastapi==0.2.0` in a
@@ -151,6 +153,7 @@ Each run checks service availability, business and built-in HTTP APIs, all CLI
 commands, and graceful shutdown. The example projects are excluded from the wheel.
 
 - [Application and lifespan](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/application.md)
+- [Managed background workers](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/background-workers.md)
 - [Configuration](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/configuration.md)
 - [Request logging](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/logging.md)
 - [Health and observations](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/health.md)

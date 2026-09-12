@@ -9,7 +9,7 @@ import socket
 import subprocess
 import sys
 import time
-from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor
 from html.parser import HTMLParser
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -122,41 +122,24 @@ def ready(config: Path, process: subprocess.Popen[str]) -> dict[str, Any]:
     while time.monotonic() < deadline:
         assert process.poll() is None, "Service exited before becoming ready"
         state = snapshot(config, "status")
-        if state["status"] == "RUNNING" and len(state["workers"]) == 2:
+        if state["status"] == "RUNNING" and len(state["workers"]) == 1:
             try:
                 if http("/health")[0] == 200:
                     return state
             except URLError, TimeoutError, ConnectionError:
                 pass
         time.sleep(0.2)
-    raise AssertionError("Two workers did not become ready within 40 seconds")
+    raise AssertionError("The single API worker did not become ready within 40 seconds")
 
 
 def catalog_responses() -> list[tuple[int, Any, bytes]]:
-    """Exercise both shared-listener workers without assuming OS fairness."""
-    first = http("/api/v1/catalog", **{"X-Request-ID": "client-owned-id"})
-    # Windows AcceptEx can favor the most recent accept queue indefinitely.
-    # Pause the observed worker briefly and exceed libuv's 32 pending accepts;
-    # its sibling must answer before we resume it and validate every response.
-    with ThreadPoolExecutor(max_workers=64) as clients:
-        active = psutil.Process(json.loads(first[2])["pid"])
-        paused = os.name == "nt"
-        if paused:
-            active.suspend()
-        try:
-            requests = [
-                clients.submit(http, "/api/v1/catalog", **{"X-Request-ID": "client-owned-id"})
-                for _ in range(64)
-            ]
-            completed, _ = wait(requests, timeout=3, return_when=FIRST_COMPLETED)
-            assert completed, "A sibling worker must serve while the observed worker is paused"
-            if paused:
-                for request in completed:
-                    assert json.loads(request.result()[2])["pid"] != active.pid
-        finally:
-            if paused:
-                active.resume()
-        return [first, *(request.result() for request in requests)]
+    """Exercise concurrent requests while independent background work is active."""
+    with ThreadPoolExecutor(max_workers=16) as clients:
+        requests = [
+            clients.submit(http, "/api/v1/catalog", **{"X-Request-ID": "client-owned-id"})
+            for _ in range(32)
+        ]
+        return [request.result() for request in requests]
 
 
 def check_http(config: Path, state: dict[str, Any]) -> tuple[set[str], list[Path]]:
@@ -164,10 +147,10 @@ def check_http(config: Path, state: dict[str, Any]) -> tuple[set[str], list[Path
     service = state["service"]
     worker_pids = {worker["pid"] for worker in state["workers"]}
     assert service["name"] == "composed-catalog" and service["version"] == "1.0.0"
-    assert service["runtime"] == runtime and service["configured_workers"] == 2
+    assert service["runtime"] == runtime and service["configured_workers"] == 1
     assert psutil.Process(service["pid"]).create_time() == service["process_create_time"]
     assert worker_pids <= {p.pid for p in psutil.Process(service["pid"]).children(recursive=True)}
-    assert len({worker["snowflake_worker_id"] for worker in state["workers"]}) == 2
+    assert len({worker["snowflake_worker_id"] for worker in state["workers"]}) == 1
     assert all(worker["service_id"] == service["service_id"] for worker in state["workers"])
     status, _, body = http("/health")
     health = json.loads(body)
@@ -192,7 +175,7 @@ def check_http(config: Path, state: dict[str, Any]) -> tuple[set[str], list[Path
             assert request_id not in request_ids and request_id != "client-owned-id"
             request_ids.add(request_id)
             observed.add(catalog["pid"])
-    assert observed == worker_pids, "Both initialized worker catalogs must be observable"
+    assert observed == worker_pids, "The initialized API catalog must be observable"
     assert json.loads(http("/about")[2]) == {"application": "composed-catalog"}
     for mode, expected in (("default", 500), ("custom", 502), ("callback", 500)):
         status, headers, body = http(f"/api/v1/errors/{mode}?quantity=7")
@@ -227,7 +210,7 @@ def check_http(config: Path, state: dict[str, Any]) -> tuple[set[str], list[Path
     deadline = time.monotonic() + 10
     while True:
         logs = snapshot(config, "logs")
-        if len(logs["paths"]) == 2 and logs["stale"] is False:
+        if len(logs["paths"]) == 3 and logs["stale"] is False:
             break
         if time.monotonic() >= deadline:
             raise AssertionError(f"Live log observations did not become fresh: {logs}")
@@ -235,7 +218,11 @@ def check_http(config: Path, state: dict[str, Any]) -> tuple[set[str], list[Path
     assert set(logs) == {"paths", "observed_at", "stale"}
     assert isinstance(logs["observed_at"], (int, float)) and logs["stale"] is False
     paths = [Path(path) for path in logs["paths"]]
-    assert len(paths) == 2
+    assert len(paths) == 3
+    background = snapshot(config, "status")["workers"][0]["background_workers"]
+    assert background["inventory"]["status"] == "completed"
+    assert background["inventory"]["attempts"] == 1
+    assert background["heartbeat"]["status"] == "running"
     assert all(
         path.is_absolute() and path.resolve().is_relative_to((config.parent / "logs").resolve())
         for path in paths
@@ -297,9 +284,17 @@ def main() -> None:
                 assert "\tquantity: 7" in contents
                 assert "uncaught_exception_handler failed:" in contents
                 assert "demonstration route failure" in contents
+                assert "inventory finite task completed items=2" in contents
+                assert "background heartbeat stopped" in contents
+                assert not list((run / "background").glob("*.jsonl"))
+                for path in paths:
+                    text = path.read_text(encoding="utf-8")
+                    if ".inventory." in path.name or ".heartbeat." in path.name:
+                        assert "catalog read" not in text and "request_id=" not in text
+                assert console.read_text().count("has been forced to 1") == 1
                 print(
                     f"PASS composed: {state['service']['runtime']}, "
-                    "two workers, HTTP/CLI/render/cleanup"
+                    "one API worker, two background workers, HTTP/CLI/render/cleanup"
                 )
             except BaseException:
                 print(console.read_text(encoding="utf-8", errors="replace"), file=sys.stderr)

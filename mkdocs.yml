@@ -33,6 +33,7 @@ nav:
   - Build a service: build-a-service.md
   - Reference:
       - Application and lifespan: application.md
+      - Background workers: background-workers.md
       - Configuration: configuration.md
       - Request logging: logging.md
       - Health and observations: health.md

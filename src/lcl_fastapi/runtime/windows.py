@@ -10,7 +10,7 @@ from uvicorn.supervisors import Multiprocess
 
 from lcl_fastapi.config import Settings
 from lcl_fastapi.runtime.application import load_application
-from lcl_fastapi.runtime.controller import controller_tick
+from lcl_fastapi.runtime.controller import controller_background_tick, controller_tick
 from lcl_fastapi.runtime.reload import ReloadWatcher
 from lcl_fastapi.runtime.service import shutdown_requested
 from lcl_fastapi.runtime.state import atomic_write
@@ -54,6 +54,18 @@ class ServiceMultiprocess(Multiprocess):
                 "service_id": self.identity["service_id"],
             },
         )
+
+    def join_all(self) -> None:
+        """Poll native joins while the controller enforces background stop deadlines.
+
+        :raises OSError: If journal inspection or process termination fails.
+        """
+        for process in self.processes:
+            while process.process.is_alive():
+                controller_background_tick()
+                process.process.join(timeout=0.05)
+            process.join()
+        controller_background_tick()
 
     def keep_subprocess_alive(self) -> None:
         """Retain native recovery and consume reload events in the master loop.

@@ -85,6 +85,10 @@ does not promise inheritance into detached jobs that outlive their request.
 
 ## Scoped LCL frames
 
+Managed code-registered background callables are also available through
+`LclFastAPI(background_workers={...})`; see [background workers](background-workers.md)
+for their separate thread contexts, lifecycle and configuration scopes.
+
 Use `async with use_lcl_frame(module=None, values=None) as frame` inside an active
 lifespan or asynchronous handler. Import the helper from `lcl_fastapi`. It derives
 a native LCL Frame from the current configuration and binds `get_config()` to it

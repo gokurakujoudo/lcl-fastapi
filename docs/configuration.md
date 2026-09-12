@@ -52,6 +52,8 @@ option instead of setting those variables themselves.
 | `server.host` | `127.0.0.1`; only this and `0.0.0.0` are accepted. |
 | `server.port` | `8080`, an integer from 1 through 65535. |
 | `server.workers` | `1`, bounded by the available Snowflake ID range. |
+| `background_worker.default.enabled` | `True`; strict Boolean default for code-registered background workers. |
+| `background_worker.default.auto_restart` | `True`; normal and exceptional returns restart after one second unless stopping. |
 | `server.reload_dirs` | `["."]`; nonempty list of Python watch directories, relative to this configuration file or absolute. An explicit list replaces the default. Used by `serve -o hot_reload`. |
 | `server.root_path` | Empty, or an HTTP(S) origin with hostname and optional port; no credentials, path, query, or fragment. |
 | `server.backlog` | `2048` pending connections. |
@@ -72,6 +74,12 @@ option instead of setting those variables themselves.
 | `snowflake.worker_id_count` | `64`; at least the worker count, with base + count at most 1024. |
 
 There is no `api.prefix`. Configure prefixes on business Routers.
+
+`background_worker.<name>.enabled` and `.auto_restart` override those individual
+defaults. Remaining nested worker fields are ordinary LCL parameters. Executables
+are registered only in application code. A nonempty background registry forces one
+effective API worker with a warning, including when every registration is disabled.
+See [background workers](background-workers.md) for resources, logs and shutdown.
 `server.root_path` is external origin metadata for code that needs a complete
 public URL, not a FastAPI/ASGI mount path. It never changes routing. Read it with
 `get_config` if the business needs it. The framework does not force that origin

@@ -20,6 +20,11 @@ to workers. Controller resolution never evaluates worker filenames. Workers do
 not open the controller sink. Native masked bindings retain their masking in
 the selected role.
 
+When background callables are registered, their matching named sinks are reserved
+for those background threads; other additional sinks remain API sinks. See
+[background file routing](background-workers.md#file-routing) for shared-writer
+ownership, source namespacing and controller lifecycle events.
+
 Controller files record complete-service start/stop/failure, heartbeat, observed
 worker up/down transitions, hot-reload retirement, and observed worker log segment
 changes. Observations follow `health.sample_interval_seconds` and the native

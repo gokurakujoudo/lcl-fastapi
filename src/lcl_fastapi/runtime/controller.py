@@ -1,6 +1,7 @@
 """Record controller observations without leaving writer threads across a fork."""
 
 import asyncio
+import logging
 import os
 import time
 from collections.abc import Iterator
@@ -11,6 +12,7 @@ from pathlib import Path
 
 from lclang.logger import LoggerHandlerConfig, resolve_logger_config
 
+from lcl_fastapi.background.journal import BackgroundEvents, terminate_background_process
 from lcl_fastapi.config import Settings
 from lcl_fastapi.logging import resolve_log_directories
 from lcl_fastapi.runtime.controller_writer import ControllerWriter
@@ -42,6 +44,7 @@ class ControllerLog:
     :param identity: Complete-start identity filtering worker observations.
     :param workers: Previous live-worker observations keyed by PID and creation time.
     :param deadline: Next monotonic heartbeat deadline in seconds.
+    :param background: Initialized controller-owned background journal reader.
     """
 
     writer: ControllerWriter
@@ -49,6 +52,29 @@ class ControllerLog:
     identity: dict[str, object]
     workers: dict[tuple[object, object], dict[str, object]] = field(default_factory=dict)
     deadline: float = 0
+    background: BackgroundEvents = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Attach the current start's journal reader without opening files."""
+        self.background = BackgroundEvents(self.settings.state_dir, self.identity["service_id"])
+
+    def background_tick(self, force_kill: bool = False) -> None:
+        """Drain background events and log verified timeout kills before signaling.
+
+        :param force_kill: Native manager is about to perform its final kill sweep.
+        :raises OSError: If journals cannot be read.
+        :raises psutil.AccessDenied: If an expired owned worker cannot be killed.
+        """
+        events = self.background.read()
+        expired = self.background.expired(force_kill)
+        events.extend(
+            (logging.ERROR, f"background shutdown timeout: terminating worker_pid={record['pid']}")
+            for record in expired
+        )
+        if events:
+            self.writer.emit_records(events)
+        for record in expired:
+            terminate_background_process(record)
 
     def emit(self, events: list[str]) -> None:
         """Enqueue events through the controller-owned upstream scope.
@@ -65,6 +91,7 @@ class ControllerLog:
         :raises OSError: If state or log storage is inaccessible.
         """
         now = time.monotonic()
+        self.background_tick()
         if not force and now < self.deadline:
             return
         self.deadline = now + self.settings.sample_interval_seconds
@@ -94,6 +121,17 @@ def controller_tick() -> None:
     controller = CONTROLLER.get()
     if controller is not None:
         controller.tick()
+
+
+def controller_background_tick(force_kill: bool = False) -> None:
+    """Advance deadline processing during native manager shutdown and final kills.
+
+    :param force_kill: Whether the native manager is performing its final kill sweep.
+    :raises OSError: If event storage or process signaling fails.
+    """
+    controller = CONTROLLER.get()
+    if controller is not None:
+        controller.background_tick(force_kill)
 
 
 def controller_event(message: str) -> None:

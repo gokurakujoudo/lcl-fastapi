@@ -1,0 +1,229 @@
+"""Exercise code-registered background threads, resources, logs and lifecycle."""
+
+import asyncio
+import logging
+import threading
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import cast
+
+import httpx
+import pytest
+from fastapi import FastAPI
+from test_application import ObservedRuntime
+from test_application import configuration as configuration
+from test_application import observed_runtime as observed_runtime
+
+from lcl_fastapi import (
+    BackgroundWorker,
+    BackgroundWorkerContext,
+    LclFastAPI,
+    get_config,
+    get_logger,
+    get_request_context,
+    use_lcl_frame,
+)
+from lcl_fastapi.background.config import worker_policies, worker_registry
+from lcl_fastapi.background.journal import BackgroundEvents
+from lcl_fastapi.runtime.state import process_identity
+from lcl_fastapi.sources import configuration_frame
+
+
+@pytest.fixture
+def background_runtime(configuration: Path, observed_runtime: ObservedRuntime) -> ObservedRuntime:
+    observed_runtime.directory = configuration.parent / "run"
+    observed_runtime.identity = process_identity()
+    observed_runtime.service = {"configured_workers": 1, "service_id": "test"}
+    return observed_runtime
+
+
+async def wait_event(event: threading.Event) -> None:
+    assert await asyncio.to_thread(event.wait, 5), "background worker did not signal readiness"
+
+
+async def test_sync_async_resources_frames_logs_and_shutdown(
+    configuration: Path, background_runtime: ObservedRuntime
+) -> None:
+    ready, async_ready, closed = threading.Event(), threading.Event(), threading.Event()
+    api_thread = threading.get_ident()
+    calls: list[str] = []
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[dict[str, object]]:
+        app.state.resource = "open"
+        yield {"resource": "yielded"}
+        assert closed.is_set()
+        app.state.resource = "closed"
+
+    async def on_service() -> str:
+        assert threading.get_ident() == api_thread
+        assert await get_config("business.value") == "configured"
+        assert get_request_context() is None
+        return str(app.state.resource)
+
+    async def local_scope(context: BackgroundWorkerContext) -> None:
+        async with use_lcl_frame(values={"business.value": "background"}):
+            assert await context.get_config("business.value") == "background"
+            assert await asyncio.wrap_future(context.submit_to_service(on_service)) == "open"
+
+    def synchronous(context: BackgroundWorkerContext) -> None:
+        assert threading.get_ident() != api_thread
+        assert context.state == {"resource": "yielded"}
+        assert context.run(context.get_config("business.value")) == "configured"
+        context.run(local_scope(context))
+        assert context.submit_to_service(on_service).result(timeout=5) == "open"
+        context.logger.info("sync worker record")
+        calls.append("sync")
+        ready.set()
+        context.stop_event.wait(5)
+        closed.set()
+
+    async def asynchronous(context: BackgroundWorkerContext) -> None:
+        assert threading.get_ident() != api_thread
+        assert get_request_context() is None
+        await local_scope(context)
+        logger = await get_logger("nested")
+        logger.info("async worker record")
+        calls.append("async")
+        async_ready.set()
+        await asyncio.Event().wait()
+
+    app = LclFastAPI(
+        config_path=configuration,
+        lifespan=lifespan,
+        background_workers={"sync_job": synchronous, "async_job": asynchronous},
+    )
+
+    @app.get("/scope/{value}")
+    async def scoped(value: str) -> dict[str, object]:
+        async with use_lcl_frame(values={"business.value": value}):
+            await asyncio.sleep(0)
+            assert await get_config("business.value") == value
+            if value == "failure":
+                raise ValueError("composed route failure")
+        return {"restored": await get_config("business.value")}
+
+    original_threads = set(threading.enumerate())
+    async with app.router.lifespan_context(app):
+        await wait_event(ready)
+        await wait_event(async_ready)
+        assert await get_config("business.value") == "configured"
+        transport = httpx.ASGITransport(app=app, raise_app_exceptions=False)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+            response = await client.get("/health")
+            assert response.status_code == 200
+            assert response.json()["service"]["background_workers"]["sync_job"]["attempts"] == 1
+            replies = await asyncio.gather(
+                *(client.get(f"/scope/{value}") for value in ["one", "two", "failure"])
+            )
+            assert [reply.status_code for reply in replies] == [200, 200, 500]
+            assert replies[0].json() == replies[1].json() == {"restored": "configured"}
+            assert replies[2].json() == {"detail": "Internal Server Error"}
+        (await get_logger("api")).info("api-only record")
+    assert sorted(calls) == ["async", "sync"]
+    assert not any(
+        t.name.startswith("lcl-background") for t in set(threading.enumerate()) - original_threads
+    )
+    assert app.state.resource == "closed"
+    logs = configuration.parent / "logs"
+    sync_logs = "".join(p.read_text() for p in logs.glob("*.sync_job.*.log"))
+    async_logs = "".join(p.read_text() for p in logs.glob("*.async_job.*.log"))
+    assert "sync worker record" in sync_logs and "async worker record" not in sync_logs
+    assert "async worker record" in async_logs and "sync_job sync worker record" not in async_logs
+    assert "api-only record" not in sync_logs + async_logs
+    assert "composed route failure" not in sync_logs + async_logs
+    assert "composed route failure" in "".join(p.read_text() for p in logs.glob("*.log"))
+    events = BackgroundEvents(configuration.parent / "run", "test").read()
+    assert any("cancelled" in message for _, message in events)
+    assert events[-1] == (logging.INFO, "background retired")
+
+
+@pytest.mark.parametrize("failed", [False, True])
+async def test_restart_policy_and_controller_event_levels(
+    configuration: Path, background_runtime: ObservedRuntime, failed: bool
+) -> None:
+    second = threading.Event()
+    count = 0
+
+    def job(context: BackgroundWorkerContext) -> None:
+        nonlocal count
+        count += 1
+        if count == 2:
+            second.set()
+            context.stop_event.wait(5)
+        if failed:
+            raise ValueError("restart probe")
+
+    app = LclFastAPI(config_path=configuration, background_workers={"job": job})
+    async with app.router.lifespan_context(app):
+        await wait_event(second)
+        assert app.background_manager is not None
+        assert app.background_manager.snapshot()["job"] == {
+            "status": "running",
+            "attempts": 2,
+            "restarts": 1,
+        }
+    events = BackgroundEvents(configuration.parent / "run", "test").read()
+    restarts = [(level, text) for level, text in events if "restarting after exit" in text]
+    assert len(restarts) == 1
+    assert restarts[0][0] == (logging.WARNING if failed else logging.INFO)
+    if failed:
+        assert any(
+            level == logging.ERROR and "exception=ValueError" in text for level, text in events
+        )
+
+
+async def test_disabled_and_no_restart_are_observable(
+    configuration: Path, background_runtime: ObservedRuntime
+) -> None:
+    with configuration.open("a") as file:
+        file.write(
+            "background_worker.default.auto_restart: False\nbackground_worker.off.enabled: False\n"
+        )
+    done = threading.Event()
+
+    def once(context: BackgroundWorkerContext) -> None:
+        done.set()
+
+    def disabled(context: BackgroundWorkerContext) -> None:
+        pytest.fail("disabled executable must not run")
+
+    app = LclFastAPI(config_path=configuration, background_workers={"once": once, "off": disabled})
+    async with app.router.lifespan_context(app):
+        await wait_event(done)
+        assert app.background_manager is not None
+        await asyncio.wrap_future(app.background_manager.workers["once"].done)
+        snapshot = app.background_manager.snapshot()
+        assert snapshot["off"] == {"status": "disabled", "attempts": 0, "restarts": 0}
+        assert snapshot["once"] == {"status": "completed", "attempts": 1, "restarts": 0}
+    assert not list((configuration.parent / "logs").glob("*off*.log"))
+
+
+@pytest.mark.parametrize("name", ["default", "controller", "service", "bad.name", "", 1])
+def test_registration_rejects_names(name: object) -> None:
+    with pytest.raises(ValueError, match="name"):
+        worker_registry({cast(str, name): lambda context: None})
+
+
+def test_registration_copies_and_rejects_noncallables() -> None:
+    original: dict[str, BackgroundWorker] = {"job": lambda context: None}
+    copied = worker_registry(original)
+    original.clear()
+    assert "job" in copied
+    with pytest.raises(TypeError, match="callable"):
+        worker_registry({"job": cast(BackgroundWorker, "not executable")})
+
+
+async def test_config_defaults_overrides_nested_and_invalid(configuration: Path) -> None:
+    with configuration.open("a") as file:
+        file.write("background_worker.job.enabled: False\nbackground_worker.job.nested.value: 42\n")
+    async with configuration_frame(configuration) as frame:
+        policy = (await worker_policies(frame, {"job": lambda ctx: None}))["job"]
+        assert policy.enabled is False and policy.auto_restart is True
+        assert await frame.get("background_worker.job.nested.value") == 42
+    with configuration.open("a") as file:
+        file.write("background_worker.job.enabled: 1\n")
+    async with configuration_frame(configuration) as frame:
+        with pytest.raises(ValueError, match="Boolean"):
+            await worker_policies(frame, {"job": lambda ctx: None})

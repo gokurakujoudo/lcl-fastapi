@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Add code-registered background workers with dedicated threads/event loops,
+  nested configuration scopes, explicit service-resource bridges, restart controls,
+  controller lifecycle events, isolated log files and status/health observations.
+  Background registration forces one API worker; shutdown timeout terminates that
+  process. Extend the composed example and verifier with finite and cooperative tasks.
+
 - Add configurable uncaught HTTP exception callbacks, original traceback argument
   diagnostics and resilient JSON 500 fallback; document and demonstrate default,
   custom and callback-failure responses in the composed example.

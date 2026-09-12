@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI, Request
 
 from catalog_service.errors import catalog_error
+from catalog_service.workers import heartbeat, inventory_once
 from lcl_fastapi import LclFastAPI, get_config, get_logger, get_request_context, use_lcl_frame
 
 
@@ -31,7 +32,11 @@ async def catalog_lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info(f"catalog shutdown pid={os.getpid()} items={len(app.state.catalog)}")
 
 
-service = LclFastAPI(lifespan=catalog_lifespan, uncaught_exception_handler=catalog_error)
+service = LclFastAPI(
+    lifespan=catalog_lifespan,
+    uncaught_exception_handler=catalog_error,
+    background_workers={"inventory": inventory_once, "heartbeat": heartbeat},
+)
 router = APIRouter()
 
 
