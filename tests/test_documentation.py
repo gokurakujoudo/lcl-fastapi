@@ -16,6 +16,14 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.mark.documentation
+def test_downstream_examples_require_current_release() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    for path in (ROOT / "examples").glob("*/pyproject.toml"):
+        example = tomllib.loads(path.read_text(encoding="utf-8"))["project"]
+        assert f"lcl-fastapi=={project['version']}" in example["dependencies"], path
+
+
+@pytest.mark.documentation
 def test_pypi_description_links_are_absolute_and_homepage_is_declared() -> None:
     text = (ROOT / "README.md").read_text(encoding="utf-8")
     links = re.findall(r"\[[^\]]+\]\(([^)]+)\)", text)

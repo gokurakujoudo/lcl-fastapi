@@ -76,8 +76,10 @@ knowledge, external accounts, production credentials, or live business services.
 
 CI first builds the current source wheel in isolation. Each example is then
 installed with that exact wheel in its own environment on Windows/Uvicorn and
-Linux/Gunicorn, producing four independent jobs. Source imports through
-`PYTHONPATH` do not replace package installation. Every job checks availability,
+Linux/Gunicorn, producing four independent jobs.
+The example and wheel are installed in one dependency-resolution transaction;
+incompatible example pins fail instead of replacing the selected wheel.
+Source imports through `PYTHONPATH` do not replace package installation. Every job checks availability,
 business and built-in HTTP APIs, all CLI commands, native worker operation,
 and graceful cleanup, retaining commands and failure diagnostics. Neither
 example project may enter the framework wheel.

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Keep downstream examples on 0.1.1 and resolve their installation together with
+  the selected wheel so incompatible pins cannot silently downgrade CI validation.
+
 ## 0.1.1 - 2026-09-12
 
 - Make README links and the logo absolute for PyPI, add the project homepage
