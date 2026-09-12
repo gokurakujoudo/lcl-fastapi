@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add `use_lcl_frame()` with nested task-local configuration scopes, native Frame
+  inheritance, and cleanup on exceptions and cancellation; demonstrate it in the
+  composed catalog example and installed-wheel verifier.
+
 ## 0.2.0 - 2026-09-12
 
 - Replace the README and documentation logo with the updated project artwork.

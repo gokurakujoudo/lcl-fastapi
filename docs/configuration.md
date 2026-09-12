@@ -100,6 +100,11 @@ reuse.
 
 ## Configuration changes
 
+Application code can temporarily override configuration using
+[`use_lcl_frame`](application.md#scoped-lcl-frames). The scope changes local
+`get_config()` lookup without editing files or changing other request scopes.
+Inherited definitions retain native parent evaluation and caching.
+
 For development, select one or more recursive Python watch roots:
 
 ```text

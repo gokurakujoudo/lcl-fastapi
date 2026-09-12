@@ -41,6 +41,7 @@ Open the local endpoints:
 | --- | --- |
 | `/api/v1/catalog` | Router prefix, initialized catalog, LCL greeting, public-origin metadata, request ID, and current worker PID. |
 | `/about` | A directly registered route remains outside the Router prefix. |
+| `/api/v1/scope` | Nested derived Frames, temporary name overrides, and restored runtime configuration. |
 | `/health` | Framework service identity and cached host observations. |
 | `/docs` | Bundled local Swagger JavaScript, CSS, favicon, and schema. |
 | `/openapi.json` | OpenAPI containing the business routes. |
@@ -63,6 +64,12 @@ Do not edit `.lclcfg` during a running service: stop and start the complete
 service to avoid workers retaining different configuration values.
 
 ## Local operations
+
+Visit `/api/v1/scope` to receive `{"original":"Reader","local":"Scoped Reader",
+"restored":"Reader"}`. The handler asserts nested restoration and closes both
+Frames before returning. `verify.py` checks this response from the installed wheel.
+Inherited expressions remain evaluated in their parent Frame; a child override
+does not implicitly recalculate `business.greeting`.
 
 In another terminal in this directory, use the installed console command:
 

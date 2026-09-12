@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, Request
 
-from lcl_fastapi import LclFastAPI, get_config, get_logger, get_request_context
+from lcl_fastapi import LclFastAPI, get_config, get_logger, get_request_context, use_lcl_frame
 
 
 @asynccontextmanager
@@ -64,6 +64,23 @@ async def about() -> dict[str, str]:
     :returns: A stable business application name.
     """
     return {"application": "composed-catalog"}
+
+
+@router.get("/scope")
+async def scoped_configuration() -> dict[str, object]:
+    """Demonstrate nested local configuration without changing runtime bindings.
+
+    :returns: Original, local and restored names.
+    """
+    original = await get_config("business.name")
+    async with use_lcl_frame(values={"business.name": "Scoped Reader"}) as frame:
+        assert await frame.get("business.name") == "Scoped Reader"
+        async with use_lcl_frame(values={"business.name": "Nested Reader"}):
+            assert await get_config("business.name") == "Nested Reader"
+        local = await get_config("business.name")
+        assert local == "Scoped Reader"
+    assert await get_config("business.name") == original
+    return {"original": original, "local": local, "restored": await get_config("business.name")}
 
 
 service.include_router(router, prefix="/api/v1")

@@ -83,6 +83,40 @@ The frame is process-local and follows the worker's async lifespan. Request
 bindings are task-local and reset after completion. Framework request metadata
 does not promise inheritance into detached jobs that outlive their request.
 
+## Scoped LCL frames
+
+Use `async with use_lcl_frame(module=None, values=None) as frame` inside an active
+lifespan or asynchronous handler. Import the helper from `lcl_fastapi`. It derives
+a native LCL Frame from the current configuration and binds `get_config()` to it
+until exit. Optional `module` supplies local definitions; `values` supplies copied
+host bindings. Nested scopes restore their parent, including after exceptions and
+cancellation. Exiting closes the child, not its borrowed parent. Calling outside
+an active scope raises `RuntimeError`.
+
+Each Frame belongs to its event loop. Do not share it across threads or keep it in
+detached tasks after scope exit. Native parent-owned definitions still evaluate and
+cache in the parent: overriding a dependency locally does not recompute an inherited
+definition. This is a configuration scope, not a deep copy or a sandbox.
+
+<!-- python-doc-exec -->
+```python
+from lcl_fastapi import LclFastAPI, get_config, use_lcl_frame
+
+service = LclFastAPI()
+
+
+@service.get("/scoped")
+async def scoped() -> dict[str, object]:
+    original = await get_config("app.name")
+    async with use_lcl_frame(values={"app.name": "local"}) as frame:
+        assert await frame.get("app.name") == "local"
+        async with use_lcl_frame(values={"app.name": "nested"}):
+            assert await get_config("app.name") == "nested"
+        assert await get_config("app.name") == "local"
+    assert await get_config("app.name") == original
+    return {"name": original}
+```
+
 ## Offline API documentation
 
 With `docs.enabled: True`, the framework provides a Swagger page at `docs.path`

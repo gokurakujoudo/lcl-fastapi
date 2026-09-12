@@ -16,6 +16,10 @@ Write business routes, a trusted `.lclcfg` file, and an optional business lifesp
 The framework owns worker startup, request IDs, health sampling, local operations,
 and bundled offline Swagger UI.
 
+Development source also provides `use_lcl_frame()` for nested configuration scopes
+inside handlers and lifespans. See the application reference and composed example;
+this addition is not part of the published 0.2.0 artifact.
+
 Install version 0.2.0 with `python -m pip install lcl-fastapi==0.2.0` in a
 Python 3.14 virtual environment. See the [release process](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/releasing.md)
 for version notes, publication requirements, and artifact verification.

@@ -25,6 +25,7 @@ worker supervision remain upstream responsibilities.
 
 | Area | Maintained contract | Required evidence |
 | --- | --- | --- |
+| Scoped configuration | [Application](application.md#scoped-lcl-frames) | Derived Frame ownership, nested lookup restoration, concurrency isolation, cancellation and parent caching. |
 | Application and resource scopes | [Application](application.md) | Native decorators and Routers, business configuration and lifespan, startup failure/cancellation cleanup, and import without runtime side effects. |
 | Route precedence and origin | [Application](application.md), [configuration](configuration.md) | Exact method/path business overrides work both directly and through Routers. Origin validation does not change routes, ASGI root paths, or listener ports. |
 | LCL configuration | [Configuration](configuration.md) | Native using with bundled defaults, command-line precedence through worker replacement, config-relative paths, framework-owned worker PID, supported IPv4 binds, and LCL environment expressions for non-overlapping machine ID ranges. |

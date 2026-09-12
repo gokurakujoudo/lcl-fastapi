@@ -194,6 +194,11 @@ def check_http(config: Path, state: dict[str, Any]) -> tuple[set[str], list[Path
             observed.add(catalog["pid"])
     assert observed == worker_pids, "Both initialized worker catalogs must be observable"
     assert json.loads(http("/about")[2]) == {"application": "composed-catalog"}
+    assert json.loads(http("/api/v1/scope")[2]) == {
+        "original": "Reader",
+        "local": "Scoped Reader",
+        "restored": "Reader",
+    }
     assert http("/catalog")[0] == 404 and http("/api/v1/about")[0] == 404
     status, _, body = http("/docs")
     assert status == 200 and b"validatorUrl" in body and b"null" in body
