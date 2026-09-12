@@ -114,11 +114,14 @@ def test_retirement_coalesces_changes_and_waits_for_replacement(
     second = first | {"pid": 101}
     workers = [first]
     live = True
+    events: list[str] = []
+    monkeypatch.setattr(reload, "controller_event", events.append)
     monkeypatch.setattr(reload, "live_workers", lambda directory, identity: workers)
     monkeypatch.setattr(reload, "is_live", lambda identity: live)
     watcher.changes = batches(watcher, False, True, True, False, False)
     watcher.tick()
     assert watcher.retiring is None
+    assert events == ["hot-reload watcher ready"]
     watcher.tick()
     assert read_state(watcher.settings.state_dir / "reload.json") == first
     watcher.tick()
@@ -131,6 +134,7 @@ def test_retirement_coalesces_changes_and_waits_for_replacement(
     watcher.tick()
     assert not watcher.pending and watcher.retiring == second
     assert read_state(watcher.settings.state_dir / "reload.json") == second
+    assert events.count("hot-reload watcher ready") == 1
 
 
 def test_shutdown_and_fork_ownership(

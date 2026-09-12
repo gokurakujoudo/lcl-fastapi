@@ -40,6 +40,10 @@ One master-owned iterator groups editor changes and is advanced from the native
 process manager loop. Native automatic reload watchers remain disabled, so imported
 modules outside the selected roots cannot trigger a reload.
 
+The controller records `hot-reload watcher ready` after the first native watch
+poll initializes filesystem monitoring. API startup can finish before this poll;
+automation that immediately edits source should wait for that controller event.
+
 Each change batch gracefully retires the current worker. Uvicorn or Gunicorn owns
 its replacement; the master PID, listener, service-start identity, and control token
 remain unchanged. Business teardown, logger flushing, observation removal, and lease

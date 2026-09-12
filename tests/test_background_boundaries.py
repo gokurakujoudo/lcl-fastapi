@@ -122,6 +122,22 @@ async def test_initialization_failure_and_process_exit_are_observed(
         assert worker.snapshot()["status"] == "failed"
 
 
+async def test_journal_initialization_failure_prevents_entries(
+    configuration: Path, background_runtime: ObservedRuntime, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail_flush(self: BackgroundJournal) -> None:
+        raise OSError("journal unavailable")
+
+    monkeypatch.setattr(BackgroundJournal, "flush", fail_flush)
+    entry = Mock()
+    app = LclFastAPI(config_path=configuration, background_workers={"job": entry})
+    with pytest.raises(OSError, match="journal unavailable"):
+        async with app.router.lifespan_context(app):
+            pytest.fail("unavailable journal must fail startup")
+    entry.assert_not_called()
+    assert app.background_manager is None
+
+
 async def test_cleanup_waits_through_repeated_cancellation(
     configuration: Path, background_runtime: ObservedRuntime
 ) -> None:

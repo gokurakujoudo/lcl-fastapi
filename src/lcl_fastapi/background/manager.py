@@ -87,6 +87,8 @@ class BackgroundManager:
 
         :raises BaseException: If initialization fails, after stopping already-started threads.
         """
+        self.journal.emit(logging.INFO, "background initializing")
+        await asyncio.to_thread(self.journal.flush)
         self.pump = asyncio.create_task(self.publish())
         try:
             for worker in self.workers.values():

@@ -66,7 +66,8 @@ class LclFastAPI(FastAPI):
         :param uncaught_exception_handler: Optional unhandled HTTP failure callback.
         :param background_workers: Code-only registration of managed background workers.
         :param kwargs: Native FastAPI business configuration.
-        :raises ValueError: If framework-owned URL settings are passed to the constructor.
+        :raises ValueError: If URL settings are framework-owned or worker names are invalid.
+        :raises TypeError: If a registered background entry is not callable.
         """
         reserved = {"docs_url", "redoc_url", "openapi_url", "root_path"} & kwargs.keys()
         if reserved:

@@ -40,6 +40,7 @@ class ReloadWatcher:
         self.identity = identity
         self.owner = os.getpid()
         self.pending = False
+        self.started = False
         self.retiring: dict[str, object] | None = None
         self.changes: Generator[set[tuple[Change, str]]] = watch(
             *settings.reload_dirs,
@@ -81,8 +82,12 @@ class ReloadWatcher:
         if os.getpid() != self.owner or shutdown_requested(self.settings.state_dir, self.identity):
             return
         try:
+            changes = next(self.changes)
+            if not self.started:
+                controller_event("hot-reload watcher ready")
+                self.started = True
             self.pending |= any(
-                self.accept_change(change, filename) for change, filename in next(self.changes)
+                self.accept_change(change, filename) for change, filename in changes
             )
         except StopIteration as error:
             raise RuntimeError("hot reload watcher stopped unexpectedly") from error

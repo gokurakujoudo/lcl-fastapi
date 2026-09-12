@@ -101,8 +101,14 @@ def test_background_native_lifecycle(tmp_path: Path, mode: str, reload: bool) ->
                 assert health["running_workers"] == 1
                 assert "job" in health["background_workers"]
             if reload:
+                deadline = time.monotonic() + 10
+                while not any(
+                    "hot-reload watcher ready" in path.read_text()
+                    for path in (tmp_path / "logs").glob("*controller*.log")
+                ):
+                    assert time.monotonic() < deadline, "filesystem watcher did not become ready"
+                    time.sleep(0.05)
                 for revision in range(2):
-                    time.sleep(1)
                     application.write_text(APP + f"\n# trigger replacement {revision}\n")
                     replacement = wait_ready(port, process, pid)
                     assert replacement != pid

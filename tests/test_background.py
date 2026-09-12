@@ -5,6 +5,7 @@ import logging
 import threading
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
@@ -83,6 +84,10 @@ async def test_sync_async_resources_frames_logs_and_shutdown(
         assert threading.get_ident() != api_thread
         assert get_request_context() is None
         await local_scope(context)
+        closed_loop = asyncio.new_event_loop()
+        closed_loop.close()
+        with pytest.raises(RuntimeError, match="closed"):
+            replace(context, service_loop=closed_loop).submit_to_service(on_service)
         logger = await get_logger("nested")
         logger.info("async worker record")
         calls.append("async")
@@ -137,6 +142,44 @@ async def test_sync_async_resources_frames_logs_and_shutdown(
     events = BackgroundEvents(configuration.parent / "run", "test").read()
     assert any("cancelled" in message for _, message in events)
     assert events[-1] == (logging.INFO, "background retired")
+
+
+async def test_background_rotation_updates_observed_actual_path(
+    configuration: Path, background_runtime: ObservedRuntime
+) -> None:
+    with configuration.open("a") as file:
+        file.write(
+            'logger.file.job.rotation.mode: "size"\n'
+            "logger.file.job.rotation.max_bytes: 1\nhealth.sample_interval_seconds: 0.01\n"
+        )
+    emitted = threading.Event()
+
+    def job(context: BackgroundWorkerContext) -> None:
+        for number in range(3):
+            context.logger.info("rotation record %s", number)
+        emitted.set()
+        context.stop_event.wait(5)
+
+    app = LclFastAPI(config_path=configuration, background_workers={"job": job})
+    async with app.router.lifespan_context(app):
+        await wait_event(emitted)
+        (await get_logger("api")).info("API rotation isolation")
+        async with asyncio.timeout(5):
+            while True:
+                paths = [
+                    Path(path)
+                    for path in background_runtime.observations[-1][0]
+                    if ".job." in Path(path).name
+                ]
+                if paths and "rotation record 2" in paths[0].read_text():
+                    break
+                await asyncio.sleep(0.01)
+        segments = list((configuration.parent / "logs").glob("*.job.*.log"))
+        assert len(segments) == 3
+        assert paths[0] in segments
+    contents = "".join(path.read_text() for path in segments)
+    assert all(f"rotation record {number}" in contents for number in range(3))
+    assert "API rotation isolation" not in contents
 
 
 @pytest.mark.parametrize("failed", [False, True])

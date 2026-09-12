@@ -18,6 +18,8 @@ async def startup_settings(path: Path, hot_reload: bool) -> Settings:
     :raises ValueError: If configuration is invalid.
     :raises OSError: If configuration cannot be read.
     :raises LclError: If LCL evaluation or logger initialization fails.
+    :raises RuntimeError: If disposable application registration probing fails.
+    :raises OSError: If the registration interpreter cannot be started.
     """
     settings = await load_settings(path)
     if settings.workers > 1 and (hot_reload or await has_background_workers(path)):

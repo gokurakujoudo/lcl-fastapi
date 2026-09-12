@@ -102,7 +102,9 @@ isolation. Background work starts without an HTTP request ID or request context.
 
 Business lifespan initializes first, then all enabled background thread resources
 must initialize before API startup completes. A configuration/resource initialization
-failure fails service startup and cleans already-started threads. An entry failure
+failure fails service startup and cleans already-started threads. Startup also
+requires a successful initial journal write; inaccessible lifecycle storage fails
+startup before any background entry runs. An entry failure
 is recorded and governed by auto_restart. With that switch enabled, both normal
 returns and Exceptions wait one second before another attempt. The wait is
 interruptible. With it disabled, completed or failed status remains observable.

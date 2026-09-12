@@ -75,9 +75,14 @@ class BackgroundWorkerContext:
             """
             return await operation()
 
-        return self.service_context.copy().run(
-            asyncio.run_coroutine_threadsafe, invoke(), self.service_loop
-        )
+        pending = invoke()
+        try:
+            return self.service_context.copy().run(
+                asyncio.run_coroutine_threadsafe, pending, self.service_loop
+            )
+        except RuntimeError:
+            pending.close()
+            raise
 
 
 # Unitless callable contract; executables are supplied by code, never configuration.
