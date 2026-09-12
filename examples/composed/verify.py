@@ -176,7 +176,7 @@ def check_http(config: Path, state: dict[str, Any]) -> tuple[set[str], list[Path
     assert health["service"]["gunicorn_pid"] == (None if os.name == "nt" else service["pid"])
     assert health["server"]
     assert "control" not in json.dumps(health).lower()
-    assert "RUNNING" in cli(config, "status")
+    assert snapshot(config, "status")["status"] == "RUNNING"
     observed: set[int] = set()
     request_ids: set[str] = set()
     deadline = time.monotonic() + 15
@@ -226,7 +226,7 @@ def check_http(config: Path, state: dict[str, Any]) -> tuple[set[str], list[Path
         path.is_absolute() and path.resolve().is_relative_to((config.parent / "logs").resolve())
         for path in paths
     )
-    assert set(cli(config, "logs").splitlines()) == set(logs["paths"])
+    assert set(snapshot(config, "logs")["paths"]) == set(logs["paths"])
     assert not (config.parent.parent / "logs").exists()
     return request_ids, paths
 

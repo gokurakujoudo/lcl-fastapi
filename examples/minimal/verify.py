@@ -164,7 +164,7 @@ def main() -> None:
                     assert health["service"]["gunicorn_pid"] == master.pid == process.pid
                 else:
                     assert health["service"]["gunicorn_pid"] is None, health
-                assert "RUNNING" in command("status").stdout
+                assert json.loads(command("status").stdout)["status"] == "RUNNING"
                 print("status:", json.dumps(status), flush=True)
                 deadline = time.monotonic() + 5
                 while True:
@@ -191,8 +191,8 @@ def main() -> None:
                     path.is_absolute() and path.resolve().is_relative_to(working.resolve())
                     for path in paths
                 )
-                plain_paths = command("logs").stdout.splitlines()
-                assert set(plain_paths) == {str(path) for path in paths}, plain_paths
+                reported_paths = json.loads(command("logs").stdout)["paths"]
+                assert set(reported_paths) == {str(path) for path in paths}, reported_paths
                 print("logs:", json.dumps(observation), flush=True)
                 command("stop")
                 stopped = True

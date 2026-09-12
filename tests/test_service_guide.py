@@ -114,15 +114,16 @@ def test_catalog_guide_native_service() -> None:
                         pass
                     assert time.monotonic() < deadline, "Catalog startup timed out"
                     time.sleep(0.2)
-                result = subprocess.run(
-                    [sys.executable, "verify.py"],
-                    cwd=root,
-                    capture_output=True,
-                    text=True,
-                    timeout=15,
-                )
-                assert result.returncode == 0, result.stdout + result.stderr
-                assert "Catalog checks passed" in result.stdout
+                for _ in range(3):
+                    result = subprocess.run(
+                        [sys.executable, "verify.py"],
+                        cwd=root,
+                        capture_output=True,
+                        text=True,
+                        timeout=15,
+                    )
+                    assert result.returncode == 0, result.stdout + result.stderr
+                    assert "Catalog checks passed" in result.stdout
                 status = json.loads(command("status").stdout)
                 assert status["status"] == "RUNNING"
                 assert status["service"]["configured_workers"] == 2

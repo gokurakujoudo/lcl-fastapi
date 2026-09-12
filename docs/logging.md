@@ -196,7 +196,7 @@ operations and have no HTTP request ID. A worker's catalog log contains:
 log file: "/opt/catalog-api/logs/catalog-api.28146.20260912T100000.123456Z.000001.log"
 catalog catalog ready
 catalog request_id=123456789 list products
-request_id=123456789 method=GET path=/api/v1/products status_code=200 duration_ms=0.420 worker_pid=28146
+lcl_fastapi request_id=123456789 method=GET path=/api/v1/products status_code=200 duration_ms=0.420 worker_pid=28146
 continued in: "/opt/catalog-api/logs/catalog-api.28146.20260912T100010.123456Z.000002.log"
 ```
 
