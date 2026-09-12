@@ -7,7 +7,7 @@ name = "lcl-fastapi-minimal-example"
 version = "1.0.0"
 description = "An independently installed minimal lcl-fastapi service"
 requires-python = ">=3.14"
-dependencies = ["lcl-fastapi==0.1.0"]
+dependencies = ["lcl-fastapi==0.1.1"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["minimal_service"]

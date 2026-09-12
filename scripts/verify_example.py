@@ -28,8 +28,7 @@ def main() -> None:
     python = destination / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
     commands = [
         [sys.executable, "-m", "venv", str(destination)],
-        [str(python), "-m", "pip", "install", "--force-reinstall", str(wheel)],
-        [str(python), "-m", "pip", "install", str(example)],
+        [str(python), "-m", "pip", "install", "--force-reinstall", str(wheel), str(example)],
         [str(python), str(example / "verify.py")],
     ]
     reports = root / "reports" / "examples"
