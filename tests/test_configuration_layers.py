@@ -113,3 +113,10 @@ async def test_role_filter_preserves_masks_only_for_retained_definitions(tmp_pat
     async with configuration_frame(source, 123, logger_role="worker") as frame:
         assert frame.is_masked("logger.file.service.filename")
         assert await frame.get("logger.file.service.filename") == "worker.123.log"
+
+
+async def test_operational_json_default_does_not_shadow_native_json_import(tmp_path: Path) -> None:
+    source = tmp_path / "service.lclcfg"
+    source.write_text('business.payload: json.encode({"value": 1})\n', encoding="utf-8")
+    async with configuration_frame(source) as frame:
+        assert json.loads(str(await frame.get("business.payload"))) == {"value": 1}

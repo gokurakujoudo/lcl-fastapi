@@ -34,7 +34,7 @@ async def command_value(context: CliContext, name: str, fallback: object) -> obj
     :raises LclError: If the file or expression is invalid.
     """
     async with configuration_frame(await config_path(context)) as frame:
-        return await frame.get(name, fallback=fallback)
+        return await frame.get(name) if name in frame.module.definitions else fallback
 
 
 async def json_output(context: CliContext) -> bool:

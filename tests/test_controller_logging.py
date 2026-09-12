@@ -158,3 +158,25 @@ def test_reopen_failure_preserves_cause_and_releases_controller(
             with controller.controller_fork():
                 pass
     assert controller.CONTROLLER.get() is None
+
+
+def test_child_copy_does_not_reopen_or_close_parent_controller_resources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from types import SimpleNamespace
+
+    source = tmp_path / "service.lclcfg"
+    source.write_text(CONFIG, encoding="utf-8")
+    settings = asyncio.run(load_settings(source))
+    parent_pid = os.getpid()
+    with controller_logging(source, settings, process_identity() | {"service_id": "test"}):
+        active = controller.CONTROLLER.get()
+        assert active is not None
+        with controller.controller_fork():
+            assert active.writer.runner is None
+            # Model the native child identity after the pre-fork drain.
+            monkeypatch.setattr(controller, "os", SimpleNamespace(getpid=lambda: parent_pid + 1))
+        assert active.writer.runner is None
+    assert controller.CONTROLLER.get() is None
+    assert "service stopped" not in contents(tmp_path / "logs", "control*")

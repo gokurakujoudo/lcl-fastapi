@@ -1,6 +1,5 @@
 __LCL_VERSION__: 1
 
-json: False
 hot_reload: False
 output: None
 
