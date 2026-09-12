@@ -62,6 +62,49 @@ def test_atomic_state_removes_failed_temporary_write(
     assert not list(tmp_path.glob("*.tmp"))
 
 
+@pytest.mark.parametrize(
+    "platform, failures, succeeds",
+    [("win32", 1, True), ("win32", 2, True), ("win32", 3, False), ("linux", 1, False)],
+)
+def test_atomic_replace_retries_bounded_windows_reader_conflicts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    platform: str,
+    failures: int,
+    succeeds: bool,
+) -> None:
+    from lcl_fastapi.runtime import state
+
+    path = tmp_path / "reload.json"
+    atomic_write(path, {"generation": 1})
+    replace_file = os.replace
+    calls = 0
+    sleeps: list[float] = []
+
+    def replace_with_reader(source: Path, destination: Path) -> None:
+        nonlocal calls
+        calls += 1
+        assert read_state(destination) == {"generation": 1}
+        if calls <= failures:
+            raise PermissionError("concurrent reader sharing conflict")
+        replace_file(source, destination)
+
+    monkeypatch.setattr(state, "sys", SimpleNamespace(platform=platform))
+    monkeypatch.setattr(os, "replace", replace_with_reader)
+    monkeypatch.setattr("time.sleep", sleeps.append)
+    if succeeds:
+        atomic_write(path, {"generation": 2})
+        assert read_state(path) == {"generation": 2}
+        assert calls == failures + 1
+    else:
+        with pytest.raises(PermissionError, match="sharing conflict"):
+            atomic_write(path, {"generation": 2})
+        assert read_state(path) == {"generation": 1}
+        assert calls == (3 if platform == "win32" else 1)
+    assert sleeps == [0.01] * (calls - 1)
+    assert list(tmp_path.iterdir()) == [path]
+
+
 def test_process_identity_rejects_pid_reuse_and_invalid_values(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

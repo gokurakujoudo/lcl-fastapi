@@ -37,7 +37,7 @@ def read_state(path: Path) -> dict[str, object]:
 
 
 def atomic_write(path: Path, value: dict[str, object]) -> None:
-    """Publish a complete JSON observation through an atomic replacement.
+    """Publish complete JSON, retrying brief Windows reader-sharing conflicts.
 
     :param path: Destination in a trusted service directory.
     :param value: JSON-serializable observation.
@@ -47,7 +47,17 @@ def atomic_write(path: Path, value: dict[str, object]) -> None:
     temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
     try:
         temporary.write_text(json.dumps(value, sort_keys=True), encoding="utf-8")
-        os.replace(temporary, path)
+        attempts = 0
+        while True:
+            try:
+                os.replace(temporary, path)
+                break
+            except PermissionError:
+                attempts += 1
+                if sys.platform != "win32" or attempts == 3:
+                    raise
+                # Match reads: two 10 ms delays tolerate brief Windows reader handles.
+                time.sleep(0.01)
     finally:
         temporary.unlink(missing_ok=True)
 

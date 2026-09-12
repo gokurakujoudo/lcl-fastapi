@@ -14,7 +14,7 @@
 
 - Add downstream pyproject entrances, native CLI options and configuration overrides,
   portable `using` of universal defaults, and separate controller/worker log files.
-- Retry brief Windows observation-file sharing conflicts without suppressing
+- Retry brief Windows state-file read and replacement sharing conflicts without suppressing
   persistent permission errors.
 
 - Pin downstream examples to the release version and resolve installation together with

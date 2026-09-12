@@ -158,7 +158,11 @@ alternative source of public service settings. Its `LCL_FASTAPI_CONFIG` and
 
 ## Concurrent state reads on Windows
 
-Workers publish observations by atomic replacement. Windows can briefly deny a
+Workers publish observations by atomic replacement. State-file replacement retries
+Windows PermissionError up to three attempts, with 10 ms between attempts, when
+a concurrent reader temporarily prevents replacing the destination. Exhausted
+retries propagate the error, preserve the previous state, and remove the unused
+temporary file; other platforms fail immediately. Windows can briefly deny a
 read while a replaced file is pending deletion. The shared state reader retries
 PermissionError up to three attempts, with 10 ms between attempts, on Windows.
 Persistent denial is still raised; Linux permission failures are raised immediately.
