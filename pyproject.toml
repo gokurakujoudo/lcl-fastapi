@@ -63,10 +63,11 @@ select = ["E", "F", "I", "UP", "B", "ASYNC"]
 python_version = "3.14"
 strict = true
 files = ["src", "tests", "scripts"]
-mypy_path = "src"
+mypy_path = ["src", "examples/directory_monitor", "examples/playground"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["examples/directory_monitor", "examples/playground"]
 addopts = "--strict-config --strict-markers"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

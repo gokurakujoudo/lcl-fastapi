@@ -15,10 +15,13 @@ thread. No work is placed in FastAPI's shared thread pool.
 ## Configuration
 
 ```text
+# Managed background tasks
 background_worker.default.enabled: True
 background_worker.default.auto_restart: True
 background_worker.inventory.auto_restart: False
 background_worker.heartbeat.schedule.seconds: 0.5
+
+# Logging and file destinations
 logger.file.inventory.filename: f"{app.name}.inventory.{worker_pid}.log"
 logger.file.heartbeat.filename: f"{app.name}.heartbeat.{worker_pid}.log"
 ```

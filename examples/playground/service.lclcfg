@@ -4,17 +4,18 @@ __LCL_VERSION__: 1
 using f"{lcl_fastapi_defaults}"
 
 # Application identity and import target
-app.name: "minimal-example"
+app.name: "lcl-playground"
 app.version: "1.0.0"
-app.target: "minimal_service.app:service"
+app.target: "playground_service.app:service"
 
 # HTTP serving and shutdown
 server.host: "127.0.0.1"
-server.port: 18081
-server.workers: 2
+server.port: 18086
+server.workers: 1
 
 # Logging and file destinations
 logger.file.default.directory: "./logs"
-logger.file.controller.filename: f"{app.name}.controller.log"
-logger.file.service.filename: f"{app.name}.{worker_pid}.log"
-logger.level: "INFO"
+
+# Business settings
+business.sessions.max_count: 32
+business.sessions.idle_seconds: 900

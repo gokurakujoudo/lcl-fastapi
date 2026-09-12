@@ -26,7 +26,32 @@ def snippets(path: Path) -> list[str]:
     fragments = len(re.findall(r"<!-- python-doc-fragment -->\s*```python", text))
     if python_fences != len(examples) + fragments:
         raise ValueError(f"{path}: classify Python fences as executable or incomplete fragments")
-    return examples
+    # Assembled tutorial files have a native installed-project execution owner.
+    files = re.findall(
+        r"<!-- tutorial-(?:file|append): [^ ]+ -->\s*"
+        r"<!-- python-doc-exec -->\s*```python\n(.*?)```",
+        text,
+        re.S,
+    )
+    return [example for example in examples if example not in files]
+
+
+def tutorial_files(path: Path) -> dict[str, str]:
+    """Assemble exact create/append fences in reader order for native verification."""
+    files: dict[str, str] = {}
+    for operation, name, code in re.findall(
+        r"<!-- tutorial-(file|append): ([^ ]+) -->\s*"
+        r"(?:<!-- python-doc-(?:exec|fragment) -->\s*)?```[\w-]+\n(.*?)```",
+        path.read_text(encoding="utf-8"),
+        re.S,
+    ):
+        if operation == "file":
+            if name in files:
+                raise ValueError(f"Duplicate tutorial file: {name}")
+            files[name] = code
+        else:
+            files[name] += code
+    return files
 
 
 def anchors(text: str) -> set[str]:

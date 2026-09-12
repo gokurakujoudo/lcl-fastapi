@@ -4,6 +4,7 @@ Configure one shared directory and two filename expressions using the native
 `lclang.logger` schema:
 
 ```text
+# Logging and file destinations
 logger.file.default.directory: "./logs"
 logger.file.controller.filename: f"{app.name}.controller.log"
 logger.file.service.filename: f"{app.name}.{worker_pid}.log"
@@ -117,6 +118,7 @@ but size and time do not switch it. Configure a shared policy, then specialize
 either sink:
 
 ```text
+# Logging and file destinations
 logger.file.default.rotation.mode: "size_or_time"
 logger.file.default.rotation.max_bytes: 10485760
 logger.file.default.rotation.interval: "1d"

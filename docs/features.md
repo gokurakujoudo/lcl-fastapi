@@ -27,15 +27,25 @@ to its maintained reference contract. The authoritative full gate and aggregate
 
 The independently authored [minimal](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/examples/minimal/README.md) and
 [composed](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/examples/composed/README.md) downstream projects have passed local
-Windows checks against an installed wheel. Four GitHub Actions jobs validate
-both projects on Windows/Uvicorn and Linux/Gunicorn in isolated environments.
-Their full API/CLI and cleanup checks must pass on the final PR head. Both
+Windows checks against an installed wheel. Eight GitHub Actions jobs validate
+all four projects on Windows/Uvicorn and Linux/Gunicorn in isolated environments.
+Their full API/CLI and cleanup checks must pass on the final PR head. All
 projects are excluded from the wheel.
 
 The framework does not implement authentication systems, a management service,
 HTTP log streaming, configuration watching, or deployment commands.
 
-The [from-scratch catalog guide](build-a-service.md) teaches an independent
+The [from-scratch catalog guide](build-a-service/01-catalog.md) teaches an independent
 read-only service. Its documentation test extracts the exact application,
 configuration, and verifier from Markdown, runs native workers, checks HTTP
 behavior and request logs, stops gracefully, and verifies deployment rendering.
+
+The [Build a service series](build-a-service.md) adds independently installed
+[directory-monitor](https://github.com/gokurakujoudo/lcl-fastapi/tree/main/examples/directory_monitor)
+and [playground](https://github.com/gokurakujoudo/lcl-fastapi/tree/main/examples/playground)
+applications with bundled static UIs. Their verifiers cover recursive SSE updates,
+file APIs, session isolation, AST/dependency inspection and native evaluation replay.
+
+The browser tutorials provide every source file to build from an empty directory.
+The playground also ships reusable, dependency-free LCL highlighting JavaScript
+and CSS for static code or native textarea overlays, with escaped source rendering.

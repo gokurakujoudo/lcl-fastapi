@@ -28,9 +28,11 @@ for version notes, publication requirements, and artifact verification.
 
 ## Start a service
 
-New to the framework? Follow [Build a product catalog service from scratch](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/build-a-service.md)
-for a complete step-by-step project with configuration, routes, logging, verification,
-and deployment preparation.
+New to the framework? Follow the [Build a service tutorial series](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/build-a-service.md)
+to build a product catalog, a live directory monitor, and an interactive LCL
+playground from empty directories. Each guide prints every file and adds features
+step by step, with configuration, resource ownership and executable checks.
+The playground includes standalone reusable LCL highlighting assets for other UIs.
 
 Use a Python 3.14+ virtual environment. Install the built artifact with
 `python -m pip install path/to/lcl_fastapi-0.3.0-py3-none-any.whl`. Dependencies must
@@ -57,12 +59,18 @@ Save `service.lclcfg` alongside it:
 
 ```text
 __LCL_VERSION__: 1
+
+# Application identity and import target
 app.name: "example-service"
 app.version: "1.0.0"
 app.target: "app:service"
+
+# HTTP serving
 server.host: "127.0.0.1"
 server.port: 8080
 server.workers: 1
+
+# Logging and file destinations
 logger.file.default.directory: "./logs"
 logger.file.controller.filename: f"{app.name}.controller.log"
 logger.file.service.filename: f"{app.name}.{worker_pid}.log"
@@ -143,9 +151,11 @@ streaming feature.
 The reference pages below own the public contracts. The development plan maps
 those contracts to acceptance requirements; AGENTS.md governs engineering policy.
 
-Two independent downstream projects demonstrate the installed public package:
+Four independent downstream projects demonstrate the installed public package:
 [minimal service](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/examples/minimal/README.md) and
-[composed Router, configuration, and lifespan](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/examples/composed/README.md).
+[composed Router, configuration, and lifespan](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/examples/composed/README.md),
+[directory monitor](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/examples/directory_monitor/README.md) and
+[LCL playground](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/examples/playground/README.md).
 GitHub Actions builds the current source wheel, then installs that artifact and
 each example in a separate environment on Windows/Uvicorn and Linux/Gunicorn.
 Each run checks service availability, business and built-in HTTP APIs, all CLI

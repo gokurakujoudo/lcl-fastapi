@@ -13,7 +13,7 @@ startup, health sampling, local operations, and bundled offline Swagger UI.
 
 ## Start here
 
-Follow [Build a product catalog service from scratch](build-a-service.md) to go
+Follow [Build a service: catalog, directory monitor and LCL playground](build-a-service.md) to go
 from an empty directory to a validated API with logs, HTTP checks, and deployment
 configuration.
 

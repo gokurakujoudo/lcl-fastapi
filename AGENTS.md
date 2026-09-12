@@ -6,11 +6,12 @@ The maintained reference pages under `docs/` own the reviewed public contracts; 
 - License: MIT. Python metadata requires >=3.14; the initial target validation matrix is CPython 3.14 on Windows and Linux. Future versions are not claimed as tested.
 - Runtime dependencies: lclang==1.0.10, FastAPI >=0.141,<0.142, Uvicorn >=0.52,<0.53, watchfiles >=1.1,<2, psutil >=7.2,<8, Winloop ==0.6.3 on Windows only, and Gunicorn >=26,<27 on Linux only. Use lclang.cli; argparse, Click and Typer are not allowed.
 - Configuration comes from .lclcfg. `docs/configuration.md` governs key names and semantics, including the complete public origin. Use lclang's formal logger settings and Snowflake implementation.
-- Default branch: main; persistent publication branch: release; feature prefix: codex/. Version 0.2.0 preparation was merged in PR #18. Issue #19 and PR #20 deliver three separately implemented and verified features. The user has authorized publishing them as version 0.3.0 through the existing CI pipeline after exact-head verification and squash merge. Preserve main and release and do not replace published version artifacts.
-- The repository is established. Base the issue #19 feature branch on current main, retain separate feature commits in its PR, and update contracts, examples, verification and the Unreleased changelog together.
+- Default branch: main; persistent publication branch: release; feature prefix: codex/. Version 0.3.0 was published from PR #20. Current issue #21 extends the tutorial series and downstream examples; squash merge of PR #22 into main is authorized; no new release is requested. Preserve main/release and published artifacts.
+- The repository is established. Base new feature branches on current main; keep example implementation, executable contracts and validation together.
 - Version authority: pyproject.toml; any runtime version uses installed distribution metadata.
 - Authoritative quality command: `venv/Scripts/python.exe -m scripts.quality` on Windows and `venv/bin/python -m scripts.quality` on Linux. The quality entry point, structural production policy, architecture, documentation/link, artifact-integrity checks, and cross-platform coverage CI are implemented. Semantic policy compliance requires review. Full compliance is established by the latest PR head's Windows/Linux jobs and strict aggregate coverage report, not by the presence of configured checks.
 - Expected documentation entries: README.md, docs/development-plan.md, reference and guide pages under docs/. Examples are independent downstream projects and must not enter the wheel.
+- The development gate also requires Node.js >=18 for the standalone browser highlighter check. This is a development tool requirement, not a Python runtime dependency.
 - Platform-specific real-process tests run on their respective operating systems. Combine Windows/Linux coverage data to enforce 100% production branch coverage without excluding platform modules.
 - Agents share a workspace. Respect assigned file ownership and coordinate shared files before editing. Follow the user's current delegation instructions; the remaining work in this task is performed by the primary agent without subagents.
 # Python project engineering requirements
@@ -32,7 +33,8 @@ fixed version series, or release destination.
 
 Reference documentation owns public contracts; executable guides own workflows;
 tests own behavioral evidence; the feature inventory and README describe
-implemented capability. The changelog records user-visible changes. Requirements
+implemented capability. The changelog records only production behavior changes under `src/lcl_fastapi`;
+documentation, examples, tests, and tooling alone do not receive entries. Requirements
 are not evidence of compliance: identify missing enforcement or documentation
 without claiming that it already exists.
 
@@ -119,8 +121,9 @@ without claiming that it already exists.
   test and prove the intended failure; implement the smallest correct fix;
   prove the test passes; refactor if needed and run focused/full checks.
 - For a feature: prototypes may precede the settled contract, but acceptance
-  requires reference documentation and behavioral tests. Update README,
-  changelog, and the feature inventory when public claims change.
+  requires reference documentation and behavioral tests. Update README
+  and the feature inventory when public claims change. Update the changelog only
+  for production source features and fixes.
 - For a refactor: pass existing tests first, change production code, pass the
   same tests, then reorganize test ownership and verify again.
 - Use one authoritative, reproducible quality entry point, preferably
@@ -161,9 +164,9 @@ without claiming that it already exists.
   examples in TemporaryDirectory, and close async/resource scopes explicitly.
   Examples must not use production credentials or persistent external effects.
 - Test chapter discovery against the single table of contents and published
-  files. Update navigation and changelog when adding, renaming, reordering, or
-  retiring chapters. Do not impose word counts, slogans, one test per chapter,
-  or arbitrary exact example counts.
+  files. Update navigation when adding, renaming, reordering, or retiring chapters;
+  record documentation-only changes in the PR, not the changelog. Do not impose
+  word counts, slogans, one test per chapter, or arbitrary exact example counts.
 - Check relative links and anchors, CLI/API inventories, and executable snippets.
   If a site/export exists, generate it from canonical Markdown after checks,
   preserve exact examples, and validate navigation/assets. Avoid a competing

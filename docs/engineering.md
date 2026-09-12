@@ -48,10 +48,12 @@ does not advance `release`, upload packages, or create a version tag.
 ## Quality and artifact verification
 
 Install the project and its development dependencies in a Python 3.14 virtual
-environment, then run `python -m scripts.quality` using that environment's Python.
+environment, with Node.js 18 or later available for the standalone JavaScript
+highlighter check, then run `python -m scripts.quality` using that environment's Python.
 The gate checks Git whitespace, Ruff, production policy, dependency direction,
 strict mypy, canonical documentation examples and links, behavioral tests,
-coverage, and distribution contents. Generated evidence lives in `reports/`.
+coverage, standalone syntax-highlighter behavior, and distribution contents.
+Generated evidence lives in `reports/`.
 
 Production policy checks validate structure: code-bearing physical line counts,
 declaration names, documented parameters and return values, and value-class
@@ -70,7 +72,7 @@ normal workers must exit gracefully to preserve their measurements.
 The implementation follows the [coverage process guidance](https://coverage.readthedocs.io/en/latest/subprocess.html).
 
 The separate build job constructs an isolated wheel and source distribution from
-the checked-out commit. Four downstream jobs each create their own virtual
+the checked-out commit. Eight downstream jobs each create their own virtual
 environment, install that wheel plus one example project, and run its `verify.py`.
 These jobs do not use source-path imports. `python -m scripts.verify_example minimal`
 and `python -m scripts.verify_example composed` reproduce their installation and

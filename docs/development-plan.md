@@ -108,3 +108,19 @@ merged content. Publication is a separately authorized operation following
 advance the persistent release branch, publish its tested artifacts to PyPI,
 then publish the matching tag and GitHub Release. A failed final stage retains
 the original published source and artifact bytes during recovery.
+
+## Tutorial-series acceptance
+
+The [Build a service series](build-a-service.md) has one ordered chapter index.
+Discovery tests match its published chapter files and preserve executable catalog
+source. The directory-monitor example validates recursive snapshots, upload/download
+boundaries, SSE delivery/coalescing and cleanup. The playground validates native
+AST spans, dependency classes, real trace/cache behavior, session isolation, expiry
+and cleanup. Both package static UIs and run installed-wheel native-process
+verifiers on Windows/Linux; browser interaction checks supplement API evidence.
+The guides must be sufficient without cloning the repository: create/append fences
+are assembled, installed, and verified as complete projects. LCL configuration
+uses functional comment groups after its leading version line. The playground's
+standalone JavaScript/CSS highlighter preserves source text, escapes markup and
+works independently of the application; Node checks and browser input/scroll
+checks cover its reusable API and editor integration.

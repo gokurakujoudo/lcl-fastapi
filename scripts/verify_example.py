@@ -12,8 +12,16 @@ from pathlib import Path
 
 def main() -> None:
     """Create an independent environment and retain exact command diagnostics."""
-    if len(sys.argv) != 2 or sys.argv[1] not in {"minimal", "composed"}:
-        raise SystemExit("Usage: python -m scripts.verify_example {minimal|composed}")
+    if len(sys.argv) != 2 or sys.argv[1] not in {
+        "minimal",
+        "composed",
+        "directory_monitor",
+        "playground",
+    }:
+        raise SystemExit(
+            "Usage: python -m scripts.verify_example "
+            "{minimal|composed|directory_monitor|playground}"
+        )
     root = Path(__file__).resolve().parents[1]
     example = root / "examples" / sys.argv[1]
     version = tomllib.loads(root.joinpath("pyproject.toml").read_text(encoding="utf-8"))["project"][
