@@ -194,6 +194,15 @@ def check_http(config: Path, state: dict[str, Any]) -> tuple[set[str], list[Path
             observed.add(catalog["pid"])
     assert observed == worker_pids, "Both initialized worker catalogs must be observable"
     assert json.loads(http("/about")[2]) == {"application": "composed-catalog"}
+    for mode, expected in (("default", 500), ("custom", 502), ("callback", 500)):
+        status, headers, body = http(f"/api/v1/errors/{mode}?quantity=7")
+        assert status == expected and headers["X-Request-ID"].isdecimal()
+        data = json.loads(body)
+        assert data == (
+            {"error": "catalog unavailable", "request_id": headers["X-Request-ID"]}
+            if mode == "custom"
+            else {"detail": "Internal Server Error"}
+        )
     assert json.loads(http("/api/v1/scope")[2]) == {
         "original": "Reader",
         "local": "Scoped Reader",
@@ -285,6 +294,9 @@ def main() -> None:
                     assert f"catalog shutdown pid={worker['pid']} items=0" in contents
                 assert all(request_id in contents for request_id in request_ids)
                 assert "catalog read" in contents and "/api/v1/catalog" in contents
+                assert "\tquantity: 7" in contents
+                assert "uncaught_exception_handler failed:" in contents
+                assert "demonstration route failure" in contents
                 print(
                     f"PASS composed: {state['service']['runtime']}, "
                     "two workers, HTTP/CLI/render/cleanup"

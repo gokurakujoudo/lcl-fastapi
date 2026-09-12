@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add configurable uncaught HTTP exception callbacks, original traceback argument
+  diagnostics and resilient JSON 500 fallback; document and demonstrate default,
+  custom and callback-failure responses in the composed example.
+
 - Add `use_lcl_frame()` with nested task-local configuration scopes, native Frame
   inheritance, and cleanup on exceptions and cancellation; demonstrate it in the
   composed catalog example and installed-wheel verifier.

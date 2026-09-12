@@ -12,12 +12,18 @@ from fastapi import FastAPI, HTTPException, Request
 from lclang.logger import resolve_logger_config, use_logger_handler
 from lclang.utils import SnowflakeGenerator
 from starlette.background import BackgroundTask
+from starlette.middleware.errors import ServerErrorMiddleware
 from starlette.responses import Response
-from starlette.types import Lifespan, Receive, Scope, Send
+from starlette.types import ASGIApp, Lifespan, Receive, Scope, Send
 
 from lcl_fastapi.config import configuration_frame, settings_from_frame
-from lcl_fastapi.context import CONFIG_FRAME
+from lcl_fastapi.context import CONFIG_FRAME, get_request_context
 from lcl_fastapi.docs.swagger import register_documentation
+from lcl_fastapi.errors import (
+    UncaughtExceptionContext,
+    UncaughtExceptionHandler,
+    handle_uncaught_exception,
+)
 from lcl_fastapi.health.sampler import HealthSampler
 from lcl_fastapi.logging import (
     active_log_paths,
@@ -34,6 +40,7 @@ class LclFastAPI(FastAPI):
 
     :param lifespan: Optional business lifespan following FastAPI's convention.
     :param config_path: Optional path to the formal LCL file; CLI supplies it internally.
+    :param uncaught_exception_handler: Optional asynchronous unhandled HTTP error callback.
     :param kwargs: Native FastAPI business options except framework-owned docs and root_path.
     """
 
@@ -42,12 +49,14 @@ class LclFastAPI(FastAPI):
         *,
         lifespan: Lifespan[FastAPI] | None = None,
         config_path: str | Path | None = None,
+        uncaught_exception_handler: UncaughtExceptionHandler | None = None,
         **kwargs: Any,
     ) -> None:
         """Create an application without opening files or runtime resources.
 
         :param lifespan: Optional business initialization and teardown context.
         :param config_path: Formal configuration source path, when explicitly supplied.
+        :param uncaught_exception_handler: Optional unhandled HTTP failure callback.
         :param kwargs: Native FastAPI business configuration.
         :raises ValueError: If framework-owned URL settings are passed to the constructor.
         """
@@ -56,6 +65,7 @@ class LclFastAPI(FastAPI):
             raise ValueError(f"configure framework URL settings in .lclcfg: {sorted(reserved)}")
         self.config_path = None if config_path is None else Path(config_path)
         self.business_lifespan = lifespan
+        self.uncaught_exception_handler = uncaught_exception_handler
         self.worker_requests: RequestRuntime | None = None
         self.worker_identity: WorkerRuntime | None = None
         self.health_sampler: HealthSampler | None = None
@@ -70,6 +80,45 @@ class LclFastAPI(FastAPI):
         self.request_middleware = RequestContextMiddleware(
             super().__call__,
             self.current_request_runtime,
+        )
+
+    def build_middleware_stack(self) -> ASGIApp:
+        """Configure FastAPI's native final error boundary without changing inner handlers.
+
+        :returns: Native middleware stack with the selected generic HTTP handler.
+        :raises ValueError: If explicit generic error handlers conflict.
+        :raises RuntimeError: If FastAPI changes its outer middleware contract.
+        """
+        generic = any(key in self.exception_handlers for key in (500, Exception))
+        if generic and self.uncaught_exception_handler is not None:
+            raise ValueError("uncaught_exception_handler conflicts with Exception/500 handlers")
+        stack = super().build_middleware_stack()
+        if not isinstance(stack, ServerErrorMiddleware):
+            raise RuntimeError("expected FastAPI ServerErrorMiddleware boundary")
+        if not generic:
+            stack.handler = self.uncaught_response
+            stack.debug = False
+        return stack
+
+    async def uncaught_response(self, request: Request, err: Exception) -> Response:
+        """Adapt FastAPI's request-first callback to the public typed error interface.
+
+        :param request: Current HTTP request with application and lifespan state.
+        :param err: Original unhandled exception.
+        :returns: Custom response or the default generic JSON 500.
+        :raises RuntimeError: If called outside an active worker lifespan.
+        """
+        runtime = self.current_request_runtime()
+        request_context = get_request_context()
+        context = UncaughtExceptionContext(
+            None if request_context is None else request_context.request_id,
+            runtime.logger,
+            CONFIG_FRAME.get() or runtime.frame,
+            request.scope.get("endpoint"),
+            {"name": self.title, "version": self.version, "worker_pid": os.getpid()},
+        )
+        return await handle_uncaught_exception(
+            self.uncaught_exception_handler, err, request, context
         )
 
     def current_request_runtime(self) -> RequestRuntime:

@@ -85,6 +85,25 @@ failure response is cancelled or fails. The framework does not retry, synthesize
 a fallback ID, or change the upstream clock/sequence algorithm. A later request
 can succeed once the upstream generator can issue an ID again.
 
+## Uncaught exception diagnostics
+
+The default HTTP error callback logs the original exception traceback, chained
+causes/contexts and ExceptionGroup members. Every Python frame includes its file,
+function, exact traceback line number and available source line. Each parameter
+appears on its own tab-indented line as `parameter: repr(value)`, including `*args`
+and `**kwargs`. Values are read from the traceback's argument slots at failure time;
+historical values overwritten or mutated earlier cannot be reconstructed.
+
+There is no additional masking or truncation: representation policy belongs to
+each object's `repr`. A failing repr, deleted parameter or unavailable source gets
+an explicit placeholder. The callback never collects its own current call stack,
+and does not read the HTTP body for logging. User arguments may themselves contain
+request or application data, so protect these detailed log files accordingly.
+
+Formatting runs away from the API event loop. Custom callback failures are logged
+before the original exception's default diagnostic. Logger or formatter failures
+produce a short best-effort summary without recursive callback invocation.
+
 ## Rotation and permanent segments
 
 The pinned `lclang==1.0.10` writer owns rotation. Without an explicit policy,

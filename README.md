@@ -17,7 +17,8 @@ The framework owns worker startup, request IDs, health sampling, local operation
 and bundled offline Swagger UI.
 
 Development source also provides `use_lcl_frame()` for nested configuration scopes
-inside handlers and lifespans. See the application reference and composed example;
+and `uncaught_exception_handler` for custom HTTP error responses with detailed
+default traceback logging. See the application reference and composed example;
 this addition is not part of the published 0.2.0 artifact.
 
 Install version 0.2.0 with `python -m pip install lcl-fastapi==0.2.0` in a

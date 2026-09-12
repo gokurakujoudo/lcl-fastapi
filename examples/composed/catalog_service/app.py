@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import APIRouter, FastAPI, Request
 
+from catalog_service.errors import catalog_error
 from lcl_fastapi import LclFastAPI, get_config, get_logger, get_request_context, use_lcl_frame
 
 
@@ -30,7 +31,7 @@ async def catalog_lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info(f"catalog shutdown pid={os.getpid()} items={len(app.state.catalog)}")
 
 
-service = LclFastAPI(lifespan=catalog_lifespan)
+service = LclFastAPI(lifespan=catalog_lifespan, uncaught_exception_handler=catalog_error)
 router = APIRouter()
 
 
@@ -81,6 +82,17 @@ async def scoped_configuration() -> dict[str, object]:
         assert local == "Scoped Reader"
     assert await get_config("business.name") == original
     return {"original": original, "local": local, "restored": await get_config("business.name")}
+
+
+@router.get("/errors/{mode}")
+async def error_example(mode: str, quantity: int = 3) -> None:
+    """Raise a controlled error to exercise each callback path.
+
+    :param mode: default, custom or callback demonstration path.
+    :param quantity: Example argument included in the original traceback log.
+    :raises ValueError: Deliberate demonstration failure.
+    """
+    raise ValueError(f"demonstration route failure: {mode}, quantity={quantity}")
 
 
 service.include_router(router, prefix="/api/v1")

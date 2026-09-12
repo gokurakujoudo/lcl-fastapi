@@ -117,6 +117,38 @@ async def scoped() -> dict[str, object]:
     return {"name": original}
 ```
 
+## Uncaught HTTP exceptions
+
+`LclFastAPI(uncaught_exception_handler=callback)` accepts an asynchronous
+`callback(err, request, *, context) -> Response`. The exported
+`UncaughtExceptionContext` borrows `request_id`, `logger`, the current `frame`,
+the selected `endpoint` (or None), and public `service` identity. Access application
+resources through `request.app.state` and lifespan state through `request.state`.
+Do not retain these borrowed resources beyond the callback.
+
+Specific FastAPI exception handlers, HTTPException, and request validation retain
+their normal priority. Without an explicit callback, an existing Exception/500
+handler remains authoritative. Explicitly combining both generic interfaces raises
+`ValueError` when the middleware stack is built, including handlers registered after
+construction. Without a native generic handler, the framework callback applies even
+when `debug=True`.
+
+The default callback logs the original traceback and returns HTTP 500 with
+`{"detail": "Internal Server Error"}`. A custom callback can return any Response.
+If it raises or returns another type, the framework first logs its failure, then
+uses the default callback to log the original exception and return 500. The default
+callback catches its own diagnostic failures, records a short summary without
+recursion, and still attempts the generic response. Cancellation and process-exit
+signals propagate. Request IDs and the single access record remain intact.
+
+The exported `default_uncaught_exception_handler` lets a custom callback delegate
+selected errors explicitly. See the composed example's default/custom/callback
+endpoints and [traceback logging](logging.md#uncaught-exception-diagnostics).
+The callback handles HTTP failures, not WebSocket, lifespan or independent job
+failures. Once response headers have started, failures can only be logged and
+propagated: no replacement response is sent. Native ASGI propagation is retained,
+so TestClient can re-raise server errors unless `raise_server_exceptions=False`.
+
 ## Offline API documentation
 
 With `docs.enabled: True`, the framework provides a Swagger page at `docs.path`
