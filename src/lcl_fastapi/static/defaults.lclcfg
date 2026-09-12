@@ -1,37 +1,49 @@
 __LCL_VERSION__: 1
 
+# Development and command output
 hot_reload: False
 output: None
 
+# HTTP serving and shutdown
 server.host: "127.0.0.1"
 server.port: 8080
 server.workers: 1
 
+# Managed background tasks
 background_worker.default.enabled: True
 background_worker.default.auto_restart: True
+
+# HTTP serving and shutdown
 server.reload_dirs: ["."]
 server.root_path: ""
 server.backlog: 2048
 server.keep_alive_seconds: 5
 server.graceful_timeout_seconds: 30
 
+# Service state and process files
 runtime.state_dir: "./run"
 runtime.pid_file: f"{runtime.state_dir}/{app.name}.pid"
 runtime.worker_state_dir: f"{runtime.state_dir}/workers"
 
+# Health sampling
 health.enabled: True
 health.path: "/health"
 health.sample_interval_seconds: 1
 health.disk_paths: [".", logger.file.default.directory]
 
+# API documentation
 docs.enabled: True
 docs.path: "/docs"
 docs.openapi_path: "/openapi.json"
 
+# Request correlation
 request.id_header: "X-Request-ID"
+
+# Request ID allocation
 snowflake.worker_id_base: 0
 snowflake.worker_id_count: 64
 
+# Logging and file destinations
 logger.file.default.directory: "./logs"
 logger.file.service.filename: f"{app.name}.{worker_pid}.log"
 logger.level: "INFO"

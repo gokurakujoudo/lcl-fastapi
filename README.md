@@ -29,8 +29,10 @@ for version notes, publication requirements, and artifact verification.
 ## Start a service
 
 New to the framework? Follow the [Build a service tutorial series](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/build-a-service.md)
-for a product catalog, a live directory monitor, and an interactive LCL playground,
-with configuration, static browser UIs, verification and resource ownership.
+to build a product catalog, a live directory monitor, and an interactive LCL
+playground from empty directories. Each guide prints every file and adds features
+step by step, with configuration, resource ownership and executable checks.
+The playground includes standalone reusable LCL highlighting assets for other UIs.
 
 Use a Python 3.14+ virtual environment. Install the built artifact with
 `python -m pip install path/to/lcl_fastapi-0.3.0-py3-none-any.whl`. Dependencies must
@@ -57,12 +59,18 @@ Save `service.lclcfg` alongside it:
 
 ```text
 __LCL_VERSION__: 1
+
+# Application identity and import target
 app.name: "example-service"
 app.version: "1.0.0"
 app.target: "app:service"
+
+# HTTP serving
 server.host: "127.0.0.1"
 server.port: 8080
 server.workers: 1
+
+# Logging and file destinations
 logger.file.default.directory: "./logs"
 logger.file.controller.filename: f"{app.name}.controller.log"
 logger.file.service.filename: f"{app.name}.{worker_pid}.log"

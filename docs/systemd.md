@@ -4,6 +4,7 @@ The service runs without systemd. For a Linux deployment that uses it, place
 these deployment fields in the same `.lclcfg`:
 
 ```text
+# Linux service deployment
 systemd.service_name: "example-service"
 systemd.description: "Example REST Service"
 systemd.user: "example"

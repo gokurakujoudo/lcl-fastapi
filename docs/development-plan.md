@@ -118,3 +118,9 @@ boundaries, SSE delivery/coalescing and cleanup. The playground validates native
 AST spans, dependency classes, real trace/cache behavior, session isolation, expiry
 and cleanup. Both package static UIs and run installed-wheel native-process
 verifiers on Windows/Linux; browser interaction checks supplement API evidence.
+The guides must be sufficient without cloning the repository: create/append fences
+are assembled, installed, and verified as complete projects. LCL configuration
+uses functional comment groups after its leading version line. The playground's
+standalone JavaScript/CSS highlighter preserves source text, escapes markup and
+works independently of the application; Node checks and browser input/scroll
+checks cover its reusable API and editor integration.

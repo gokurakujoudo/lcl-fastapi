@@ -45,3 +45,7 @@ The [Build a service series](build-a-service.md) adds independently installed
 and [playground](https://github.com/gokurakujoudo/lcl-fastapi/tree/main/examples/playground)
 applications with bundled static UIs. Their verifiers cover recursive SSE updates,
 file APIs, session isolation, AST/dependency inspection and native evaluation replay.
+
+The browser tutorials provide every source file to build from an empty directory.
+The playground also ships reusable, dependency-free LCL highlighting JavaScript
+and CSS for static code or native textarea overlays, with escaped source rendering.

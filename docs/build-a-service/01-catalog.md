@@ -2,6 +2,8 @@
 
 [Series overview](../build-a-service.md) · Next: [Directory monitor](02-directory-monitor.md)
 
+The [complete chapter source](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/build-a-service/01-catalog.md) is available for reference; no repository checkout is needed.
+
 Build a small catalog API that a shop website can call to list products, filter
 available stock, and look up one product. Start with an empty directory and end
 with typed responses, validated business configuration, worker startup/cleanup,
@@ -64,18 +66,27 @@ be used in the next step; leave them in place for now.
 <!-- tutorial-file: service.lclcfg -->
 ```text
 __LCL_VERSION__: 1
+
+# Shared configuration
 using f"{lcl_fastapi_defaults}"
 
+# Application identity and import target
 app.name: "catalog-api"
 app.version: "1.0.0"
 app.target: "app:service"
+
+# HTTP serving and shutdown
 server.host: "127.0.0.1"
 server.port: 18083
 server.workers: 1
+
+# Logging and file destinations
 logger.file.default.directory: "./logs"
 logger.file.controller.filename: f"{app.name}.controller.log"
 logger.file.service.filename: f"{app.name}.{worker_pid}.log"
 logger.level: "INFO"
+
+# Business settings
 business.shop_name: "Corner Shop"
 business.products: [{"sku": "tea", "name": "Green tea", "price_cents": 650, "in_stock": True}, {"sku": "mug", "name": "Ceramic mug", "price_cents": 1200, "in_stock": False}]
 ```
@@ -415,11 +426,16 @@ values; rendering does not create them:
 
 <!-- tutorial-deployment -->
 ```text
+# HTTP serving and shutdown
 server.root_path: "https://catalog.example.com"
+
+# Reverse proxy deployment
 nginx.server_name: "catalog.example.com"
 nginx.listen_port: 443
 nginx.ssl_certificate: "/etc/ssl/catalog/fullchain.pem"
 nginx.ssl_certificate_key: "/etc/ssl/catalog/privkey.pem"
+
+# Linux service deployment
 systemd.service_name: "catalog-api"
 systemd.description: "Corner Shop catalog API"
 systemd.user: "catalog"

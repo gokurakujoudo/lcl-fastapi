@@ -1,9 +1,13 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LCL Workbench</title><link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script></head>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LCL Workbench</title><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/lcl-highlight.css"><script src="/static/lcl-highlight.js" defer></script><script src="/static/app.js" defer></script></head>
 <body><header><div><div class="eyebrow">Build a service · Example 03</div><h1>LCL Workbench</h1><p>Follow a configuration from source to syntax, dependencies and values.</p></div><span class="badge" id="session-status">Opening session…</span></header>
 <main><div class="split"><section class="panel editor"><div class="toolbar"><h2>Your program</h2><button id="new-session">New session</button></div><label for="sample">Try a starting point</label><select id="sample"><option value="catalog">A small calculation</option><option value="conditional">Conditional dependencies</option><option value="error">A circular dependency</option></select><label for="source">LCL definitions</label><textarea id="source" rows="12" spellcheck="false" aria-describedby="source-help">__LCL_VERSION__: 1
+
+# Inputs
 price: 12
 quantity: 3
+
+# Derived value
 total: price * quantity</textarea><p id="source-help" class="muted">In-memory definitions. No using/imports or service configuration is inherited.</p><label for="expression">Expression to evaluate</label><textarea id="expression" rows="2" spellcheck="false">total + 5</textarea><div class="toolbar" style="margin-top:18px"><button id="parse" class="primary">Parse &amp; analyze</button><button id="evaluate" disabled>Evaluate &amp; record</button></div><div id="message" class="notice" role="status">Parse your source to explore its structure.</div><p class="muted">Named values stay cached within this session. Parsing again replaces the Frame and clears its cache.</p></section>
 <section class="panel"><div class="tabs" role="tablist" aria-label="Inspection views"><button role="tab" aria-selected="true" aria-controls="ast" id="tab-ast" data-tab="ast">AST</button><button role="tab" aria-selected="false" aria-controls="dependencies" id="tab-dependencies" data-tab="dependencies">Dependencies</button><button role="tab" aria-selected="false" aria-controls="trace" id="tab-trace" data-tab="trace">Evaluation replay</button></div>
 <section id="ast" role="tabpanel" aria-labelledby="tab-ast"><h2>Native syntax tree</h2><p class="muted">Expand nodes to inspect the source and one-based line/column span.</p><div id="tree" class="tree">Parse a program to build its tree.</div></section>

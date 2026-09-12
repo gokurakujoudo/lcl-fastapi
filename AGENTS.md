@@ -11,6 +11,7 @@ The maintained reference pages under `docs/` own the reviewed public contracts; 
 - Version authority: pyproject.toml; any runtime version uses installed distribution metadata.
 - Authoritative quality command: `venv/Scripts/python.exe -m scripts.quality` on Windows and `venv/bin/python -m scripts.quality` on Linux. The quality entry point, structural production policy, architecture, documentation/link, artifact-integrity checks, and cross-platform coverage CI are implemented. Semantic policy compliance requires review. Full compliance is established by the latest PR head's Windows/Linux jobs and strict aggregate coverage report, not by the presence of configured checks.
 - Expected documentation entries: README.md, docs/development-plan.md, reference and guide pages under docs/. Examples are independent downstream projects and must not enter the wheel.
+- The development gate also requires Node.js >=18 for the standalone browser highlighter check. This is a development tool requirement, not a Python runtime dependency.
 - Platform-specific real-process tests run on their respective operating systems. Combine Windows/Linux coverage data to enforce 100% production branch coverage without excluding platform modules.
 - Agents share a workspace. Respect assigned file ownership and coordinate shared files before editing. Follow the user's current delegation instructions; the remaining work in this task is performed by the primary agent without subagents.
 # Python project engineering requirements

@@ -13,11 +13,17 @@ The bundled universal configuration is available to native LCL `using` through
 
 ```text
 __LCL_VERSION__: 1
+
+# Shared configuration
 using f"{lcl_fastapi_defaults}"
 using "./team.lclcfg"
+
+# Application identity and import target
 app.name: "catalog"
 app.version: "1.0.0"
 app.target: "catalog.app:service"
+
+# HTTP serving and shutdown
 server.workers: 2
 ```
 
@@ -116,6 +122,7 @@ Inherited definitions retain native parent evaluation and caching.
 For development, select one or more recursive Python watch roots:
 
 ```text
+# HTTP serving and shutdown
 server.reload_dirs: ["./src", "../shared"]
 ```
 

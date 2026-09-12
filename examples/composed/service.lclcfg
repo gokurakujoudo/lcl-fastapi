@@ -1,30 +1,51 @@
 __LCL_VERSION__: 1
+
+# Application identity and import target
 app.name: "composed-catalog"
 app.version: "1.0.0"
 app.target: "catalog_service.app:service"
+
+# HTTP serving and shutdown
 server.host: "127.0.0.1"
 server.port: 18082
 server.workers: 2
 
+# Managed background tasks
 background_worker.inventory.auto_restart: False
 background_worker.heartbeat.schedule.seconds: 0.5
+
+# Logging and file destinations
 logger.file.inventory.filename: f"{app.name}.inventory.{worker_pid}.log"
 logger.file.heartbeat.filename: f"{app.name}.heartbeat.{worker_pid}.log"
+
+# HTTP serving and shutdown
 server.root_path: "https://catalog.example.com:8443"
 server.graceful_timeout_seconds: 30
+
+# Service state and process files
 runtime.state_dir: "./run"
+
+# Health sampling
 health.sample_interval_seconds: 0.2
 health.disk_paths: [".", logger.file.default.directory]
+
+# Logging and file destinations
 logger.file.default.directory: "./logs"
 logger.file.service.filename: f"{app.name}.{worker_pid}.log"
 logger.level: "INFO"
+
+# Business settings
 business.name: "Reader"
 business.greeting: f"Welcome, {business.name}"
 business.items: ["notebook", "pencil"]
+
+# Reverse proxy deployment
 nginx.server_name: "catalog.example.com"
 nginx.listen_port: 9443
 nginx.ssl_certificate: "/etc/catalog/tls/server.crt"
 nginx.ssl_certificate_key: "/etc/catalog/tls/server.key"
+
+# Linux service deployment
 systemd.service_name: "composed-catalog"
 systemd.description: "Composed Catalog Example"
 systemd.user: "catalog"

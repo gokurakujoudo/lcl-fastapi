@@ -1,12 +1,20 @@
 __LCL_VERSION__: 1
+
+# Application identity and import target
 app.name: "minimal-example"
 app.version: "1.0.0"
 app.target: "minimal_service.app:service"
+
+# HTTP serving and shutdown
 server.port: 18081
+
+# Reverse proxy deployment
 nginx.server_name: "minimal.example.invalid"
 nginx.listen_port: 443
 nginx.ssl_certificate: "/example-not-installed/cert.pem"
 nginx.ssl_certificate_key: "/example-not-installed/key.pem"
+
+# Linux service deployment
 systemd.service_name: "minimal-example"
 systemd.description: "Minimal example service"
 systemd.user: "minimal-example"

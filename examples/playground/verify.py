@@ -83,7 +83,12 @@ def main() -> None:
                     assert time.monotonic() < deadline, "Service startup timed out"
                     time.sleep(0.1)
                 assert http(origin, "/")[0] == 200
-                for asset in ["/static/app.js", "/static/style.css"]:
+                for asset in [
+                    "/static/app.js",
+                    "/static/style.css",
+                    "/static/lcl-highlight.js",
+                    "/static/lcl-highlight.css",
+                ]:
                     assert http(origin, asset)[0] == 200
                 verify(origin, root)
                 status = json.loads(command("status").stdout)

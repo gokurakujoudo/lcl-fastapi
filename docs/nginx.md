@@ -5,6 +5,7 @@ The application must bind `127.0.0.1` or `0.0.0.0`. Configure the deployment
 listener and certificate paths in the service `.lclcfg`:
 
 ```text
+# Reverse proxy deployment
 nginx.server_name: "api.example.com"
 nginx.listen_port: 443
 nginx.ssl_certificate: "/etc/pki/tls/certs/example.crt"

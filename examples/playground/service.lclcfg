@@ -1,11 +1,21 @@
 __LCL_VERSION__: 1
+
+# Shared configuration
 using f"{lcl_fastapi_defaults}"
+
+# Application identity and import target
 app.name: "lcl-playground"
 app.version: "1.0.0"
 app.target: "playground_service.app:service"
+
+# HTTP serving and shutdown
 server.host: "127.0.0.1"
 server.port: 18086
 server.workers: 1
+
+# Logging and file destinations
 logger.file.default.directory: "./logs"
+
+# Business settings
 business.sessions.max_count: 32
 business.sessions.idle_seconds: 900

@@ -21,12 +21,15 @@ time; the framework supports one service per machine. All examples bind to
 loopback, use local resources, and need no external account. Installation requires
 package-index access or an operator-prepared wheelhouse.
 
-The first chapter preserves the original from-scratch catalog guide. Chapters 2
-and 3 use independent projects under `examples/`, with static assets included in
-their own wheels. Their `verify.py` programs start native workers, exercise the
-installed APIs and stop them in temporary directories. The framework wheel does
-not contain downstream projects. See [engineering checks](engineering.md) for the
-Windows/Linux wheel-installation matrix.
+Every chapter starts in an empty directory and prints the complete files to create
+and extend. No repository checkout is needed. Build and verify one capability at a
+time: configuration, lifespan resources, routes, background work or sessions, then
+the browser and operations. The complete example code is linked at each chapter's
+start as a reference. Chapters 2 and 3 include all static assets in their own wheels.
+Documentation tests reconstruct those projects from the exact printed source;
+their `verify.py` programs exercise installed native services in temporary directories.
+The framework wheel does not contain downstream projects. See
+[engineering checks](engineering.md) for the Windows/Linux installation matrix.
 
 These examples teach local trusted workflows. Read each chapter's filesystem or
 expression-execution boundary before using it with other people's data or serving

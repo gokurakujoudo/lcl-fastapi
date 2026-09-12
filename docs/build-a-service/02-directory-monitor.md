@@ -1,6 +1,10 @@
-# 2. Monitor a directory with a live browser UI
+# 2. Build a directory monitor with a live browser UI
 
 [Series overview](../build-a-service.md) · Previous: [Product catalog](01-catalog.md) · Next: [LCL playground](03-lcl-playground.md)
+
+The [complete working code](https://github.com/gokurakujoudo/lcl-fastapi/tree/main/examples/directory_monitor)
+is available for reference. This guide starts from an empty directory and provides
+every file you need; create and extend them in the order shown.
 
 ## Background and objective
 
@@ -33,218 +37,246 @@ does not supply a file-storage or SSE framework.
 
 ## Before you start
 
-Use CPython 3.14 on Windows or Linux. Chapter 1 explains basic routes and the CLI;
-you can still follow this chapter independently with basic async Python knowledge.
-Stop other lcl-fastapi services first, reserve loopback port `18085`, and use a
-dedicated folder containing disposable files. Installation needs package-index
-access; the running application needs no external account.
+Use CPython 3.14 on Windows or Linux and basic async Python. Stop any other
+lcl-fastapi service: run one service at a time on the machine. Installation needs
+package-index access, but the finished application needs no external account.
+Keep the listener on loopback and use trusted local input.
 
-Work through the following steps in the checked-out example. The repository gives
-you the filesystem and frontend scaffolding, so you can concentrate on assembling
-the framework integration. The Python modules shown below are executable, and
-the final installed application has its own real-process verifier.
+## 1. Create the application package
 
-## 1. Set up the project and observe the finished workflow
-
-Clone the repository, then work in `examples/directory_monitor`. The complete
-[project source](https://github.com/gokurakujoudo/lcl-fastapi/tree/main/examples/directory_monitor)
-includes the Python package, static HTML/CSS/JavaScript, configuration and verifier.
+Create an empty project directory. No repository checkout is needed.
 
 On Windows:
 
 ```powershell
+mkdir directory-observatory
+cd directory-observatory
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install -e .
-.venv\Scripts\lcl-fastapi.exe serve -o config service.lclcfg
+.venv\Scripts\python.exe -m pip install lcl-fastapi==0.3.0
+mkdir directory_service
+mkdir directory_service\static
 ```
 
 On Linux:
 
 ```sh
+mkdir directory-observatory
+cd directory-observatory
 python3.14 -m venv .venv
-.venv/bin/python -m pip install -e .
-.venv/bin/lcl-fastapi serve -o config service.lclcfg
+.venv/bin/python -m pip install lcl-fastapi==0.3.0
+mkdir -p directory_service/static
 ```
 
-Open `http://127.0.0.1:18085/`. Start with the empty directory, upload a small file,
-and edit it using your normal editor. Filter paths in the browser, then follow its
-Download link. The bundled assets require no frontend build or CDN.
+Keep subsequent files and commands in this directory. Later commands use
+`lcl-fastapi` and `python` as shorthand for `.venv\Scripts\lcl-fastapi.exe` and
+`.venv\Scripts\python.exe` on Windows, or `.venv/bin/lcl-fastapi` and
+`.venv/bin/python` on Linux. In PowerShell use `curl.exe` instead of `curl`.
+Use a second terminal for HTTP and management commands while the server runs.
 
-The editable installation makes subsequent Python edits visible to the installed
-entry point. Keep commands in `examples/directory_monitor`; the configuration
-path and your application-relative `./watched` path will then have the same base.
-Use a second terminal for HTTP and management commands. In later shell examples,
-`lcl-fastapi` means `.venv\Scripts\lcl-fastapi.exe` on Windows or
-`.venv/bin/lcl-fastapi` on Linux; PowerShell users should call `curl.exe`.
+Create `directory_service/__init__.py` to make an importable package:
 
-Inspect the project responsibilities before changing it:
+<!-- tutorial-file: directory_service/__init__.py -->
+<!-- python-doc-exec -->
+```python
+"""Recursive directory monitor tutorial package."""
+```
 
-| File | Responsibility |
-| --- | --- |
-| `service.lclcfg` | Operator-selected paths, limits, address and logging |
-| `directory_service/app.py` | Lifespan, registration, routes and static mount |
-| `directory_service/events.py` | Inventory publication, monitor entry and stream lifecycle |
-| `directory_service/files.py` | Traversal validation, recursive scan and non-overwriting save |
-| `directory_service/static/` | Browser rendering, uploads and EventSource subscription |
-| `verify.py` | Installed-service checks with a temporary directory |
+Create `pyproject.toml` so the application and its static files can be installed together:
 
-**Checkpoint:** upload one file in the browser and download it again. The inventory
-should update after a scan; the upload response itself does not publish an SSE
-event. Close the browser and stop the service before the configuration exercises.
+<!-- tutorial-file: pyproject.toml -->
+```toml
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
 
-## 2. Connect the application to LCL configuration
+[project]
+name = "lcl-fastapi-directory-example"
+version = "1.0.0"
+requires-python = ">=3.14"
+dependencies = ["lcl-fastapi==0.3.0"]
 
-Start with this complete `service.lclcfg`:
+[tool.hatch.build.targets.wheel]
+packages = ["directory_service"]
+```
 
+Install this local project with `python -m pip install -e .`.
+The editable install lets later Python changes take effect after a service restart.
+The dependency installs the framework; the new package contains your application.
+Do not start the service until the step that creates its `service` object.
+
+## 2. Define operator configuration
+
+Create `service.lclcfg`. Comments and blank lines group settings by function;
+the dotted keys are native LCL scopes, not JSON objects that you must assemble.
+
+<!-- tutorial-file: service.lclcfg -->
 ```text
 __LCL_VERSION__: 1
+
+# Shared configuration
 using f"{lcl_fastapi_defaults}"
+
+# Application identity and import target
 app.name: "directory-monitor"
 app.version: "1.0.0"
 app.target: "directory_service.app:service"
+
+# HTTP serving and shutdown
 server.host: "127.0.0.1"
 server.port: 18085
 server.workers: 1
+
+# Logging and file destinations
 logger.file.default.directory: "./logs"
+
+# Managed background tasks
 background_worker.monitor.directory: "./watched"
 background_worker.monitor.interval_seconds: 0.5
 background_worker.monitor.max_entries: 10000
+
+# Business settings
 business.max_upload_bytes: 10485760
 ```
 
-`app.target` tells the CLI to import `directory_service.app` and retrieve its
-`service` object. `app.name` identifies this downstream application; its version
-is independent of the installed lcl-fastapi distribution. `using` imports the
-framework defaults before your local overrides, retaining health, docs, request
-IDs and runtime/logging settings you did not override.
+`using` imports the framework defaults before your overrides. You keep the
+default health/docs routes, request IDs and shutdown behavior while choosing a
+local address. `app.target` means “import `directory_service.app`, then get its
+`service` object”; you will create that object in step 5.
 
-Put scanner-specific values under `background_worker.monitor`, matching the
-Python registration name you will use in step 3. `business.max_upload_bytes`
-belongs to the HTTP application. These arbitrary application values keep native
-LCL expression semantics; the application must still validate its own ranges.
-See the [configuration reference](../configuration.md) for precedence.
+The monitor name will be the key in the Python worker registry, so its settings
+live under `background_worker.monitor`. `business.max_upload_bytes` belongs to
+the HTTP application. Both use ordinary LCL expressions, but your code must
+validate application-specific ranges. Relative `./watched` resolves from the
+service working directory; keep it alongside this configuration for the guide.
 
-`service.lclcfg` sets `background_worker.monitor.directory: "./watched"`. Relative
-paths resolve from the service working directory. The lifespan creates the root
-if needed, validates entry/upload limits, and creates an `Inventory` on the API
-loop before the background worker starts.
+**Checkpoint:** inspect your files: the package, metadata and configuration now
+exist. No folder scan, log file or thread should have started merely from creating
+or installing the package. Resource initialization belongs in lifespan.
 
-| Configuration | Default | Effect |
-| --- | --- | --- |
-| `background_worker.monitor.directory` | `"./watched"` | Root for scanning and file APIs |
-| `background_worker.monitor.interval_seconds` | `0.5` | Delay after each completed scan; allowed 0.1–60 seconds |
-| `background_worker.monitor.max_entries` | `10000` | Maximum entries in a snapshot |
-| `business.max_upload_bytes` | `10485760` | Maximum bytes accepted for one upload |
-| `server.workers` | `1` | One API process owns the inventory and subscribers |
+## 3. Implement bounded filesystem operations
 
-Directory entries contain relative POSIX paths, file/directory kind, file byte
-count (zero for directories), and `modified_ns` from filesystem metadata. The UI
-counts files/directories and sums file bytes. Those totals describe the current
-snapshot, not hidden or truncated entries. Scan errors and truncation are visible.
+Create `directory_service/files.py`. First, make file paths relative to a trusted
+root and reject traversal, links and junctions. Then scan nested entries into a
+bounded snapshot, keeping errors visible. Finally, create new files with `xb`
+so an upload cannot silently overwrite an existing file.
 
-Polling keeps the example portable and does not require watcher-specific recovery.
-Each scan is O(number of entries visited), up to the configured entry cap; short-lived
-changes between scans can be missed. This is a current-state monitor, not an audit
-log. Complete service restart applies configuration changes.
+<!-- tutorial-file: directory_service/files.py -->
+<!-- python-doc-exec -->
+```python
+"""Filesystem operations kept outside the API event loop."""
 
-**Try a launch-only override:** start with
-`lcl-fastapi serve -o config service.lclcfg -o background_worker.monitor.interval_seconds "LCL[2]"`.
-Make two changes more than two seconds apart. Updates now follow the slower scan
-cadence; `service.lclcfg` remains unchanged. Stop and start without the override
-to restore the file's value. File edits require a complete service restart.
+import os
+import stat
+from pathlib import Path, PurePosixPath
 
-## 3. Initialize resources in lifespan and register the monitor
+from fastapi import HTTPException
 
-Build the core of `directory_service/app.py` around an asynchronous context manager.
-The existing `Inventory` and `monitor` helpers are explained in the next step.
-This is the complete lifecycle/registration portion; retain the file's routes
-and static mount when working with the finished project.
+
+def within(root: Path, name: str) -> Path:
+    """Accept relative POSIX paths without links, junctions or traversal."""
+    parts = PurePosixPath(name).parts
+    if not parts or name.startswith("/") or "\\" in name or ":" in name:
+        raise HTTPException(400, "Use a relative path with forward slashes")
+    if any(part in {"..", "."} for part in name.split("/")):
+        raise HTTPException(400, "Path traversal is not allowed")
+    path = root
+    for part in parts:
+        path /= part
+        if path.is_symlink() or path.is_junction():
+            raise HTTPException(400, "Links and junctions are not served")
+    if not path.resolve().is_relative_to(root):
+        raise HTTPException(400, "Path is outside the configured directory")
+    return path
+
+
+def scan(root: Path, limit: int) -> dict[str, object]:
+    """Return a bounded recursive snapshot, retaining errors as visible state."""
+    entries: list[dict[str, object]] = []
+    errors: list[str] = []
+    if not root.is_dir():
+        return {
+            "entries": [],
+            "errors": ["Configured directory is unavailable"],
+            "truncated": False,
+        }
+
+    def failed(error: OSError) -> None:
+        errors.append(str(error))
+
+    for parent, directories, files in os.walk(root, followlinks=False, onerror=failed):
+        directories[:] = sorted(
+            name
+            for name in directories
+            if not (Path(parent) / name).is_symlink() and not (Path(parent) / name).is_junction()
+        )
+        for name in sorted([*directories, *files]):
+            path = Path(parent) / name
+            try:
+                info = path.lstat()
+                if not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
+                    continue
+                if path.is_junction():
+                    continue
+                if len(entries) >= limit:
+                    return {"entries": entries, "errors": errors, "truncated": True}
+                entries.append(
+                    {
+                        "path": path.relative_to(root).as_posix(),
+                        "kind": "directory" if path.is_dir() else "file",
+                        "bytes": info.st_size if path.is_file() else 0,
+                        "modified_ns": info.st_mtime_ns,
+                    }
+                )
+            except OSError as error:
+                failed(error)
+    return {"entries": entries, "errors": errors, "truncated": False}
+
+
+def save(root: Path, name: str, content: bytes) -> None:
+    """Create a new file, refusing to overwrite an existing entry."""
+    path = within(root, name)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with path.open("xb") as output:
+            output.write(content)
+    except FileExistsError as error:
+        raise HTTPException(409, "File already exists") from error
+```
+
+These functions are synchronous because filesystem work is blocking. You will
+call `scan()` in a managed background thread, and route-triggered `save()` through
+`asyncio.to_thread`. Merely adding `async def` would not make filesystem calls
+nonblocking. Entries carry relative paths, kind, bytes and modification time.
+
+**Checkpoint:** save this small check as a separate scratch file and run it with
+`python`. It verifies nested paths and cleanup without starting the service:
 
 <!-- python-doc-exec -->
 ```python
-import asyncio
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from directory_service.files import save, scan
 
-from directory_service.events import Inventory, monitor
-from fastapi import FastAPI
-from lcl_fastapi import LclFastAPI, get_config
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    configured = Path(str(await get_config("background_worker.monitor.directory")))
-    root = await asyncio.to_thread(configured.resolve)
-    await asyncio.to_thread(root.mkdir, parents=True, exist_ok=True)
-    limit = int(str(await get_config("background_worker.monitor.max_entries")))
-    maximum = int(str(await get_config("business.max_upload_bytes")))
-    if not 1 <= limit <= 100000 or not 1 <= maximum <= 104857600:
-        raise ValueError("Invalid directory entry or upload limit")
-    app.state.inventory = Inventory(root, limit)
-    app.state.max_upload = maximum
-    yield
-    app.state.inventory.subscribers.clear()
-
-
-service = LclFastAPI(lifespan=lifespan, background_workers={"monitor": monitor})
+with TemporaryDirectory() as directory:
+    root = Path(directory).resolve()
+    save(root, "notes/hello.txt", b"hello")
+    entries = scan(root, 100)["entries"]
+    assert any(row["path"] == "notes/hello.txt" and row["bytes"] == 5 for row in entries)
 ```
 
-Follow the startup sequence in this code:
+## 4. Add a managed monitor and an API-owned inventory
 
-1. The CLI imports the application without opening the directory or reading
-   business configuration. `LclFastAPI(...)` registers intent at this point.
-2. The real API worker opens its framework configuration/logger, then enters your
-   lifespan. `await get_config(...)` is now valid; it would fail at module import.
-3. Resolve/create the root using `asyncio.to_thread`, validate limits, and assign
-   `app.state.inventory`. Routes and the monitor borrow this lifespan-owned object.
-4. Yield to let the framework start the registered monitor and serve requests.
-   The string `"monitor"` connects registration, configuration, status and logs;
-   configuration alone cannot supply executable code or start a new worker.
-5. On stop, the framework signals and joins background workers before resuming
-   business teardown. The subscriber collection is cleared while the API loop
-   still exists; framework resources are closed afterwards.
+Create `directory_service/events.py`. The `Inventory` stores the latest complete
+snapshot and a queue for each browser. The synchronous `monitor(context)` entry
+runs on its own lcl-fastapi background thread; it must not mutate asyncio queues
+owned by the API loop.
 
-The registry requires one API worker even if the monitor is disabled. When a
-larger valid count is requested, lcl-fastapi warns and uses one; it does not edit
-the configuration file. That rule also keeps this single inventory coherent.
+Read the worker from bottom to top after entering it: `context.run(...)` resolves
+its configuration on its own loop, `scan()` performs disk I/O in its thread, and
+`submit_to_service(publish).result()` waits for publication on the API loop.
+`stop_event.wait(interval)` makes the delay interruptible at shutdown.
 
-**Checkpoint:** restart normally and call `GET /health` and `lcl-fastapi status -o
-config service.lclcfg`. Check the effective worker count and the monitor's state.
-Temporarily set an invalid entry limit, stop and restart, and observe startup
-failure before the scanner starts. Restore the valid value before continuing.
-
-## 4. Scan in the background and publish on the API loop
-
-The registered synchronous `monitor(context)` entry runs outside the API loop in
-its dedicated managed thread. It scans recursively, then submits an asynchronous
-publication callback with `context.submit_to_service(...).result()`. Only that
-callback touches asyncio queues. It waits using the cooperative `stop_event`, so
-shutdown interrupts the delay. The framework drains callbacks before teardown.
-
-Read `monitor()` first in the code below, then `Inventory.publish()`:
-
-1. `context.app.state` retrieves the initialized inventory. Its root and entry
-   limit are startup values; the thread must not mutate subscriber queues.
-2. The synchronous entry uses `context.run(context.get_config(...))` to evaluate
-   its configuration on its own event loop. An async entry would directly await
-   `context.get_config(...)`; do not nest `run()` inside an async entry.
-3. `scan()` performs blocking directory I/O on the dedicated worker thread.
-4. `submit_to_service(publish).result()` waits for a callback on the API loop.
-   That callback can safely use the API's asyncio queues. Do not make the callback
-   wait synchronously for this worker, which would create a deadlock.
-5. `stop_event.wait(interval)` pauses cooperatively. Unlike `time.sleep`, the
-   wait ends promptly when the framework requests shutdown.
-
-The response keeps one persistent disconnect listener. It never polls by cancelling
-`receive()`: Gunicorn 26.2.0 treats that cancellation as a closed connection. For
-ASGI versions before 2.4, Starlette already supplies the listener; newer versions
-use the small response subclass below. A real disconnect cancels the stream and
-removes its subscription.
-
-The exact queue/worker implementation is maintained in the example:
-
-<!-- example-source: examples/directory_monitor/directory_service/events.py -->
+<!-- tutorial-file: directory_service/events.py -->
 <!-- python-doc-exec -->
 ```python
 """Publish thread-produced snapshots using queues owned by the API loop."""
@@ -321,150 +353,542 @@ def monitor(context: BackgroundWorkerContext) -> None:
             break
 ```
 
-Each subscriber has a one-element queue. If a browser is slow, publication replaces
-its pending snapshot with the newest complete state. Memory cannot grow with the
-number of missed revisions. This coalesces changes intentionally.
+`publish()` replaces a slow browser's pending item with the latest snapshot.
+The queue cannot grow with missed revisions; this is current-state observation,
+not an audit log. Polling can miss short-lived edits between scans.
 
-**Checkpoint:** create and then delete a nested file outside the browser. Verify
-both revisions arrive without a browser refresh. The scan may block on disk, but
-its I/O does not run in the API event loop. Threads can still contend for the GIL,
-shared locks and machine resources; this is not an independent process sandbox.
+`EventStream` will be used in step 7. It keeps one persistent disconnect listener.
+Polling `request.is_disconnected()` cancels receive calls, which Gunicorn 26.2.0
+can interpret as a closed connection. On ASGI before 2.4, Starlette already owns
+that listener; on newer ASGI versions the small response class supplies it.
 
-## 5. Add HTTP routes around the shared inventory
+The API callback must remain nonblocking and must not wait synchronously for the
+monitor that submitted it. That would deadlock. Threads still share the GIL,
+locks and machine resources; see [background workers](../background-workers.md).
 
-In `directory_service/app.py`, follow how the route decorators use the same
-`service` created above. lcl-fastapi retains FastAPI's route and Request APIs:
+## 5. Initialize the inventory and serve its first route
 
-1. `@service.get("/api/files")` reads `request.app.state.inventory` and returns
-   its current snapshot. It does not rescan the disk on every request.
-2. The upload route consumes `request.stream()`, checks the configured byte limit,
-   then awaits `asyncio.to_thread(save, ...)`. Its raw body avoids multipart
-   dependencies, while file I/O stays outside the API event loop.
-3. The download route validates a relative path and returns `FileResponse` with
-   an attachment filename. Use framework-compatible response objects directly.
-4. The event route gives each request a queue, immediately inserts the current
-   snapshot, then yields `id`, `event` and JSON `data` fields as SSE frames.
-   Its `finally` block removes the queue even if cancellation interrupts a wait.
+Create `directory_service/app.py` with the following code. It contains the imports
+needed by later steps, the lifespan, worker registration and one inventory route.
+Do not create the inventory or read `get_config()` at module import: the framework
+configuration context is only active once a real API worker enters lifespan.
 
-Intentional input failures use `HTTPException` (400/403/404/409/413). They retain
-FastAPI handling instead of becoming unexpected server errors. Unhandled bugs
-use lcl-fastapi's default detailed error logging and generic 500 response; see
-[HTTP error handling](../application.md).
+<!-- tutorial-file: directory_service/app.py -->
+<!-- python-doc-exec -->
+```python
+"""Static browser UI, file APIs and background-driven server-sent events."""
 
-| Endpoint | Observable behavior |
-| --- | --- |
-| `GET /api/files` | Latest recursive snapshot and revision |
-| `PUT /api/files/{relative_path}` | Raw binary request body; 201 for a new file |
-| `GET /api/files/{relative_path}` | Download as an attachment; 404 for missing/non-file entries |
-| `GET /api/events` | `inventory` SSE events, each containing a full snapshot |
+import asyncio
+import json
+import stat
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from pathlib import Path
 
-For example, from another terminal:
+from fastapi import FastAPI, HTTPException, Request
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.responses import FileResponse, Response, StreamingResponse
+from starlette.staticfiles import StaticFiles
+
+from directory_service.events import EventStream, Inventory, monitor
+from directory_service.files import save, within
+from lcl_fastapi import LclFastAPI, get_config
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    configured = Path(str(await get_config("background_worker.monitor.directory")))
+    root = await asyncio.to_thread(configured.resolve)
+    await asyncio.to_thread(root.mkdir, parents=True, exist_ok=True)
+    limit = int(str(await get_config("background_worker.monitor.max_entries")))
+    maximum = int(str(await get_config("business.max_upload_bytes")))
+    if not 1 <= limit <= 100000 or not 1 <= maximum <= 104857600:
+        raise ValueError("Invalid directory entry or upload limit")
+    app.state.inventory = Inventory(root, limit)
+    app.state.max_upload = maximum
+    yield
+    app.state.inventory.subscribers.clear()
+
+
+service = LclFastAPI(lifespan=lifespan, background_workers={"monitor": monitor})
+service.add_middleware(
+    TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"]
+)
+
+
+@service.get("/api/files")
+async def files(request: Request) -> dict[str, object]:
+    inventory: Inventory = request.app.state.inventory
+    return inventory.current()
+
+
+```
+
+Before `yield`, resolve/create the root, validate limits, and assign the shared
+resource to `app.state`. `LclFastAPI(lifespan=..., background_workers={...})` starts
+the registered monitor only after business initialization succeeds. Configuration
+chooses parameters; it never supplies executable code. The nonempty registry
+requires one effective API worker, even when disabled; a larger valid count is
+warned about and overridden without rewriting the configuration.
+
+After `yield`, business teardown runs after background workers have stopped.
+That lets routes and the monitor borrow the same inventory without owning its
+lifetime. The request obtains it from `request.app.state`, not a new global scan.
+
+Start the service:
 
 ```sh
-curl -X PUT --data-binary "hello" http://127.0.0.1:18085/api/files/notes/hello.txt
+lcl-fastapi serve -o config service.lclcfg
+```
+
+In another terminal:
+
+```sh
+curl http://127.0.0.1:18085/health
 curl http://127.0.0.1:18085/api/files
-curl -N http://127.0.0.1:18085/api/events
-curl -OJ http://127.0.0.1:18085/api/files/notes/hello.txt
+lcl-fastapi status -o config service.lclcfg
 ```
 
-On PowerShell, use `curl.exe` for these commands. Duplicate uploads return 409,
-oversized bodies 413, and rejected traversal/link paths 400. Nested destination
-directories are created for new uploads. Raw request bodies avoid an additional
-multipart dependency; browser `fetch` sends the selected File directly.
+**Checkpoint:** health is 200, status shows one API worker and the monitor, and
+the inventory eventually contains files you create in `watched`. Initially it
+may be empty until the first scan. Stop with `lcl-fastapi stop -o config
+service.lclcfg` before editing the app; restart after each following Python step.
 
-An SSE connection receives an initial snapshot, then new revisions and five-second
-heartbeat comments. `EventSource` reconnects automatically; the server always
-sends current state rather than retaining a replay log or honoring Last-Event-ID.
-The generator unregisters its queue on disconnect/cancellation. Close the browser
-tab or SSE client before stopping the service: open streams are long-lived HTTP
-requests and otherwise depend on the native graceful timeout. Proxies must disable
-buffering; the response includes `X-Accel-Buffering: no`.
+## 6. Add uploads and downloads
 
-## 6. Connect the static frontend to the service
+Append these routes to `directory_service/app.py`:
 
-Open `directory_service/static/app.js` and follow this browser sequence:
+<!-- tutorial-append: directory_service/app.py -->
+<!-- python-doc-fragment -->
+```python
+@service.put("/api/files/{name:path}", status_code=201)
+async def upload(name: str, request: Request) -> dict[str, str]:
+    origin = request.headers.get("origin")
+    if origin and origin != str(request.base_url).rstrip("/"):
+        raise HTTPException(403, "Cross-origin writes are not allowed")
+    chunks = bytearray()
+    async for chunk in request.stream():
+        chunks.extend(chunk)
+        if len(chunks) > request.app.state.max_upload:
+            raise HTTPException(413, "Upload exceeds configured limit")
+    inventory: Inventory = request.app.state.inventory
+    await asyncio.to_thread(save, inventory.root, name, bytes(chunks))
+    return {"path": name}
 
-1. Construct an `EventSource("/api/events")` on the same origin as the page.
-2. Listen for the named `inventory` event, parse its JSON, and replace the displayed
-   snapshot. Render totals and apply the path filter to that latest snapshot.
-3. Send the selected File as a raw `fetch` PUT body to its chosen relative path.
-   Let the next background scan update the list instead of inventing a local
-   revision that could disagree with the server.
-4. Build download links to the GET file route and show reconnect/scan errors so
-   stale state is visible to the operator.
 
-In `app.py`, `@service.get("/", include_in_schema=False)` serves `index.html` with
-`FileResponse`, and `service.mount("/static", StaticFiles(...))` serves its assets.
-Paths are based on the installed package's `__file__`, not the caller's shell.
-Static assets are mounted at `/static`, with one explicit `/` HTML route. A catch-all
-root mount would shadow built-in routes registered during lifespan, including
-health and shutdown. Keeping the asset prefix separate preserves those routes. Dynamic filenames are inserted with DOM `textContent`,
-not interpreted as HTML. Snapshot entries use relative paths; filesystem error diagnostics may include
-absolute paths and are intended for the local operator.
+@service.get("/api/files/{name:path}")
+async def download(name: str, request: Request) -> Response:
+    inventory: Inventory = request.app.state.inventory
 
-**Checkpoint:** open `/docs` and `/health` after loading the UI. Both framework
-endpoints must still work. Reload the browser during filesystem changes; its new
-SSE connection should receive a complete current snapshot without replaying old
-edits. The browser UI and these built-in endpoints share one service.
+    def checked() -> Path:
+        path = within(inventory.root, name)
+        if not path.exists() or not stat.S_ISREG(path.stat().st_mode):
+            raise HTTPException(404, "File not found")
+        return path
 
-## 7. Operate, inspect logs and test worker switches
+    path = await asyncio.to_thread(checked)
+    return FileResponse(path, filename=path.name, media_type="application/octet-stream")
 
-Use a second terminal while the service is running:
+
+```
+
+The decorators and `Request`, `HTTPException` and `FileResponse` retain normal
+FastAPI behavior. Uploads consume a bounded raw request body; no multipart package
+is required. Intentional bad input returns its explicit HTTP status, while an
+unexpected bug uses lcl-fastapi's detailed error log and generic 500 response.
+
+Restart and try the first upload/download (PowerShell: `curl.exe`):
 
 ```sh
-lcl-fastapi status -o config service.lclcfg
-lcl-fastapi logs -o config service.lclcfg
-curl -i http://127.0.0.1:18085/api/files
+curl -i -X PUT --data-binary "hello" http://127.0.0.1:18085/api/files/notes/hello.txt
+curl http://127.0.0.1:18085/api/files/notes/hello.txt
 ```
 
-`status` reports API and background observations, including execution/restart
-counts. `logs` lists actual file paths, including rotated files. The monitor's
-named source uses `logger.file.monitor`, inheriting `logger.file.default`; API
-request logs and monitor logs are separate. Monitor lifecycle events also appear
-in the controller log. The `X-Request-ID` response header lets you find the file
-request in the API log; a long-lived SSE request's access entry completes when
-that request finishes.
+**Checkpoint:** the upload returns 201 and the download contains `hello`. Repeat
+the PUT and expect 409, because this service never overwrites. Missing files return
+404, oversized uploads 413, and rejected paths 400. The monitor, not the upload
+handler, eventually refreshes the inventory. Use `curl -OJ` to save an attachment.
 
-Close browser/SSE clients, stop, and try one switch at a time by adding it to the
-configuration before restarting:
+## 7. Stream background changes over SSE
 
-| Exercise | What to observe and why |
+Append the event route to `directory_service/app.py`:
+
+<!-- tutorial-append: directory_service/app.py -->
+<!-- python-doc-fragment -->
+```python
+@service.get("/api/events")
+async def events(request: Request) -> StreamingResponse:
+    inventory: Inventory = request.app.state.inventory
+
+    async def stream() -> AsyncIterator[str]:
+        queue: asyncio.Queue[dict[str, object]] = asyncio.Queue(maxsize=1)
+        inventory.subscribers.add(queue)
+        queue.put_nowait(inventory.current())
+        try:
+            while True:
+                try:
+                    snapshot = await asyncio.wait_for(queue.get(), timeout=5)
+                    yield (
+                        f"id: {snapshot['revision']}\nevent: inventory\n"
+                        f"data: {json.dumps(snapshot)}\n\n"
+                    )
+                except TimeoutError:
+                    yield ": heartbeat\n\n"
+        finally:
+            inventory.subscribers.discard(queue)
+
+    return EventStream(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+```
+
+Each HTTP connection registers one queue, receives the current snapshot, then
+waits for publications from the background worker. The `finally` block removes
+that subscription on disconnect or cancellation. Five-second comments keep idle
+streams active; each inventory event has a revision ID and complete JSON state.
+
+Restart, run `curl -N http://127.0.0.1:18085/api/events`, and edit then delete
+`watched/notes/hello.txt` in another terminal. **Checkpoint:** both changes arrive
+on the existing connection without a refresh. Stop curl before stopping the
+service: an open stream is a live HTTP request and otherwise uses the native
+graceful timeout. Reconnecting always sends current state; it does not replay a
+Last-Event-ID history. A proxy must not buffer this response.
+
+## 8. Build the browser UI and serve static assets
+
+Create the following three files under `directory_service/static`. The HTML
+defines the upload controls, totals, table and connection status. The CSS is only
+presentation; expand its complete source to copy it.
+
+<details>
+<summary>Complete directory_service/static/index.html</summary>
+
+<!-- tutorial-file: directory_service/static/index.html -->
+```html
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Directory Observatory</title><link rel="stylesheet" href="/static/style.css"><script src="/static/app.js" defer></script></head>
+<body><header><div><div class="eyebrow">Build a service · Example 02</div><h1>Directory Observatory</h1><p>A live view of your configured directory, down to the last file.</p></div><span class="badge" id="connection">Connecting to live updates…</span></header>
+<main><section class="cards" aria-label="Directory statistics"><div class="card"><small>Files</small><strong id="file-count">0</strong></div><div class="card"><small>Directories</small><strong id="dir-count">0</strong></div><div class="card"><small>Total file bytes</small><strong id="bytes">0</strong></div><div class="card"><small>Snapshot revision</small><strong id="revision">0</strong></div></section>
+<section class="panel"><h2>Directory contents</h2><div class="toolbar"><input class="search" id="filter" aria-label="Filter paths" placeholder="Filter paths, including nested folders…"><button id="refresh">Refresh snapshot</button></div><div class="scroll"><table><thead><tr><th>Relative path</th><th>Kind</th><th>Bytes</th><th>Last modified</th><th>Action</th></tr></thead><tbody id="entries"></tbody></table></div><p id="empty" class="muted">Waiting for the first snapshot…</p></section>
+<section class="panel"><h2>Add a file</h2><p class="muted">Files are created under the configured root. Existing files are never overwritten.</p><form id="upload"><div class="toolbar"><input id="file" type="file" required aria-label="Choose a file"><label for="destination">Relative destination</label><input class="search" id="destination" required placeholder="notes/report.txt"><button class="primary" type="submit">Upload file</button></div></form><div id="message" class="notice" role="status">Choose a file, or edit the watched directory on disk to see live updates.</div></section>
+<footer>Local, trusted-directory demo · Recursive polling runs in a managed background thread · SSE sends complete snapshots and reconnects automatically.</footer></main></body></html>
+```
+
+</details>
+
+<details>
+<summary>Complete directory_service/static/style.css</summary>
+
+<!-- tutorial-file: directory_service/static/style.css -->
+```css
+:root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color:#182b43;background:#f4f6fa;font-size:15px}*{box-sizing:border-box}body{margin:0}header{background:#152a43;color:white;padding:26px max(5vw,20px);display:flex;justify-content:space-between;align-items:center;gap:20px}h1{font-size:27px;margin:6px 0}h2{font-size:18px;margin:0 0 16px}p{line-height:1.55}.eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#9db7d6}header p{margin:0;color:#c5d4e4}.badge{border:1px solid #49647f;border-radius:30px;padding:7px 13px;white-space:nowrap;font-size:12px}main{max-width:1360px;margin:28px auto;padding:0 24px}.cards{display:flex;gap:16px;margin-bottom:24px}.card,.panel{border:1px solid #dce3ed;border-radius:12px;background:white;box-shadow:0 3px 10px #172b4305}.card{padding:18px 24px;flex:1}.card small{display:block;color:#64758a}.card strong{font-size:28px;display:block;margin-top:7px}.panel{padding:24px;margin-bottom:20px}.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:18px}button,.button{border:1px solid #c6d3e2;border-radius:7px;padding:9px 15px;font:inherit;cursor:pointer;background:white;color:#223952;text-decoration:none}button.primary{background:#245bba;color:white;border-color:#245bba}button:hover,.button:hover{filter:brightness(.95)}button:disabled{opacity:.4;cursor:default}input,textarea{font:inherit;border:1px solid #bfcede;border-radius:7px;padding:10px;background:#fcfdff;color:#183049}input:focus,textarea:focus,button:focus-visible,a:focus-visible{outline:3px solid #9bc5ff;outline-offset:2px}.search{flex:1;min-width:180px}label{font-weight:600;font-size:13px}table{width:100%;border-collapse:collapse;text-align:left}th{font-size:11px;color:#64758a;text-transform:uppercase;letter-spacing:.08em}td,th{padding:13px 10px;border-bottom:1px solid #e8edf3}td small,.muted{color:#64758a}.scroll{overflow:auto}.notice{padding:12px 16px;border-left:3px solid #267761;background:#ebf7f1;margin:15px 0;min-height:42px;white-space:pre-wrap}.notice.error{border-color:#b63448;background:#fff0f1;color:#8c2435}.split{display:grid;grid-template-columns:minmax(280px, .85fr) minmax(380px,1.4fr);gap:20px}textarea{width:100%;resize:vertical;font:14px/1.65 Consolas,monospace;tab-size:2}.editor label{display:block;margin:16px 0 8px}.tabs{display:flex;gap:8px;border-bottom:1px solid #dce3ed;margin-bottom:18px;padding-bottom:12px}.tabs button[aria-selected=true]{background:#e7efff;color:#214f9e;border-color:#95b4ea}pre,code{font-family:Consolas,monospace}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f6fa;padding:14px;border-radius:7px;line-height:1.6}.tree details{margin:6px 0 6px 17px;border-left:1px solid #d8e2ee;padding-left:10px}.tree summary{cursor:pointer;padding:5px}.tree code{font-size:12px;color:#3c649b}.graph{width:100%;min-height:180px}.step{border:1px solid #cad9eb;background:#f1f6ff;padding:18px;border-radius:8px;min-height:130px;white-space:pre-wrap;overflow-wrap:anywhere;font:13px/1.7 Consolas,monospace}footer{color:#6c7c90;font-size:12px;padding:12px 2px 25px}a{color:#245bba}[hidden]{display:none!important}@media(max-width:850px){.split{grid-template-columns:1fr}.cards{flex-wrap:wrap}.card{min-width:120px}header{align-items:flex-start;flex-direction:column}.panel{padding:17px}main{padding:0 14px}td,th{padding:10px 5px}}
+```
+
+</details>
+
+Create `directory_service/static/app.js`. It subscribes to the named `inventory`
+event, replaces displayed state, filters relative paths, and sends a selected
+File directly as a PUT body. It waits for the monitor's next snapshot rather than
+inventing a local revision after upload. User filenames are rendered as text.
+
+<!-- tutorial-file: directory_service/static/app.js -->
+```javascript
+"use strict";
+const $ = id => document.getElementById(id);
+let snapshot = {entries: [], errors: [], revision: 0};
+function message(text, error = false) { $("message").textContent = text; $("message").classList.toggle("error", error); }
+function render(data = snapshot) {
+  snapshot = data;
+  const entries = data.entries || [], files = entries.filter(e => e.kind === "file");
+  $("file-count").textContent = files.length;
+  $("dir-count").textContent = entries.length - files.length;
+  $("bytes").textContent = files.reduce((sum, e) => sum + e.bytes, 0).toLocaleString();
+  $("revision").textContent = data.revision;
+  const visible = entries.filter(e => e.path.toLowerCase().includes($("filter").value.toLowerCase()));
+  $("entries").replaceChildren();
+  visible.forEach(entry => {
+    const row = document.createElement("tr");
+    [entry.path, entry.kind, entry.bytes.toLocaleString(), new Date(entry.modified_ns / 1e6).toLocaleString()].forEach(value => {
+      const cell = row.insertCell(); cell.textContent = value;
+    });
+    const action = row.insertCell();
+    if (entry.kind === "file") {
+      const link = document.createElement("a"); link.textContent = "Download";
+      link.href = "/api/files/" + entry.path.split("/").map(encodeURIComponent).join("/");
+      action.append(link);
+    }
+    $("entries").append(row);
+  });
+  $("empty").hidden = visible.length > 0;
+  $("empty").textContent = entries.length ? "No paths match this filter." : "This directory is empty. Upload a file to begin.";
+  if (data.truncated || data.errors?.length) message([data.truncated ? "Entry limit reached: this snapshot is partial." : "", ...(data.errors || [])].filter(Boolean).join("\n"), true);
+}
+async function refresh() {
+  try { const response = await fetch("/api/files"); if (!response.ok) throw Error("Snapshot unavailable"); render(await response.json()); }
+  catch (error) { message(error.message, true); }
+}
+$("filter").addEventListener("input", () => render());
+$("refresh").addEventListener("click", refresh);
+$("file").addEventListener("change", () => { if ($("file").files[0]) $("destination").value = $("file").files[0].name; });
+$("upload").addEventListener("submit", async event => {
+  event.preventDefault(); const button = event.submitter; button.disabled = true;
+  try {
+    const name = $("destination").value;
+    const response = await fetch("/api/files/" + name.split("/").map(encodeURIComponent).join("/"), {method: "PUT", headers: {"Content-Type": "application/octet-stream"}, body: $("file").files[0]});
+    const body = await response.json(); if (!response.ok) throw Error(body.detail || "Upload failed");
+    message("Created " + name + ". The background scan will publish its statistics shortly.");
+  } catch (error) { message(error.message, true); } finally { button.disabled = false; }
+});
+const events = new EventSource("/api/events");
+events.addEventListener("open", () => { $("connection").textContent = "● Live updates connected"; });
+events.addEventListener("inventory", event => render(JSON.parse(event.data)));
+events.addEventListener("error", () => { $("connection").textContent = "Reconnecting…"; });
+window.addEventListener("pagehide", () => events.close());
+refresh();
+```
+
+Append the home route and static mount to `directory_service/app.py`:
+
+<!-- tutorial-append: directory_service/app.py -->
+<!-- python-doc-fragment -->
+```python
+@service.get("/", include_in_schema=False)
+async def frontend() -> FileResponse:
+    return FileResponse(Path(__file__).parent / "static/index.html")
+
+
+service.mount(
+    "/static", StaticFiles(directory=Path(__file__).parent / "static", html=True), name="frontend"
+)
+```
+
+Use `/static` and an explicit `/` route. A catch-all root mount would shadow
+framework health and shutdown routes registered during lifespan. Asset paths
+come from the installed package's `__file__`, not the current shell directory.
+Relative browser API URLs keep the UI on the same origin without a CORS service.
+
+**Checkpoint:** restart and open `http://127.0.0.1:18085/`. Upload, filter, download
+and edit a file outside the browser. The table must update through SSE. Confirm
+`/health` and `/docs` still work, then reload the browser to get a current snapshot.
+
+## 9. Operate and verify your completed service
+
+Run `lcl-fastapi logs -o config service.lclcfg` to find actual worker log paths,
+including rotated segments. `logger.file.monitor` inherits the default log
+directory and has a dedicated named source; API request logs stay separate.
+Monitor lifecycle events appear in controller logs. Use `curl -i` and the response
+`X-Request-ID` to find an API call in its access log. An SSE access entry completes
+when the long-lived request ends.
+
+After closing streams and stopping, try one configuration exercise at a time:
+
+| Change | Observe after restart |
 | --- | --- |
-| `background_worker.monitor.enabled: False` | File APIs still work, but the inventory does not track disk changes; a disabled worker opens no dedicated log file. |
-| `background_worker.monitor.auto_restart: False` with an invalid interval | The monitor records failure once and stays failed; resource initialization succeeded, but the entry failed. Restore a valid interval afterwards. |
-| The same invalid interval with `auto_restart: True` | Execution/restart counts advance with a one-second restart delay and logged errors; stop interrupts the cycle. |
+| Add `-o background_worker.monitor.interval_seconds "LCL[2]"` to serve | Slower scanning without changing the file; the next launch without the override restores its value. |
+| Set `background_worker.monitor.enabled: False` | File APIs still work; the inventory no longer tracks changes and the worker opens no dedicated file. |
+| Set an invalid interval and `background_worker.monitor.auto_restart: False` | Entry failure is recorded once and stays failed. |
+| Set an invalid interval and `background_worker.monitor.auto_restart: True` | Failed executions restart after one second and increase observed counters until stopped. |
 
-Remove these exercise overrides and restart with the valid defaults. `enabled`
-and `auto_restart` must be LCL Boolean values, not quoted strings. Normal returns
-also restart by default; this cooperative monitor normally returns only on stop.
-No worker restart reloads the config file. See the
-[background worker contract](../background-workers.md) for all lifecycle states.
+Restore valid values. Both switches are Boolean values, not quoted strings.
+Normal entry returns also restart by default; complete service restart applies
+configuration edits, not automatic entry restart. Startup resource failure is
+different from an entry failure: invalid lifespan limits prevent service startup.
 
-## 8. Verify the installed composition and shut down
+Create `verify.py` with this complete isolated check, then stop your manual server
+and run `python verify.py`. It creates a temporary workspace, starts the installed
+app, exercises nested upload/download, external modification/deletion, SSE and
+shutdown, and removes its temporary files. It does not use your `watched` data.
 
-Stop your manually started service first. Then run the exact installed verifier:
+<details>
+<summary>Complete verify.py</summary>
 
-```powershell
-.venv\Scripts\python.exe verify.py
+<!-- tutorial-file: verify.py -->
+<!-- python-doc-exec -->
+```python
+"""Verify the installed tutorial application using real native service processes."""
+
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import Any
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+import psutil
+
+HERE = Path(__file__).resolve().parent
+CLI = Path(sys.executable).parent / ("lcl-fastapi.exe" if os.name == "nt" else "lcl-fastapi")
+
+
+def http(
+    origin: str,
+    path: str,
+    method: str = "GET",
+    data: bytes | None = None,
+    headers: dict[str, str] | None = None,
+) -> tuple[int, bytes]:
+    request = Request(origin + path, method=method, data=data, headers=headers or {})
+    try:
+        response = urlopen(request, timeout=8)
+    except HTTPError as error:
+        response = error
+    with response:
+        return response.status, response.read()
+
+
+def json_http(origin: str, path: str, method: str = "GET", data: object = None) -> tuple[int, Any]:
+    status, body = http(
+        origin,
+        path,
+        method,
+        None if data is None else json.dumps(data).encode(),
+        {"Content-Type": "application/json"},
+    )
+    return status, json.loads(body)
+
+
+def main() -> None:
+    with TemporaryDirectory() as directory:
+        root = Path(directory)
+        source = HERE.joinpath("service.lclcfg").read_text(encoding="utf-8")
+        config = root / "service.lclcfg"
+        config.write_text(source, encoding="utf-8")
+        origin = ORIGIN
+
+        def command(*args: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                [str(CLI), *args, "-o", "config", str(config)],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=45,
+                check=True,
+            )
+
+        with (root / "console.log").open("w+", encoding="utf-8") as output:
+            process = subprocess.Popen(
+                [str(CLI), "serve", "-o", "config", str(config)],
+                cwd=root,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+            )
+            try:
+                deadline = time.monotonic() + 30
+                while True:
+                    assert process.poll() is None, (root / "console.log").read_text(
+                        encoding="utf-8"
+                    )
+                    try:
+                        if http(origin, "/health")[0] == 200:
+                            break
+                    except URLError, TimeoutError:
+                        pass
+                    assert time.monotonic() < deadline, "Service startup timed out"
+                    time.sleep(0.1)
+                assert http(origin, "/")[0] == 200
+                for asset in ["/static/app.js", "/static/style.css"]:
+                    assert http(origin, asset)[0] == 200
+                verify(origin, root)
+                status = json.loads(command("status").stdout)
+                assert status["service"]["configured_workers"] == 1
+            except BaseException:
+                print((root / "console.log").read_text(encoding="utf-8"), file=sys.stderr)
+                for log in sorted(root.glob("logs/*.log*")):
+                    print(log.read_text(encoding="utf-8"), file=sys.stderr)
+                raise
+            finally:
+                if process.poll() is None:
+                    owner = psutil.Process(process.pid)
+                    try:
+                        command("stop")
+                    except BaseException:
+                        for child in reversed(owner.children(recursive=True)):
+                            child.kill()
+                        owner.kill()
+                        process.wait(timeout=10)
+                        raise
+                process.wait(timeout=45)
+            assert process.returncode == 0, (root / "console.log").read_text(encoding="utf-8")
+            assert json.loads(command("status").stdout)["status"] == "STOPPED"
+        print("PASS " + HERE.name + ": installed static UI, native APIs, isolation and cleanup")
+
+
+ORIGIN = "http://127.0.0.1:18085"
+
+
+def verify(origin: str, root: Path) -> None:
+    with urlopen(origin + "/api/events", timeout=8) as stream:
+
+        def event() -> dict[str, Any]:
+            for _ in range(100):
+                line = stream.readline().decode()
+                assert line, "SSE connection ended before the expected filesystem update"
+                if line.startswith("data: "):
+                    value: dict[str, Any] = json.loads(line[6:])
+                    return value
+            raise AssertionError("No SSE snapshot received")
+
+        event()
+        assert http(origin, "/api/files/nested/hello.txt", "PUT", b"hello")[0] == 201
+        deadline = time.monotonic() + 8
+        while True:
+            value = event()
+            if any(row["path"] == "nested/hello.txt" for row in value["entries"]):
+                break
+            assert time.monotonic() < deadline
+        assert http(origin, "/api/files/nested/hello.txt") == (200, b"hello")
+        assert http(origin, "/api/files/nested/hello.txt", "PUT", b"other")[0] == 409
+        assert http(origin, "/api/files/%2e%2e/escape.txt", "PUT", b"bad")[0] == 400
+        assert (
+            http(
+                origin,
+                "/api/files/rejected.txt",
+                "PUT",
+                b"bad",
+                {"Origin": "https://other.example"},
+            )[0]
+            == 403
+        )
+        assert not (root / "escape.txt").exists()
+        (root / "watched/nested/hello.txt").write_bytes(b"changed on disk")
+        while True:
+            value = event()
+            if any(
+                row["path"] == "nested/hello.txt" and row["bytes"] == 15 for row in value["entries"]
+            ):
+                break
+            assert time.monotonic() < deadline
+        (root / "watched/nested/hello.txt").unlink()
+        while any(row["path"] == "nested/hello.txt" for row in event()["entries"]):
+            assert time.monotonic() < deadline
+    assert json_http(origin, "/api/files")[0] == 200
+
+
+if __name__ == "__main__":
+    main()
 ```
 
-Use `.venv/bin/python verify.py` on Linux. It creates a temporary root, starts native
-workers, checks static assets, upload/download, overwrite/traversal rejection,
-external modification/deletion events, and graceful stop. CI runs this verifier
-against the newly built framework wheel on both platforms.
+</details>
 
-To stop a manual run, use `lcl-fastapi stop -o config service.lclcfg` from the same
-environment. `logs` reports API and monitor files; monitor lifecycle events are
-in the controller log. The [background worker contract](../background-workers.md)
-describes restart and timeout behavior.
+The printed Python, configuration and static files form the complete installable
+project. Keep them under version control; exclude `.venv`, `run`, `logs` and local
+watched data. CI reconstructs this project from the guide's exact code and checks
+its native service, as well as installing a built framework wheel on both platforms.
 
 ## Filesystem boundary
 
-Use a dedicated, trusted directory. Symlinks/junctions and special files are not
-served; absolute paths and traversal are rejected. Checks assume no hostile local
-process swaps filesystem entries between validation and I/O. This portable demo
-is not a race-proof filesystem sandbox or an authenticated file-sharing server.
-Uploads are bounded in memory and never overwrite existing files; a failed disk
-write can leave an incomplete new file for the operator to remove. There is no
-cross-file transactional snapshot. Keep the listener on loopback, and add reviewed
-authentication/storage controls before exposing it to other users.
+Use a trusted dedicated root. Links/junctions and special files are not served,
+but checks assume no hostile local process swaps entries between validation and
+I/O. This is not an authenticated file-sharing service or a race-proof filesystem
+sandbox. Scans cost O(entries visited) up to the cap, are not transactional, and
+can report partial state/errors. Upload memory is bounded; a failed disk write
+can leave an incomplete new file for the operator to remove. Add reviewed storage
+and authentication controls before exposing it outside your machine.

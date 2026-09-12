@@ -48,10 +48,12 @@ does not advance `release`, upload packages, or create a version tag.
 ## Quality and artifact verification
 
 Install the project and its development dependencies in a Python 3.14 virtual
-environment, then run `python -m scripts.quality` using that environment's Python.
+environment, with Node.js 18 or later available for the standalone JavaScript
+highlighter check, then run `python -m scripts.quality` using that environment's Python.
 The gate checks Git whitespace, Ruff, production policy, dependency direction,
 strict mypy, canonical documentation examples and links, behavioral tests,
-coverage, and distribution contents. Generated evidence lives in `reports/`.
+coverage, standalone syntax-highlighter behavior, and distribution contents.
+Generated evidence lives in `reports/`.
 
 Production policy checks validate structure: code-bearing physical line counts,
 declaration names, documented parameters and return values, and value-class

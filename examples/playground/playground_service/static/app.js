@@ -1,10 +1,12 @@
 "use strict";
 const $ = id => document.getElementById(id);
 let session = sessionStorage.getItem("lcl-session"), report = null, trace = [], cursor = 0, timer = null;
+const editors = [$("source"), $("expression")].map(input => LCLHighlight.attach(input));
+function refreshEditors() { editors.forEach(editor => editor.update()); }
 const samples = {
-  catalog: ["__LCL_VERSION__: 1\nprice: 12\nquantity: 3\ntotal: price * quantity", "total + 5"],
-  conditional: ["__LCL_VERSION__: 1\nchoose_left: True\nleft: 42\nright: 1 / 0\nanswer: left if choose_left else right", "answer"],
-  error: ["__LCL_VERSION__: 1\nfirst: second + 1\nsecond: first + 1", "first"]
+  catalog: ["__LCL_VERSION__: 1\n\n# Inputs\nprice: 12\nquantity: 3\n\n# Derived value\ntotal: price * quantity", "total + 5"],
+  conditional: ["__LCL_VERSION__: 1\n\n# Branch inputs\nchoose_left: True\nleft: 42\nright: 1 / 0\n\n# Lazy branch selection\nanswer: left if choose_left else right", "answer"],
+  error: ["__LCL_VERSION__: 1\n\n# Circular definitions\nfirst: second + 1\nsecond: first + 1", "first"]
 };
 function message(text, error = false) { $("message").textContent = text; $("message").classList.toggle("error", error); }
 async function api(path, method = "GET", data) {
@@ -20,7 +22,7 @@ document.querySelectorAll("[data-tab]").forEach(button => button.addEventListene
 function astNode(node) {
   const details = document.createElement("details"), summary = document.createElement("summary"), code = document.createElement("code");
   details.open = true; summary.textContent = node.kind + " · " + node.span.start.line + ":" + node.span.start.column;
-  code.textContent = node.source; details.append(summary, code); node.children.forEach(child => details.append(astNode(child))); return details;
+  LCLHighlight.render(code, node.source); details.append(summary, code); node.children.forEach(child => details.append(astNode(child))); return details;
 }
 function drawGraph(edges) {
   const ns = "http://www.w3.org/2000/svg", svg = document.createElementNS(ns, "svg");
@@ -58,7 +60,7 @@ async function start(fresh = false) {
     if (!fresh && session) previous = await api("/" + session).catch(() => null);
     if (!previous) { session = (await api("", "POST")).id; sessionStorage.setItem("lcl-session", session); report = null; $("evaluate").disabled = true; }
     else if (previous.expression_ast) { $("source").value = previous.source; $("expression").value = previous.expression; display(previous); if (previous.evaluation) evaluation(previous.evaluation); }
-    $("session-status").textContent = "Session · " + session.slice(0, 8); if (fresh) location.reload();
+    refreshEditors(); $("session-status").textContent = "Session · " + session.slice(0, 8); if (fresh) location.reload();
   } catch (error) { message(error.message, true); }
 }
 $("parse").addEventListener("click", async () => {
@@ -70,7 +72,7 @@ $("parse").addEventListener("click", async () => {
 });
 $("evaluate").addEventListener("click", async () => { $("evaluate").disabled = true; try { evaluation(await api("/" + session + "/evaluate", "POST")); } catch (error) { message(error.message, true); } finally { $("evaluate").disabled = !report; } });
 [$("source"), $("expression")].forEach(input => input.addEventListener("input", () => { $("evaluate").disabled = true; stop(); message("Source changed. Parse again before evaluating."); }));
-$("sample").addEventListener("change", () => { [$("source").value, $("expression").value] = samples[$("sample").value]; $("evaluate").disabled = true; message("Sample loaded. Parse to start a new Frame."); });
+$("sample").addEventListener("change", () => { [$("source").value, $("expression").value] = samples[$("sample").value]; refreshEditors(); $("evaluate").disabled = true; message("Sample loaded. Parse to start a new Frame."); });
 $("new-session").addEventListener("click", () => start(true));
 $("previous").addEventListener("click", () => { stop(); cursor--; step(); }); $("next").addEventListener("click", () => { stop(); cursor++; step(); });
 $("cursor").addEventListener("input", () => { stop(); cursor = Number($("cursor").value); step(); });

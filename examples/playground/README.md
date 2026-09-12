@@ -1,6 +1,16 @@
 # LCL Workbench
 
 An independent lcl-fastapi 0.3.0 application with a packaged static browser UI.
+Its [standalone JavaScript highlighter](playground_service/static/lcl-highlight.js)
+and [stylesheet](playground_service/static/lcl-highlight.css) can be copied into
+other projects under the included MIT license. They require no framework or CDN.
+Use `LCLHighlight.render(element, source)` for static code, `highlight(source)` for
+escaped HTML, or `tokenize(source)` for lossless `{kind, text}` slices. For editing,
+`LCLHighlight.attach(textarea)` returns `update()` (after assigning `.value`) and
+`destroy()` (detach while keeping the original input). Load the stylesheet after
+page styles; override `--lcl-*` variables to theme tokens. F-strings are colored
+as whole strings; this is lexical coloring, not validation or a language sandbox.
+
 Follow [the complete tutorial](../../docs/build-a-service/03-lcl-playground.md) for the
 configuration, API, resource ownership, operation commands and limitations.
 

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Make every Build a service chapter construct a complete service from an empty
+  directory, with executable create/append source and native reconstruction checks.
+  Group LCL configuration by function and add standalone reusable LCL highlighting
+  assets to the playground, with native textarea editing and safe source rendering.
+
 - Expand Build a service into three ordered tutorials, preserving the catalog and
   adding independently installed directory-monitor/SSE and session-based LCL
   playground applications with static browser UIs and cross-platform verifiers.

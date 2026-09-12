@@ -29,6 +29,7 @@ def main() -> None:
         [sys.executable, "-m", "mypy", "examples/composed"],
         [sys.executable, "-m", "mypy", "examples/directory_monitor"],
         [sys.executable, "-m", "mypy", "examples/playground"],
+        ["node", "tests/lcl_highlight.cjs"],
         [sys.executable, "-m", "pytest", "-m", "documentation", "--no-cov"],
         [sys.executable, "-m", "coverage", "erase"],
         [
