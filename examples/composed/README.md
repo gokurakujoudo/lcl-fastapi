@@ -67,9 +67,9 @@ service to avoid workers retaining different configuration values.
 In another terminal in this directory, use the installed console command:
 
 ```powershell
-.venv\Scripts\lcl-fastapi.exe status -o config service.lclcfg -o json
 .venv\Scripts\lcl-fastapi.exe status -o config service.lclcfg
-.venv\Scripts\lcl-fastapi.exe logs -o config service.lclcfg -o json
+.venv\Scripts\lcl-fastapi.exe status -o config service.lclcfg
+.venv\Scripts\lcl-fastapi.exe logs -o config service.lclcfg
 .venv\Scripts\lcl-fastapi.exe logs -o config service.lclcfg
 .venv\Scripts\lcl-fastapi.exe stop -o config service.lclcfg
 ```

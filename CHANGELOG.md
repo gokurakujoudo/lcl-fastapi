@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Replace the README and documentation logo with the updated project artwork.
+
+- Make status/logs output always JSON and remove the JSON option, preserving the
+  native LCL JSON namespace. Expand the catalog tutorial with installed entrances,
+  inherited defaults, CLI overrides, and log rotation with file samples.
+
 - Add downstream pyproject entrances, native CLI options and configuration overrides,
   portable `using` of universal defaults, and separate controller/worker log files.
 - Retry brief Windows observation-file sharing conflicts without suppressing

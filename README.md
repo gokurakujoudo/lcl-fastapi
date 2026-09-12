@@ -80,7 +80,7 @@ include the current ID, and each worker writes its own file.
 Run operations in another terminal using the same configuration file:
 
 ```console
-lcl-fastapi status -o config service.lclcfg -o json
+lcl-fastapi status -o config service.lclcfg
 lcl-fastapi logs -o config service.lclcfg
 lcl-fastapi stop -o config service.lclcfg
 ```
@@ -88,7 +88,7 @@ lcl-fastapi stop -o config service.lclcfg
 The CLI follows `lclang.cli` syntax: `-c`/`--config` and the existing `-o config`
 select the service file. Any setting can be overridden, for example
 `-o server.port "LCL[9000]"`; CLI values take precedence over the file.
-Use `-o json` for JSON output. Add your own `pyproject.toml` console command
+`status` and `logs` always return JSON. Add your own `pyproject.toml` console command
 with `catalog = "lcl_fastapi.cli:run_cli"`, or wrap `run_cli` to supply a default
 configuration. See the [CLI reference](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/cli.md#downstream-console-entrances).
 Configuration supports native `using`, including `using f"{lcl_fastapi_defaults}"`

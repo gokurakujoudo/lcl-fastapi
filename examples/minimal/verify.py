@@ -139,7 +139,7 @@ def main() -> None:
                 check_http()
                 deadline = time.monotonic() + 10
                 while True:
-                    status = json.loads(command("status", "-o", "json").stdout)
+                    status = json.loads(command("status").stdout)
                     if len(status["workers"]) == 2:
                         break
                     if time.monotonic() >= deadline:
@@ -169,7 +169,7 @@ def main() -> None:
                 deadline = time.monotonic() + 5
                 while True:
                     command_started_at = time.time()
-                    observation = json.loads(command("logs", "-o", "json").stdout)
+                    observation = json.loads(command("logs").stdout)
                     print(
                         "logs observation:",
                         json.dumps(
@@ -203,8 +203,8 @@ def main() -> None:
                 log_text = "\n".join(texts)
                 assert all(request_id in log_text for request_id in ids)
                 assert "hello requested" in log_text
-                assert json.loads(command("status", "-o", "json").stdout)["status"] == "STOPPED"
-                assert json.loads(command("logs", "-o", "json").stdout)["paths"] == []
+                assert json.loads(command("status").stdout)["status"] == "STOPPED"
+                assert json.loads(command("logs").stdout)["paths"] == []
                 print(
                     "PASS: hello, Request-ID, health, docs, shutdown authorization, "
                     "status, logs, stop, two-worker lifespan flush"

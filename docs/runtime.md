@@ -76,8 +76,8 @@ exited worker's ID only after validating its process identity. This coordination
 does not extend upstream Snowflake guarantees across crashes or rapid ID reuse.
 
 ```console
-lcl-fastapi status -o config service.lclcfg -o json
-lcl-fastapi logs -o config service.lclcfg -o json
+lcl-fastapi status -o config service.lclcfg
+lcl-fastapi logs -o config service.lclcfg
 ```
 
 Status reports `RUNNING`, `STOPPED`, or `STALE`, along with the verified service

@@ -3,9 +3,11 @@
 Build a small catalog API that a shop website can call to list products, filter
 available stock, and look up one product. Start with an empty directory and end
 with typed responses, validated business configuration, worker startup/cleanup,
-request logs, a repeatable HTTP check, and deployment configuration.
+request logs, a branded console command, reusable defaults, command-line overrides,
+a repeatable HTTP check, and deployment configuration.
 
-You need CPython 3.14 and either Windows or Linux. Installation needs package-index
+You need CPython 3.14 and either Windows or Linux. This guide describes the current source revision; build and install its wheel
+to try features that have not yet been published. Installation needs package-index
 access; running the finished service needs no external account or database.
 Run one lcl-fastapi service per machine, and reserve local port `18083` for this guide.
 
@@ -22,7 +24,7 @@ In PowerShell on Windows:
 mkdir catalog-api
 cd catalog-api
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install lcl-fastapi==0.1.1
+.venv\Scripts\python.exe -m pip install path/to/lcl_fastapi-0.1.1-py3-none-any.whl
 ```
 
 In a Linux shell:
@@ -31,13 +33,13 @@ In a Linux shell:
 mkdir catalog-api
 cd catalog-api
 python3.14 -m venv .venv
-.venv/bin/python -m pip install lcl-fastapi==0.1.1
+.venv/bin/python -m pip install path/to/lcl_fastapi-0.1.1-py3-none-any.whl
 ```
 
 Keep all subsequent files and commands in this directory. The explicit executable
 paths avoid depending on shell activation. On Linux, replace
 `.venv\Scripts\python.exe` with `.venv/bin/python` and
-`.venv\Scripts\lcl-fastapi.exe` with `.venv/bin/lcl-fastapi` in later commands.
+`.venv\Scripts\catalog.exe` with `.venv/bin/catalog` in later commands.
 
 ## 2. Serve one route
 
@@ -61,6 +63,8 @@ be used in the next step; leave them in place for now.
 <!-- tutorial-file: service.lclcfg -->
 ```text
 __LCL_VERSION__: 1
+using f"{lcl_fastapi_defaults}"
+
 app.name: "catalog-api"
 app.version: "1.0.0"
 app.target: "app:service"
@@ -68,16 +72,67 @@ server.host: "127.0.0.1"
 server.port: 18083
 server.workers: 1
 logger.file.default.directory: "./logs"
+logger.file.controller.filename: f"{app.name}.controller.log"
 logger.file.service.filename: f"{app.name}.{worker_pid}.log"
 logger.level: "INFO"
 business.shop_name: "Corner Shop"
 business.products: [{"sku": "tea", "name": "Green tea", "price_cents": 650, "in_stock": True}, {"sku": "mug", "name": "Ceramic mug", "price_cents": 1200, "in_stock": False}]
 ```
 
+`using` imports the installed universal defaults. Local fields replace inherited
+values, so this service uses port 18083 while retaining default health/docs routes,
+request IDs, runtime paths, and graceful shutdown. `worker_pid` is supplied by
+each real worker; never define it yourself. The two patterns share `./logs`.
+You can put shared organization settings in another `.lclcfg` file and `using`
+that file instead; see [configuration layering](configuration.md).
+
+Create a small installable project so operators can type `catalog`.
+Save `pyproject.toml`:
+
+<!-- tutorial-file: pyproject.toml -->
+```toml
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "corner-shop-catalog"
+version = "1.0.0"
+requires-python = ">=3.14"
+dependencies = ["lcl-fastapi==0.1.1"]
+
+[project.scripts]
+catalog = "catalog_cli:main"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["app.py", "catalog_cli.py"]
+```
+
+Save `catalog_cli.py`:
+
+<!-- tutorial-file: catalog_cli.py -->
+<!-- python-doc-exec -->
+```python
+from lcl_fastapi.cli import run_cli
+
+
+def main() -> int:
+    return run_cli(config_path="service.lclcfg", prog="catalog", version_text="1.0.0")
+```
+
+Install it with `.venv\Scripts\python.exe -m pip install -e .`.
+`catalog --version` prints `1.0.0`; `catalog --help` lists the framework commands.
+The wrapper supplies a default file relative to the working directory and returns
+the framework exit code. Continue running from the project directory.
+`catalog status -c another.lclcfg` selects a different file explicitly.
+The configuration stays outside the wheel so the operator can maintain it.
+For a command with no wrapper defaults, the script target can simply be
+`lcl_fastapi.cli:run_cli`.
+
 Start the service in terminal A:
 
 ```powershell
-.venv\Scripts\lcl-fastapi.exe serve -o config service.lclcfg
+.venv\Scripts\catalog.exe serve
 ```
 
 Open `http://127.0.0.1:18083/hello`: the response is
@@ -89,12 +144,12 @@ constructing `LclFastAPI()` alone does not start a server.
 In terminal B, stop it before editing the application:
 
 ```powershell
-.venv\Scripts\lcl-fastapi.exe stop -o config service.lclcfg
+.venv\Scripts\catalog.exe stop
 ```
 
 Wait for terminal A to return to its prompt. Use this stop/edit/start sequence
 for configuration changes. For Python development, use
-`lcl-fastapi serve -o config service.lclcfg -o hot_reload`. Set
+`catalog serve -o hot_reload`. Set
 `server.reload_dirs: [".", "../shared"]` to watch this directory and shared code,
 or replace the list with your source directories. Reload uses one worker and
 briefly interrupts service; see [the reload contract](runtime.md#development-hot-reload).
@@ -273,19 +328,19 @@ first. Do not remove failing assertions to make the check pass.
 In terminal B:
 
 ```powershell
-.venv\Scripts\lcl-fastapi.exe status -o config service.lclcfg -o json
-.venv\Scripts\lcl-fastapi.exe logs -o config service.lclcfg
+.venv\Scripts\catalog.exe status
+.venv\Scripts\catalog.exe logs
 ```
 
 Status should report `RUNNING` with one worker after startup settles. `logs`
-prints observed log-file paths, not log contents. Open the returned path to find
+returns a JSON object containing observed worker log-file paths, not log contents. Open a path from its `paths` array to find
 `list products` with the ID printed by `verify.py`. Access records include method,
 path, status, duration, and the same server-generated ID. Log-path observations
 are eventually consistent, so allow a sampling interval after startup/rotation.
 
 ```powershell
-.venv\Scripts\lcl-fastapi.exe stop -o config service.lclcfg
-.venv\Scripts\lcl-fastapi.exe status -o config service.lclcfg -o json
+.venv\Scripts\catalog.exe stop
+.venv\Scripts\catalog.exe status
 ```
 
 After `stop` finishes, status should report `STOPPED`. The worker's log contains
@@ -298,7 +353,54 @@ start again, and update your checks to match the intentional data change. For
 this read-only API you can also change `server.workers` to `2` and restart;
 each worker validates the same configuration independently.
 
-## 7. Prepare an operator-managed deployment
+## 7. Override settings and observe rotation
+
+With the service stopped, start a development run in terminal A:
+
+```powershell
+.venv\Scripts\catalog.exe serve -o server.workers "LCL[2]" -o logger.file.service.rotation.mode size -o logger.file.service.rotation.max_bytes "LCL[2048]"
+```
+
+The file still says one worker, but `catalog status` eventually shows two live
+workers and `service.configured_workers` equal to 2. Each worker evaluates its
+own filename with its actual PID. The controller uses its separate filename.
+CLI values win over local and inherited settings; integers use `LCL[...]`,
+while `size` is a plain string. Replacement workers retain these overrides.
+The overrides last for this service run and do not rewrite the file.
+
+Run `verify.py` several times in terminal B, then run `catalog logs`. Both workers
+serve the same catalog. As requests fill the small demonstration segments, old
+files remain and new timestamped files appear. A typical result is shown below;
+paths, PIDs, times, and the number of active paths vary:
+
+```json
+{"paths":["/opt/catalog-api/logs/catalog-api.28146.20260912T100000.123456Z.000003.log"],"observed_at":1789207201.0,"stale":false}
+```
+
+A snapshot can initially contain fewer workers' paths while startup/sampling
+settles. `logs` lists active worker segments only; find controller segments under
+`logs/catalog-api.controller.*.log`. The controller records `worker up`, heartbeat,
+and later `worker log rotate` when it observes a changed path. Allow at least a
+sampling interval and manager-loop iteration for the observation to catch up.
+Read [rotation and file samples](logging.md#rotation-and-permanent-segments) for
+headers, continuation footers, retention, and request correlation.
+
+Stop with `catalog stop`. A normal `catalog serve` now uses one worker again
+because the previous overrides were scoped to that invocation. For a persistent
+10 MiB policy, add `logger.file.service.rotation.mode: "size"` and
+`logger.file.service.rotation.max_bytes: 10485760` to the stopped service's file.
+The shared directory and both filename patterns can also be overridden with
+`-o`; keep the worker pattern as a lazy LCL expression so it uses the worker PID.
+
+For Python-only edits, stop and run `catalog serve -o hot_reload`. The inherited
+`server.reload_dirs: ["."]` watches Python files below this project directory.
+Change a route message: the worker is replaced gracefully and the controller
+records `hot-reload retiring worker_pid=...`. Hot reload uses one worker even if a
+higher count is configured. It does not reload `.lclcfg`; use stop/edit/start for
+configuration changes. `catalog serve --dryrun -o server.port "LCL[18084]"`
+validates the settings without opening that port or starting workers.
+
+## 8. Prepare an operator-managed deployment
 
 Deploy the same `app.py`, `.lclcfg`, and installed package on the target machine.
 Keep the service bound to loopback behind your reverse proxy. Use a dedicated
@@ -328,8 +430,8 @@ systemd.config_path: "/opt/catalog-api/service.lclcfg"
 From `/opt/catalog-api`, with the package installed into its `.venv`:
 
 ```sh
-.venv/bin/lcl-fastapi nginx render -o config service.lclcfg -o output catalog.conf
-.venv/bin/lcl-fastapi systemd render -o config service.lclcfg -o output catalog.service
+.venv/bin/catalog nginx render -o output catalog.conf
+.venv/bin/catalog systemd render -o output catalog.service
 ```
 
 Review the output before installing it through your normal deployment process.
@@ -339,7 +441,8 @@ command installs files, starts Nginx, or enables a service. The public origin is
 metadata, not an ASGI route prefix. See [Nginx](nginx.md), [systemd](systemd.md),
 and [runtime ownership](runtime.md) for the complete deployment contracts.
 
-Your project now consists of `app.py`, `service.lclcfg`, and `verify.py`, plus its
+Your project now consists of `pyproject.toml`, `catalog_cli.py`, `app.py`,
+`service.lclcfg`, and `verify.py`, plus its
 virtual environment and generated `run/` and `logs/` directories. Keep application
 files under version control; exclude local environments, runtime state, logs,
 and any private deployment configuration.

@@ -192,16 +192,14 @@ def test_status_logs_and_stop_call_runtime_with_parsed_config(
     monkeypatch.setattr(runtime, "active_logs", active_logs, raising=False)
     monkeypatch.setattr(runtime, "stop", stop, raising=False)
     for command in ("status", "logs"):
-        assert main([command, "-o", "config", str(source), "-o", "json"]) == 0
+        assert main([command, "-o", "config", str(source)]) == 0
         result = json.loads(capsys.readouterr().out)
         assert isinstance(result, dict)
     assert main(["logs", "-o", "config", str(source)]) == 0
-    assert capsys.readouterr().out == f"{tmp_path / 'active.log'}\n"
+    assert json.loads(capsys.readouterr().out)["paths"] == [str(tmp_path / "active.log")]
     assert main(["stop", "-o", "config", str(source)]) == 0
     assert capsys.readouterr().out == ""
     assert called == [source] * 4
-    assert main(["status", "-o", "config", str(source), "-o", "json", "True"]) != 0
-    assert "json must be Boolean" in capsys.readouterr().err
 
 
 def test_main_accepts_process_argv(
@@ -213,13 +211,12 @@ def test_main_accepts_process_argv(
 
 
 def test_output_formats_preserve_json_metadata_and_reject_malformed_paths() -> None:
-    assert "Service Pid" in format_status({"service_pid": 42}, as_json=False)
-    assert json.loads(format_status({"status": "RUNNING"}, as_json=True)) == {"status": "RUNNING"}
-    assert format_logs({"paths": []}, as_json=False) == ""
+    assert json.loads(format_status({"status": "RUNNING"})) == {"status": "RUNNING"}
+    assert json.loads(format_logs({"paths": []})) == {"paths": []}
     with pytest.raises(ValueError, match="paths list"):
-        format_logs({}, as_json=False)
+        format_logs({})
     with pytest.raises(ValueError, match="paths list"):
-        format_logs({"paths": [1]}, as_json=True)
+        format_logs({"paths": [1]})
     validate_arguments(
         [
             "python",
@@ -229,8 +226,8 @@ def test_output_formats_preserve_json_metadata_and_reject_malformed_paths() -> N
             "config",
             "service.lclcfg",
             "-o",
-            "json",
-            "LCL[False]",
+            "business.label",
+            "example",
         ]
     )
 
@@ -313,8 +310,5 @@ def test_dryrun_has_no_service_or_output_side_effects(
 def test_verbose_and_as_of_options_preserve_machine_readable_stdout(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    assert (
-        main(["status", "-c", "service.lclcfg", "--verbose", "--as-of", "20260101", "-o", "json"])
-        == 0
-    )
+    assert main(["status", "-c", "service.lclcfg", "--verbose", "--as-of", "20260101"]) == 0
     assert json.loads(capsys.readouterr().out)["status"] == "STOPPED"

@@ -55,8 +55,7 @@ def cli(config: Path, *arguments: str) -> str:
 
 
 def snapshot(config: Path, command: str) -> dict[str, Any]:
-    # An explicit Boolean avoids placing the valueless -o json before config.
-    value: dict[str, Any] = json.loads(cli(config, command, "-o", "json", "LCL[True]"))
+    value: dict[str, Any] = json.loads(cli(config, command))
     return value
 
 

@@ -45,7 +45,7 @@ request supplies its own ID. The hello log includes that generated ID.
 In a second terminal, activate the same environment and run from this directory:
 
 ```console
-minimal-service status -o config service.lclcfg -o json
+minimal-service status -o config service.lclcfg
 minimal-service logs -o config service.lclcfg
 minimal-service stop -o config service.lclcfg
 ```
