@@ -16,7 +16,7 @@ From this directory, use these PowerShell commands on Windows:
 
 ```powershell
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install ..\..\dist\lcl_fastapi-0.1.1-py3-none-any.whl .
+.venv\Scripts\python.exe -m pip install ..\..\dist\lcl_fastapi-0.2.0-py3-none-any.whl .
 .venv\Scripts\lcl-fastapi.exe serve -o config service.lclcfg
 ```
 
@@ -24,12 +24,12 @@ On Linux:
 
 ```sh
 python3.14 -m venv .venv
-.venv/bin/python -m pip install ../../dist/lcl_fastapi-0.1.1-py3-none-any.whl .
+.venv/bin/python -m pip install ../../dist/lcl_fastapi-0.2.0-py3-none-any.whl .
 .venv/bin/lcl-fastapi serve -o config service.lclcfg
 ```
 
 The wheel must already have been built from the framework repository; these
-commands do not assume that development version `0.1.1` is published to PyPI.
+commands do not assume that development version `0.2.0` is published to PyPI.
 The application is installed as `lcl-fastapi-composed-example`, importing
 `catalog_service`. When copying this project elsewhere, replace the wheel path
 with its actual location. Dependencies require package-index access or an
@@ -67,9 +67,9 @@ service to avoid workers retaining different configuration values.
 In another terminal in this directory, use the installed console command:
 
 ```powershell
-.venv\Scripts\lcl-fastapi.exe status -o config service.lclcfg -o json
 .venv\Scripts\lcl-fastapi.exe status -o config service.lclcfg
-.venv\Scripts\lcl-fastapi.exe logs -o config service.lclcfg -o json
+.venv\Scripts\lcl-fastapi.exe status -o config service.lclcfg
+.venv\Scripts\lcl-fastapi.exe logs -o config service.lclcfg
 .venv\Scripts\lcl-fastapi.exe logs -o config service.lclcfg
 .venv\Scripts\lcl-fastapi.exe stop -o config service.lclcfg
 ```

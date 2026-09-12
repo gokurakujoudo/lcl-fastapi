@@ -13,8 +13,13 @@ from lclang.logger import LoggerHandlerConfig, use_logger_handler
 from lcl_fastapi.cli.arguments import validate_arguments
 from lcl_fastapi.cli.main import main
 from lcl_fastapi.cli.output import format_logs, format_status
+from lcl_fastapi.config import load_settings
+from lcl_fastapi.overrides import current_overrides
 
 CONFIG = """__LCL_VERSION__: 1
+app.name: "cli-test"
+app.version: "1"
+app.target: "app:service"
 logger.file.default.directory: "./logs"
 logger.file.service.filename: f"service.{worker_pid}.log"
 nginx.server_name: "api.example.com"
@@ -24,7 +29,9 @@ nginx.ssl_certificate_key: "/certs/service.key"
 
 
 @pytest.fixture(autouse=True)
-def installed_version(monkeypatch: pytest.MonkeyPatch) -> None:
+def installed_version(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "service.lclcfg").write_text(CONFIG, encoding="utf-8")
     module = importlib.import_module("lcl_fastapi.cli.main")
     monkeypatch.setattr(module, "version", lambda distribution: "0.1.0")
 
@@ -68,14 +75,8 @@ def test_render_only_writes_explicit_output(
 @pytest.mark.parametrize(
     "tokens, message",
     [
-        (["serve", "-c", "service.lclcfg"], "use -o config"),
-        (["serve", "--config", "service.lclcfg"], "use -o config"),
-        (["serve", "-o", "server.port", "9000"], "unsupported override"),
-        (["serve", "-o", "logger.file.service.directory", "/bad"], "unsupported override"),
-        (["serve", "-o", "json"], "unsupported override"),
-        (["logs", "-o", "output", "bad"], "unsupported override"),
+        (["serve", "-o", "worker_pid", "123"], "provided by the framework"),
         (["serve", "--host", "0.0.0.0"], "unknown option"),
-        (["serve", "--dryrun"], "dryrun is unavailable"),
         (["logs", "--json"], "unknown option"),
     ],
 )
@@ -156,14 +157,6 @@ def test_hot_reload_rejects_nonboolean(value: str, capsys: pytest.CaptureFixture
     assert "Boolean" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize(
-    "command", [["status"], ["logs"], ["stop"], ["nginx", "render"], ["systemd", "render"]]
-)
-def test_hot_reload_is_serve_only(command: list[str], capsys: pytest.CaptureFixture[str]) -> None:
-    assert main([*command, "-o", "config", "service.lclcfg", "-o", "hot_reload"]) != 0
-    assert "unsupported override" in capsys.readouterr().err
-
-
 def test_startup_failure_becomes_stderr_error(
     runtime: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -199,16 +192,14 @@ def test_status_logs_and_stop_call_runtime_with_parsed_config(
     monkeypatch.setattr(runtime, "active_logs", active_logs, raising=False)
     monkeypatch.setattr(runtime, "stop", stop, raising=False)
     for command in ("status", "logs"):
-        assert main([command, "-o", "config", str(source), "-o", "json"]) == 0
+        assert main([command, "-o", "config", str(source)]) == 0
         result = json.loads(capsys.readouterr().out)
         assert isinstance(result, dict)
     assert main(["logs", "-o", "config", str(source)]) == 0
-    assert capsys.readouterr().out == f"{tmp_path / 'active.log'}\n"
+    assert json.loads(capsys.readouterr().out)["paths"] == [str(tmp_path / "active.log")]
     assert main(["stop", "-o", "config", str(source)]) == 0
     assert capsys.readouterr().out == ""
     assert called == [source] * 4
-    assert main(["status", "-o", "config", str(source), "-o", "json", "True"]) != 0
-    assert "json must be Boolean" in capsys.readouterr().err
 
 
 def test_main_accepts_process_argv(
@@ -220,13 +211,12 @@ def test_main_accepts_process_argv(
 
 
 def test_output_formats_preserve_json_metadata_and_reject_malformed_paths() -> None:
-    assert "Service Pid" in format_status({"service_pid": 42}, as_json=False)
-    assert json.loads(format_status({"status": "RUNNING"}, as_json=True)) == {"status": "RUNNING"}
-    assert format_logs({"paths": []}, as_json=False) == ""
+    assert json.loads(format_status({"status": "RUNNING"})) == {"status": "RUNNING"}
+    assert json.loads(format_logs({"paths": []})) == {"paths": []}
     with pytest.raises(ValueError, match="paths list"):
-        format_logs({}, as_json=False)
+        format_logs({})
     with pytest.raises(ValueError, match="paths list"):
-        format_logs({"paths": [1]}, as_json=True)
+        format_logs({"paths": [1]})
     validate_arguments(
         [
             "python",
@@ -236,7 +226,89 @@ def test_output_formats_preserve_json_metadata_and_reject_malformed_paths() -> N
             "config",
             "service.lclcfg",
             "-o",
-            "json",
-            "LCL[False]",
+            "business.label",
+            "example",
         ]
     )
+
+
+def test_downstream_entrance_and_native_override_precedence(
+    runtime: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    called: list[int] = []
+
+    def serve(path: Path) -> None:
+        called.append(asyncio.run(load_settings(path)).port)
+        assert current_overrides()["business.label"] == "selected"
+
+    monkeypatch.setattr(runtime, "serve", serve, raising=False)
+    assert (
+        main(
+            ["serve", "-o", "server.port", "LCL[9001]", "-o", "business.label", "selected"],
+            config_path=tmp_path / "service.lclcfg",
+            prog="catalog",
+        )
+        == 0
+    )
+    assert called == [9001]
+    assert current_overrides() == {}
+    assert main(["--version"], prog="catalog", version_text="2.3") == 0
+    assert "2.3" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("option", ["-c", "--config"])
+def test_native_config_selection_and_renderer_overrides(
+    option: str,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert (
+        main(
+            [
+                "nginx",
+                "render",
+                option,
+                str(tmp_path / "service.lclcfg"),
+                "-o",
+                "server.port",
+                "LCL[9200]",
+            ]
+        )
+        == 0
+    )
+    assert "127.0.0.1:9200" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("command", [["serve"], ["stop"], ["nginx", "render"]])
+def test_dryrun_has_no_service_or_output_side_effects(
+    command: list[str],
+    runtime: ModuleType,
+    tmp_path: Path,
+) -> None:
+    assert (
+        main(
+            [
+                *command,
+                "-c",
+                str(tmp_path / "service.lclcfg"),
+                "--dryrun",
+                "-o",
+                "output",
+                str(tmp_path / "unused.conf"),
+            ]
+        )
+        == 0
+    )
+    assert not (tmp_path / "unused.conf").exists()
+    assert not (tmp_path / "run").exists()
+    assert not (tmp_path / "logs").exists()
+
+
+def test_verbose_and_as_of_options_preserve_machine_readable_stdout(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert main(["status", "-c", "service.lclcfg", "--verbose", "--as-of", "20260101"]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "STOPPED"

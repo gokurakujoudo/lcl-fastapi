@@ -33,7 +33,10 @@ async def hello() -> dict[str, str]:
     assert context is not None
     logger = await get_logger("business")
     logger.info("hello request")
-    return {"request_id": context.request_id}
+    return {
+        "request_id": context.request_id,
+        "configured_port": str(await get_config("server.port")),
+    }
 
 
 @app.get("/slow")

@@ -3,12 +3,12 @@
 from pathlib import Path
 from typing import Literal
 
-from lclang.config import load_config
 from lclang.runtime import Frame
 
 from lcl_fastapi.render.nginx import NginxSettings, render_nginx
 from lcl_fastapi.render.systemd import SystemdSettings, render_systemd
 from lcl_fastapi.render.validation import integer_value, text_value
+from lcl_fastapi.sources import configuration_frame
 
 
 async def frame_text(frame: Frame, name: str, fallback: str | None = None) -> str:
@@ -79,8 +79,7 @@ async def render_config(kind: Literal["nginx", "systemd"], config_path: Path) ->
     :raises ValueError: If required deployment settings are invalid or absent.
     :raises OSError: If the service configuration cannot be read.
     """
-    loaded = await load_config(config_path)
-    async with loaded.frame_factory().create() as frame:
+    async with configuration_frame(config_path) as frame:
         if kind == "nginx":
             return render_nginx(await nginx_settings(frame))
         return render_systemd(await systemd_settings(frame))

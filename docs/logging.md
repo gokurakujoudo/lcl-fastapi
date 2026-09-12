@@ -1,15 +1,37 @@
-# Request logging
+# Controller and request logging
 
-The worker owns one `lclang.logger` handler scope. Configure its real upstream
-schema without framework aliases:
+Configure one shared directory and two filename expressions using the native
+`lclang.logger` schema:
 
 ```text
 logger.file.default.directory: "./logs"
+logger.file.controller.filename: f"{app.name}.controller.log"
 logger.file.service.filename: f"{app.name}.{worker_pid}.log"
 logger.level: "INFO"
 logger.file.service.rotation.mode: "size"
 logger.file.service.rotation.max_bytes: 10485760
 ```
+
+`logger.file.controller` belongs exclusively to the service controller.
+`logger.file.service` retains its existing name and belongs exclusively to each
+worker. The default directory is inherited by both; native per-sink level,
+rotation, and directory settings remain available. Additional named sinks belong
+to workers. Controller resolution never evaluates worker filenames. Workers do
+not open the controller sink. Native masked bindings retain their masking in
+the selected role.
+
+Controller files record complete-service start/stop/failure, heartbeat, observed
+worker up/down transitions, hot-reload retirement, and observed worker log segment
+changes. Observations follow `health.sample_interval_seconds` and the native
+manager loop, so they are eventually consistent and can miss workers that start
+and exit between samples. Controller messages are file-only. The controller keeps
+an upstream handler
+scope open between events. Before Gunicorn forks a worker, it drains the writer
+and closes its event loop and executor; only the parent reopens the scope after
+the fork. This starts a new upstream segment per worker creation, rather than
+per heartbeat. No logger thread or file handler survives into the fork. Windows
+spawns workers and retains the controller scope until service exit. Worker request
+and business logs retain their worker-long handler scope.
 
 `worker_pid` is supplied inside the real worker. Defining it in the application
 file is rejected. LCL computes the filename, while lclang owns permanent
@@ -63,6 +85,127 @@ failure response is cancelled or fails. The framework does not retry, synthesize
 a fallback ID, or change the upstream clock/sequence algorithm. A later request
 can succeed once the upstream generator can issue an ID again.
 
+## Rotation and permanent segments
+
+The pinned `lclang==1.0.10` writer owns rotation. Without an explicit policy,
+rotation mode is `none`: opening a logger scope still creates a fresh segment,
+but size and time do not switch it. Configure a shared policy, then specialize
+either sink:
+
+```text
+logger.file.default.rotation.mode: "size_or_time"
+logger.file.default.rotation.max_bytes: 10485760
+logger.file.default.rotation.interval: "1d"
+logger.file.default.rotation.align: True
+logger.file.controller.rotation.max_bytes: 1048576
+```
+
+Both sinks rotate at midnight UTC or their size threshold, whichever happens
+first. The controller uses 1 MiB and each worker uses 10 MiB. These are per-file
+thresholds, not a directory quota. Explicit sink fields override shared fields.
+
+| Mode | Required fields | Trigger |
+| --- | --- | --- |
+| `none` | None | No automatic rollover. |
+| `size` | Positive integer `max_bytes` | Before the next record would exceed the encoded-byte threshold in a segment that already has a record. |
+| `time` | `interval` | Writer timer, including while idle. |
+| `size_or_time` | Both | Either trigger; size rollover does not reset the time schedule. |
+
+Intervals are positive integers followed by `s`, `m`, `h`, or `d`, such as `30s`
+or `6h`. `align: False` (default) measures elapsed intervals from scope startup;
+`align: True` accepts only `1h` or `1d` and uses UTC boundaries. Records are never
+split, so a large first record and metadata can exceed `max_bytes`.
+
+A configured `catalog-api.28146.log` becomes, for example,
+`catalog-api.28146.20260912T100000.123456Z.000001.log`: the writer inserts a UTC
+timestamp and a process-wide sequence before the suffix. Sequence numbers can
+have gaps because other sinks share the counter. Old segments are neither
+renamed, overwritten, compressed, nor automatically deleted. Arrange retention
+for closed files through your operator's archival process; rotation alone does
+not bound total disk usage. Restarting a worker creates a new segment too.
+On Linux, controller scope reopening around worker forks also creates segments;
+this does not imply that a size/time threshold was reached.
+
+Each file begins with `log file: "<absolute path>"`. On rollover the old file
+ends with `continued in: "<successor absolute path>"`. Paths are JSON-escaped,
+including backslashes on Windows. An ordinary scope close has no continuation
+footer. Follow those links to read a rotated stream; use `logs` JSON to discover
+the currently observed worker segments.
+
+This isolated example exercises the same native writer without starting a
+service. A deliberately tiny threshold forces intact records into new files;
+exiting the scope flushes them before inspection:
+
+<!-- python-doc-exec -->
+```python
+import asyncio
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from lclang.logger import LoggerHandlerConfig, use_logger, use_logger_handler
+
+
+async def demonstrate_rotation() -> None:
+    with TemporaryDirectory() as directory:
+        config = LoggerHandlerConfig(
+            console={"enabled": False},
+            file={"service": {
+                "directory": directory,
+                "filename": "demo.log",
+                "rotation": {"mode": "size", "max_bytes": 1},
+            }},
+        )
+        async with use_logger_handler(config):
+            logger = await use_logger(name="rotation-demo")
+            logger.info("first intact record")
+            logger.info("second intact record")
+        segments = sorted(Path(directory).glob("demo.*.log"))
+        assert len(segments) == 2
+        first, second = [path.read_text(encoding="utf-8") for path in segments]
+        assert first.startswith("log file: ") and "continued in: " in first
+        assert "first intact record" in first
+        assert "second intact record" in second and "continued in: " not in second
+
+
+asyncio.run(demonstrate_rotation())
+```
+
+## Log file samples
+
+These excerpts show message payloads with the default formatter's timestamp,
+level, PID/thread, logger, and source-location columns omitted for readability.
+PIDs, timestamps, paths, and request IDs are illustrative. Controller files
+contain messages such as:
+
+```text
+log file: "/opt/catalog-api/logs/catalog-api.controller.20260912T100000.123456Z.000001.log"
+service started service_pid=28140 workers=1
+heartbeat service_pid=28140 workers=1
+worker up worker_pid=28146
+worker log rotate worker_pid=28146 paths=['/opt/catalog-api/logs/catalog-api.28146.20260912T100010.123456Z.000002.log']
+hot-reload retiring worker_pid=28146
+worker down worker_pid=28146
+service stopped
+```
+
+Transitions appear when observed, so their order relative to heartbeats varies.
+Failure exits can include `service failed`. Controller records describe service
+operations and have no HTTP request ID. A worker's catalog log contains:
+
+```text
+log file: "/opt/catalog-api/logs/catalog-api.28146.20260912T100000.123456Z.000001.log"
+catalog catalog ready
+catalog request_id=123456789 list products
+lcl_fastapi request_id=123456789 method=GET path=/api/v1/products status_code=200 duration_ms=0.420 worker_pid=28146
+continued in: "/opt/catalog-api/logs/catalog-api.28146.20260912T100010.123456Z.000002.log"
+```
+
+The business prefix is `catalog`; the matching response header is
+`X-Request-ID: 123456789`. Search that ID to correlate the business and access
+records. Startup `catalog ready` and teardown `catalog closed` run outside a
+request and therefore have no request ID. Teardown may be in a later segment.
+The default formatter includes the business call site for business messages.
+
 ## Request IDs
 
 Each actual worker owns one `lclang.utils.SnowflakeGenerator` for its lifespan.
@@ -76,7 +219,7 @@ timestamp, sequence, bit composition, clock handling, or locks.
 ## Observing active files
 
 ```console
-lcl-fastapi logs -o config service.lclcfg -o json
+lcl-fastapi logs -o config service.lclcfg
 ```
 
 The result contains `paths`, `observed_at`, and `stale`. Paths come from lclang's

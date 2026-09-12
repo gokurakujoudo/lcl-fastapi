@@ -5,6 +5,12 @@ PyPI and GitHub. Version metadata lives in `pyproject.toml`; tags use the exact
 version without a `v` prefix. Finalize a nonempty dated changelog section before
 reviewing and squash-merging the release changes into `main`.
 
+Version increments reflect compatibility. During the 0.x series, a minor
+increment introduces new features or incompatible public behavior; patch releases
+contain compatible fixes. Version 0.2.0 changes `status` and `logs` to fixed JSON
+output: remove the former JSON switch and read log paths from the `paths` array.
+The [CLI reference](cli.md#output-and-errors) defines the output contract.
+
 ## One-time publisher configuration
 
 The workflow uses the GitHub environment `pypi`, which GitHub creates when first

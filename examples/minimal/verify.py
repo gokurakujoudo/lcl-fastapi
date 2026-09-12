@@ -60,7 +60,7 @@ def check_http() -> None:
 
 def main() -> None:
     """Run the installed application in an isolated directory and stop it."""
-    executable = "lcl-fastapi.exe" if os.name == "nt" else "lcl-fastapi"
+    executable = "minimal-service.exe" if os.name == "nt" else "minimal-service"
     cli = Path(sys.executable).parent / executable
     environment = os.environ.copy()
     environment.pop("PYTHONPATH", None)
@@ -101,7 +101,7 @@ def main() -> None:
             if sys.platform == "win32":
                 creationflags = subprocess.CREATE_NO_WINDOW
             process = subprocess.Popen(
-                [str(cli), "serve", "-o", "config", str(config)],
+                [str(cli), "serve"],
                 cwd=working,
                 env=environment,
                 stdout=console,
@@ -139,7 +139,7 @@ def main() -> None:
                 check_http()
                 deadline = time.monotonic() + 10
                 while True:
-                    status = json.loads(command("status", "-o", "json").stdout)
+                    status = json.loads(command("status").stdout)
                     if len(status["workers"]) == 2:
                         break
                     if time.monotonic() >= deadline:
@@ -164,12 +164,12 @@ def main() -> None:
                     assert health["service"]["gunicorn_pid"] == master.pid == process.pid
                 else:
                     assert health["service"]["gunicorn_pid"] is None, health
-                assert "RUNNING" in command("status").stdout
+                assert json.loads(command("status").stdout)["status"] == "RUNNING"
                 print("status:", json.dumps(status), flush=True)
                 deadline = time.monotonic() + 5
                 while True:
                     command_started_at = time.time()
-                    observation = json.loads(command("logs", "-o", "json").stdout)
+                    observation = json.loads(command("logs").stdout)
                     print(
                         "logs observation:",
                         json.dumps(
@@ -191,8 +191,8 @@ def main() -> None:
                     path.is_absolute() and path.resolve().is_relative_to(working.resolve())
                     for path in paths
                 )
-                plain_paths = command("logs").stdout.splitlines()
-                assert set(plain_paths) == {str(path) for path in paths}, plain_paths
+                reported_paths = json.loads(command("logs").stdout)["paths"]
+                assert set(reported_paths) == {str(path) for path in paths}, reported_paths
                 print("logs:", json.dumps(observation), flush=True)
                 command("stop")
                 stopped = True
@@ -203,8 +203,8 @@ def main() -> None:
                 log_text = "\n".join(texts)
                 assert all(request_id in log_text for request_id in ids)
                 assert "hello requested" in log_text
-                assert json.loads(command("status", "-o", "json").stdout)["status"] == "STOPPED"
-                assert json.loads(command("logs", "-o", "json").stdout)["paths"] == []
+                assert json.loads(command("status").stdout)["status"] == "STOPPED"
+                assert json.loads(command("logs").stdout)["paths"] == []
                 print(
                     "PASS: hello, Request-ID, health, docs, shutdown authorization, "
                     "status, logs, stop, two-worker lifespan flush"

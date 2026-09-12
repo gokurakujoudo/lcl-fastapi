@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -13,21 +14,30 @@ import psutil
 
 
 def read_state(path: Path) -> dict[str, object]:
-    """Read a JSON object, treating missing or malformed state as absent.
+    """Read complete JSON, retrying transient Windows replacement conflicts.
 
     :param path: Trusted local state file.
     :returns: Decoded object, or an empty mapping for unusable state.
     :raises OSError: If access fails for a reason other than absence.
     """
-    try:
-        value: object = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError, ValueError:
-        return {}
-    return cast(dict[str, object], value) if isinstance(value, dict) else {}
+    attempts = 0
+    while True:
+        try:
+            value: object = json.loads(path.read_text(encoding="utf-8"))
+            return cast(dict[str, object], value) if isinstance(value, dict) else {}
+        except FileNotFoundError, ValueError:
+            return {}
+        except PermissionError:
+            attempts += 1
+            if sys.platform != "win32" or attempts == 3:
+                raise
+            # Windows atomic replacement can briefly leave the old file pending deletion.
+            # Two 10 ms delays bound the retry without hiding persistent access failures.
+            time.sleep(0.01)
 
 
 def atomic_write(path: Path, value: dict[str, object]) -> None:
-    """Publish a complete JSON observation through an atomic replacement.
+    """Publish complete JSON, retrying brief Windows reader-sharing conflicts.
 
     :param path: Destination in a trusted service directory.
     :param value: JSON-serializable observation.
@@ -37,7 +47,17 @@ def atomic_write(path: Path, value: dict[str, object]) -> None:
     temporary = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
     try:
         temporary.write_text(json.dumps(value, sort_keys=True), encoding="utf-8")
-        os.replace(temporary, path)
+        attempts = 0
+        while True:
+            try:
+                os.replace(temporary, path)
+                break
+            except PermissionError:
+                attempts += 1
+                if sys.platform != "win32" or attempts == 3:
+                    raise
+                # Match reads: two 10 ms delays tolerate brief Windows reader handles.
+                time.sleep(0.01)
     finally:
         temporary.unlink(missing_ok=True)
 

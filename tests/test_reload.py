@@ -3,7 +3,7 @@
 import asyncio
 import os
 import signal
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
@@ -221,10 +221,12 @@ def test_gunicorn_watch_adapter_preserves_signals_and_cleanup(
 
     class Runner:
         def __init__(self) -> None:
+            self.spawn_worker: Callable[[], object] = lambda: None
             self.wait_for_signals = native_wait
             self.stop = lambda graceful: events.append(f"stop {graceful}")
 
         def run(self) -> None:
+            assert self.spawn_worker() is None
             assert self.wait_for_signals(timeout=1.0) == signals
 
     runner = Runner()

@@ -1,5 +1,6 @@
-"""Configuration-driven console operations built on lclang.cli."""
+"""Public downstream console entrance for pyproject script wrappers."""
 
-from lcl_fastapi.cli.main import main
+from lcl_fastapi.cli.main import main as run_cli
 
-__all__ = ["main"]
+# Unitless public entrance name; console wrappers return its process status.
+__all__ = ["run_cli"]

@@ -107,7 +107,7 @@ def verify_idle_observations(directory: Path) -> None:
 def test_native_workers_recover_and_finish_lifespans(tmp_path: Path) -> None:
     port = available_port()
     source = tmp_path / "service.lclcfg"
-    source.write_text(CONFIG.format(port=port), encoding="utf-8")
+    source.write_text(CONFIG.format(port=1), encoding="utf-8")
     root = Path(__file__).resolve().parent.parent
     shutil.copyfile(root / "tests/runtime_app.py", tmp_path / "runtime_app.py")
     environment = os.environ.copy()
@@ -125,7 +125,7 @@ def test_native_workers_recover_and_finish_lifespans(tmp_path: Path) -> None:
         creationflags = subprocess.CREATE_NO_WINDOW
     with output.open("wb") as stream:
         process = subprocess.Popen(
-            [str(entrypoint), "serve", "-o", "config", str(source)],
+            [str(entrypoint), "serve", "-c", str(source), "-o", "server.port", f"LCL[{port}]"],
             stdout=stream,
             stderr=subprocess.STDOUT,
             env=environment,
@@ -160,6 +160,7 @@ def test_native_workers_recover_and_finish_lifespans(tmp_path: Path) -> None:
                     headers={"X-Request-ID": "client-value"},
                 )
                 assert response.status_code == 200
+                assert response.json()["configured_port"] == str(port)
                 assert response.headers["X-Request-ID"] == response.json()["request_id"]
                 assert response.headers["X-Request-ID"] != "client-value"
                 denied = client.post(f"http://127.0.0.1:{port}/_lcl/shutdown")
@@ -217,6 +218,10 @@ def test_native_workers_recover_and_finish_lifespans(tmp_path: Path) -> None:
                 response = client.get(f"http://127.0.0.1:{port}/hello")
                 assert response.status_code == 200
             verify_idle_observations(tmp_path)
+            with httpx.Client() as client:
+                assert client.get(f"http://127.0.0.1:{port}/hello").json()[
+                    "configured_port"
+                ] == str(port)
             # A later port edit must not redirect stop to another listener.
             source.write_text(CONFIG.format(port=available_port()), encoding="utf-8")
             asyncio.run(stop(source))
@@ -226,6 +231,16 @@ def test_native_workers_recover_and_finish_lifespans(tmp_path: Path) -> None:
             logs = "\n".join(
                 path.read_text(encoding="utf-8") for path in (tmp_path / "logs").glob("*")
             )
+            controller_logs = "\n".join(
+                path.read_text(encoding="utf-8")
+                for path in (tmp_path / "logs").glob("*controller*")
+            )
+            assert "service started" in controller_logs
+            assert "service stopped" in controller_logs
+            assert "heartbeat" in controller_logs
+            assert "worker up" in controller_logs
+            assert "worker down" in controller_logs
+            assert "hello request" not in controller_logs
             assert "hello request" in logs
             assert logs.count("business lifespan closed") == 2 + len(retired)
             assert "uvicorn.access" not in logs

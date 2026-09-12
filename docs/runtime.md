@@ -15,13 +15,20 @@ path, so an adjacent `app.py` can be the target `app:service` even when the
 installed console command is invoked from a different working directory.
 
 The master reads listener and worker-management settings once. Replacement
-workers read current source files. Do not edit configuration while a service is
+workers read current source files with the launch-time CLI overrides reapplied. Do not edit configuration while a service is
 running unless you understand that existing and replacement workers can differ.
 Apply coordinated changes by stopping the entire service and starting it again.
 
 `server.root_path` is optional complete external-origin metadata, such as
 `https://api.example.com:8443`. It is never an ASGI path prefix. Business paths
 come from Router registration; the ASGI root path remains empty.
+
+The controller owns a separate upstream logger for service and worker lifecycle
+observations. Its writer, executor, and event loop are drained and closed around
+Gunicorn's native worker-fork boundary, then reopened only in the parent. Windows
+uses spawned workers with independent log scopes. Shutdown flushes the controller
+scope after the native manager has joined its workers. See [logging](logging.md)
+for filename patterns and the observation consistency contract.
 
 ## Development hot reload
 
@@ -69,8 +76,8 @@ exited worker's ID only after validating its process identity. This coordination
 does not extend upstream Snowflake guarantees across crashes or rapid ID reuse.
 
 ```console
-lcl-fastapi status -o config service.lclcfg -o json
-lcl-fastapi logs -o config service.lclcfg -o json
+lcl-fastapi status -o config service.lclcfg
+lcl-fastapi logs -o config service.lclcfg
 ```
 
 Status reports `RUNNING`, `STOPPED`, or `STALE`, along with the verified service
@@ -148,3 +155,16 @@ For multiple machines, assign nonoverlapping ranges through LCL's environment
 configuration facilities. The runtime does not read environment variables as an
 alternative source of public service settings. Its `LCL_FASTAPI_CONFIG` and
 `LCL_FASTAPI_STATE` variables are internal parent-to-worker launch coordinates.
+
+## Concurrent state reads on Windows
+
+Workers publish observations by atomic replacement. State-file replacement retries
+Windows PermissionError up to three attempts, with 10 ms between attempts, when
+a concurrent reader temporarily prevents replacing the destination. Exhausted
+retries propagate the error, preserve the previous state, and remove the unused
+temporary file; other platforms fail immediately. Windows can briefly deny a
+read while a replaced file is pending deletion. The shared state reader retries
+PermissionError up to three attempts, with 10 ms between attempts, on Windows.
+Persistent denial is still raised; Linux permission failures are raised immediately.
+This bounded retry preserves complete JSON observations without treating a
+transient sharing conflict as a controller failure or weakening directory access.

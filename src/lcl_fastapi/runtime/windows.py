@@ -10,6 +10,7 @@ from uvicorn.supervisors import Multiprocess
 
 from lcl_fastapi.config import Settings
 from lcl_fastapi.runtime.application import load_application
+from lcl_fastapi.runtime.controller import controller_tick
 from lcl_fastapi.runtime.reload import ReloadWatcher
 from lcl_fastapi.runtime.service import shutdown_requested
 from lcl_fastapi.runtime.state import atomic_write
@@ -61,6 +62,7 @@ class ServiceMultiprocess(Multiprocess):
         :raises RuntimeError: If the watcher terminates unexpectedly.
         """
         super().keep_subprocess_alive()
+        controller_tick()
         if self.reload_watcher is not None and not self.should_exit.is_set():
             self.reload_watcher.tick()
 

@@ -7,8 +7,10 @@ from typing import Literal
 from lclang.cli import CliContext, CliResult, Command, CommandGroup, ParameterDoc, cli
 
 from lcl_fastapi.cli.output import format_logs, format_status
+from lcl_fastapi.config import load_settings
 from lcl_fastapi.render.config import render_config
 from lcl_fastapi.render.validation import text_value
+from lcl_fastapi.sources import configuration_frame
 
 
 async def config_path(context: CliContext) -> Path:
@@ -22,17 +24,16 @@ async def config_path(context: CliContext) -> Path:
     return await asyncio.to_thread(Path(text_value(value, "config")).resolve)
 
 
-async def json_output(context: CliContext) -> bool:
-    """Resolve the explicit LCL Boolean controlling operational JSON output.
+async def command_value(context: CliContext, name: str) -> object:
+    """Resolve an operational option with file and command-line precedence.
 
-    :param context: Active lclang command invocation.
-    :returns: Whether the complete result should be emitted as JSON.
-    :raises ValueError: If json is not a Boolean.
+    :param context: Active invocation containing the selected configuration path.
+    :param name: Qualified option name.
+    :returns: Native LCL value resolved in the complete service configuration.
+    :raises LclError: If the file or expression is invalid.
     """
-    value = await context.frame.get("json", fallback=False)
-    if not isinstance(value, bool):
-        raise ValueError('json must be Boolean; use -o json or -o json "LCL[True]"')
-    return value
+    async with configuration_frame(await config_path(context)) as frame:
+        return await frame.get(name)
 
 
 def renderer_command(kind: Literal["nginx", "systemd"]) -> Command:
@@ -51,8 +52,8 @@ def renderer_command(kind: Literal["nginx", "systemd"]) -> Command:
         :raises OSError: If reading configuration or writing the output fails.
         """
         result = await render_config(kind, await config_path(context))
-        output = await context.frame.get("output", fallback=None)
-        if output is None:
+        output = await command_value(context, "output")
+        if output is None or context.dryrun:
             return CliResult.success(result.rstrip("\n"))
         path = Path(text_value(output, "output"))
         await asyncio.to_thread(path.write_text, result, encoding="utf-8", newline="\n")
@@ -75,7 +76,6 @@ def command_group(pending: list[tuple[Path, bool]]) -> CommandGroup:
     :returns: Root lclang group containing only supported first-version commands.
     """
     config_doc = ParameterDoc("config", str, True, "Service .lclcfg file path.")
-    json_doc = ParameterDoc("json", bool, False, "Return JSON; use -o json.", False)
 
     @cli.command(
         "serve",
@@ -94,41 +94,43 @@ def command_group(pending: list[tuple[Path, bool]]) -> CommandGroup:
         :returns: Empty success after retaining the service configuration path.
         :raises ValueError: If the config parameter is invalid.
         """
-        hot_reload = await context.frame.get("hot_reload", fallback=False)
+        hot_reload = await command_value(context, "hot_reload")
         if not isinstance(hot_reload, bool):
             raise ValueError('hot_reload must be Boolean; use -o hot_reload or "LCL[True]"')
-        pending.append((await config_path(context), hot_reload))
+        path = await config_path(context)
+        if context.dryrun:
+            await load_settings(path)
+        else:
+            pending.append((path, hot_reload))
         return CliResult.success("")
 
-    @cli.command(
-        "status", "Inspect the local service identity and workers.", (config_doc, json_doc)
-    )
+    @cli.command("status", "Inspect the local service identity and workers.", (config_doc,))
     async def status_command(context: CliContext) -> CliResult:
         """Read a runtime snapshot using PID and process-creation identity checks.
 
         :param context: Active command invocation.
-        :returns: Plain text or JSON runtime status.
+        :returns: JSON runtime status.
         :raises ValueError: If command configuration is invalid.
         :raises OSError: If local runtime inspection fails.
         """
         from lcl_fastapi.runtime.common import inspect_status
 
         result = await inspect_status(await config_path(context))
-        return CliResult.success(format_status(result, as_json=await json_output(context)))
+        return CliResult.success(format_status(result))
 
-    @cli.command("logs", "List live workers' observed active log segments.", (config_doc, json_doc))
+    @cli.command("logs", "List live workers' observed active log segments.", (config_doc,))
     async def logs_command(context: CliContext) -> CliResult:
         """Return observed log paths without querying a network endpoint.
 
         :param context: Active command invocation.
-        :returns: Plain paths or a JSON observation snapshot.
+        :returns: A JSON observation snapshot.
         :raises ValueError: If command configuration or runtime output is invalid.
         :raises OSError: If local runtime inspection fails.
         """
         from lcl_fastapi.runtime.common import active_logs
 
         result = await active_logs(await config_path(context))
-        return CliResult.success(format_logs(result, as_json=await json_output(context)))
+        return CliResult.success(format_logs(result))
 
     @cli.command("stop", "Request authenticated graceful shutdown over loopback.", (config_doc,))
     async def stop_command(context: CliContext) -> CliResult:
@@ -139,9 +141,13 @@ def command_group(pending: list[tuple[Path, bool]]) -> CommandGroup:
         :raises ValueError: If configuration or service identity is invalid.
         :raises OSError: If the verified local service cannot be reached.
         """
-        from lcl_fastapi.runtime.common import stop
+        path = await config_path(context)
+        if context.dryrun:
+            await load_settings(path)
+        else:
+            from lcl_fastapi.runtime.common import stop
 
-        await stop(await config_path(context))
+            await stop(path)
         return CliResult.success("")
 
     return CommandGroup(

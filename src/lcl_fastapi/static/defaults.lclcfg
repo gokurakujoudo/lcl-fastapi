@@ -1,5 +1,8 @@
 __LCL_VERSION__: 1
 
+hot_reload: False
+output: None
+
 server.host: "127.0.0.1"
 server.port: 8080
 server.workers: 1
@@ -29,3 +32,4 @@ snowflake.worker_id_count: 64
 logger.file.default.directory: "./logs"
 logger.file.service.filename: f"{app.name}.{worker_pid}.log"
 logger.level: "INFO"
+logger.file.controller.filename: f"{app.name}.controller.log"

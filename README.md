@@ -16,7 +16,7 @@ Write business routes, a trusted `.lclcfg` file, and an optional business lifesp
 The framework owns worker startup, request IDs, health sampling, local operations,
 and bundled offline Swagger UI.
 
-Install version 0.1.1 with `python -m pip install lcl-fastapi==0.1.1` in a
+Install version 0.2.0 with `python -m pip install lcl-fastapi==0.2.0` in a
 Python 3.14 virtual environment. See the [release process](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/releasing.md)
 for version notes, publication requirements, and artifact verification.
 
@@ -27,7 +27,7 @@ for a complete step-by-step project with configuration, routes, logging, verific
 and deployment preparation.
 
 Use a Python 3.14+ virtual environment. Install the built artifact with
-`python -m pip install path/to/lcl_fastapi-0.1.1-py3-none-any.whl`. Dependencies must
+`python -m pip install path/to/lcl_fastapi-0.2.0-py3-none-any.whl`. Dependencies must
 also be installed; offline Swagger means that documentation serving does not
 require a CDN after installation.
 
@@ -58,6 +58,7 @@ server.host: "127.0.0.1"
 server.port: 8080
 server.workers: 1
 logger.file.default.directory: "./logs"
+logger.file.controller.filename: f"{app.name}.controller.log"
 logger.file.service.filename: f"{app.name}.{worker_pid}.log"
 logger.level: "INFO"
 ```
@@ -79,13 +80,20 @@ include the current ID, and each worker writes its own file.
 Run operations in another terminal using the same configuration file:
 
 ```console
-lcl-fastapi status -o config service.lclcfg -o json
+lcl-fastapi status -o config service.lclcfg
 lcl-fastapi logs -o config service.lclcfg
 lcl-fastapi stop -o config service.lclcfg
 ```
 
-The CLI deliberately follows `lclang.cli` syntax: `-o config`, not `-c` or
-`--config`; `-o json`, not `--json`. Listener settings have no CLI overrides.
+The CLI follows `lclang.cli` syntax: `-c`/`--config` and the existing `-o config`
+select the service file. Any setting can be overridden, for example
+`-o server.port "LCL[9000]"`; CLI values take precedence over the file.
+`status` and `logs` always return JSON. Add your own `pyproject.toml` console command
+with `catalog = "lcl_fastapi.cli:run_cli"`, or wrap `run_cli` to supply a default
+configuration. See the [CLI reference](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/cli.md#downstream-console-entrances).
+Configuration supports native `using`, including `using f"{lcl_fastapi_defaults}"`
+to extend the bundled defaults. Controller lifecycle events and worker request
+logs use separate filename patterns under the shared log directory.
 Log paths are the most recently published live-worker observations, so rollover
 updates are eventually consistent. Stop uses a local control token and waits for
 graceful termination, including business teardown and logger flush.
