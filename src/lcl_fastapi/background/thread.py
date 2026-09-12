@@ -179,7 +179,10 @@ class WorkerThread:
                                 f"exception={type(error).__name__}",
                             )
                         finally:
-                            runner.run(scope.__aexit__(None, None, None))
+                            try:
+                                context.bridge.close_attempt()
+                            finally:
+                                runner.run(scope.__aexit__(None, None, None))
                         if not self.policy.auto_restart or self.stop_event.wait(RESTART_DELAY):
                             break
                         self.transition("restarting", attempt, level, "restarting after exit")

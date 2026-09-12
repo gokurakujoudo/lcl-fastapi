@@ -60,7 +60,10 @@ Use `app.state` for business resources and ordinary locks for thread-safe shared
 objects. Loop-bound clients and connection pools must be used on their owning API
 loop. Synchronous workers wait on the submitted Future; asynchronous workers use
 `await asyncio.wrap_future(future)`. Await every submitted operation before leaving
-the worker. An API-loop callback must not synchronously wait for the submitting
+the worker. The framework also drains actual submitted API Tasks, including their
+cancellation cleanup, before closing an attempt's Frame, restarting that worker,
+or tearing down business resources. Cancelling a Future alone is not that barrier.
+An API-loop callback must not synchronously wait for the submitting
 worker; that would deadlock. Submitted callbacks must themselves be nonblocking.
 
 <!-- python-doc-exec -->
@@ -128,6 +131,16 @@ remains available for resource cleanup submissions during this wait.
 After `server.graceful_timeout_seconds`, the controller logs the timeout and
 terminates the **entire API process**, checking its creation-time identity before
 signaling. A normal service stop does not restart it; hot reload replaces it.
+The controller starts its own retirement deadline at stop/reload, independently
+of journal delivery. Runtime journal publication failure is logged immediately,
+stops further background executions and requests service shutdown. A failed
+journal channel cannot disable the controller's process retirement deadline.
+If stop/reload is already retiring the worker, publication failure preserves that
+operation rather than converting reload into a whole-service stop. Controller
+deadlines begin with the native retirement request and use a monotonic clock;
+repeated requests and late journal records cannot extend them.
+The already-reported publication error is not rethrown into business teardown;
+cooperative shutdown still closes business resources normally.
 Forced termination cannot guarantee worker cleanup, business teardown, transactions
 or API log flushing. The local stop command can report its graceful deadline
 before forced retirement has finished; inspect status afterward. Controller event

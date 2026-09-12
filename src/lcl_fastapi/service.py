@@ -108,7 +108,7 @@ class LclFastAPI(FastAPI):
             raise RuntimeError("expected FastAPI ServerErrorMiddleware boundary")
         if not generic:
             stack.handler = self.uncaught_response
-            stack.debug = False
+        stack.debug = False
         return stack
 
     async def uncaught_response(self, request: Request, err: Exception) -> Response:
@@ -290,6 +290,7 @@ class LclFastAPI(FastAPI):
                             config_path,
                             journal,
                             settings.graceful_timeout_seconds,
+                            runtime.request_shutdown,
                         )
                         business.push_async_callback(self.background_manager.stop)
                         await self.background_manager.start()

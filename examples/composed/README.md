@@ -12,6 +12,12 @@ the registered background callables produce one warning and force the count to o
 Run one example service at a time because the framework's supported deployment
 scope is one service per machine.
 
+If a background entry is cancelled while awaiting a service-resource operation,
+the framework waits for that operation's API-loop cleanup before closing the
+catalog or restarting the entry. Controller stop/reload deadlines remain active
+even if lifecycle journal publication fails after startup; cooperative teardown
+still runs, while a noncooperative task causes verified process termination.
+
 ## Install and run
 
 From this directory, use these PowerShell commands on Windows:

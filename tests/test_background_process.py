@@ -63,13 +63,38 @@ def wait_ready(port: int, process: subprocess.Popen[bytes], previous: int = 0) -
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("journal_failure", [False, True])
 @pytest.mark.parametrize(
     "mode,reload", [("normal", False), ("stuck", False), ("normal", True), ("stuck", True)]
 )
-def test_background_native_lifecycle(tmp_path: Path, mode: str, reload: bool) -> None:
+def test_background_native_lifecycle(
+    tmp_path: Path, mode: str, reload: bool, journal_failure: bool
+) -> None:
     port = available_port()
     application = tmp_path / "app.py"
-    application.write_text(APP)
+    code = APP
+    if journal_failure:
+        code += """
+from lcl_fastapi.background.journal import BackgroundJournal
+original_emit = BackgroundJournal.emit
+original_flush = BackgroundJournal.flush
+retiring = False
+
+def emit(self, level, message, **fields):
+    global retiring
+    if message == "background stopping":
+        retiring = True
+    original_emit(self, level, message, **fields)
+
+def flush(self):
+    if retiring:
+        raise OSError("injected runtime journal failure")
+    original_flush(self)
+
+BackgroundJournal.emit = emit
+BackgroundJournal.flush = flush
+"""
+    application.write_text(code)
     source = tmp_path / "service.lclcfg"
     source.write_text(
         '__LCL_VERSION__: 1\napp.name: "background-probe"\napp.version: "1"\n'
@@ -109,7 +134,7 @@ def test_background_native_lifecycle(tmp_path: Path, mode: str, reload: bool) ->
                     assert time.monotonic() < deadline, "filesystem watcher did not become ready"
                     time.sleep(0.05)
                 for revision in range(2):
-                    application.write_text(APP + f"\n# trigger replacement {revision}\n")
+                    application.write_text(code + f"\n# trigger replacement {revision}\n")
                     replacement = wait_ready(port, process, pid)
                     assert replacement != pid
                     assert not psutil.pid_exists(pid)
@@ -126,7 +151,11 @@ def test_background_native_lifecycle(tmp_path: Path, mode: str, reload: bool) ->
             assert process.wait(timeout=15) == 0
             control = "".join(p.read_text() for p in (tmp_path / "logs").glob("*controller*.log"))
             assert "background worker=job" in control
-            assert "background stopping" in control
+            if journal_failure:
+                logs = "".join(p.read_text() for p in (tmp_path / "logs").glob("*.log"))
+                assert "background journal publication failed" in logs
+            else:
+                assert "background stopping" in control
             assert ("background shutdown timeout" in control) == (mode == "stuck")
             assert (tmp_path / "closed.txt").exists() == (mode == "normal")
             assert not psutil.pid_exists(pid)

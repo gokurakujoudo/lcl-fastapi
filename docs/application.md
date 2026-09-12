@@ -134,8 +134,8 @@ Specific FastAPI exception handlers, HTTPException, and request validation retai
 their normal priority. Without an explicit callback, an existing Exception/500
 handler remains authoritative. Explicitly combining both generic interfaces raises
 `ValueError` when the middleware stack is built, including handlers registered after
-construction. Without a native generic handler, the framework callback applies even
-when `debug=True`.
+construction. The selected generic handler remains authoritative even when
+`debug=True`; debug traceback responses never bypass this contract.
 
 The default callback logs the original traceback and returns HTTP 500 with
 `{"detail": "Internal Server Error"}`. A custom callback can return any Response.

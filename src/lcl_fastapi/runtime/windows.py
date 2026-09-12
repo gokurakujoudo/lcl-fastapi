@@ -10,7 +10,11 @@ from uvicorn.supervisors import Multiprocess
 
 from lcl_fastapi.config import Settings
 from lcl_fastapi.runtime.application import load_application
-from lcl_fastapi.runtime.controller import controller_background_tick, controller_tick
+from lcl_fastapi.runtime.controller import (
+    controller_background_tick,
+    controller_retiring,
+    controller_tick,
+)
 from lcl_fastapi.runtime.reload import ReloadWatcher
 from lcl_fastapi.runtime.service import shutdown_requested
 from lcl_fastapi.runtime.state import atomic_write
@@ -48,6 +52,7 @@ class ServiceMultiprocess(Multiprocess):
 
         :raises OSError: If the service control marker cannot be published.
         """
+        controller_retiring()
         atomic_write(
             self.settings.state_dir / "shutdown.json",
             {

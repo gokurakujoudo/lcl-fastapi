@@ -258,6 +258,66 @@ def test_registration_copies_and_rejects_noncallables() -> None:
         worker_registry({"job": cast(BackgroundWorker, "not executable")})
 
 
+@pytest.mark.parametrize("mode", ["cancel", "stop", "error"])
+async def test_service_cleanup_precedes_restart_and_teardown(
+    configuration: Path, background_runtime: ObservedRuntime, mode: str
+) -> None:
+    cleaning, release, shutdown = (asyncio.Event() for _ in range(3))
+    started = threading.Event()
+    entered = threading.Event()
+    closed = False
+    attempts = 0
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        nonlocal closed
+        yield
+        closed = True
+
+    async def operation() -> None:
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cleaning.set()
+            await release.wait()
+            assert not closed
+
+    async def job(context: BackgroundWorkerContext) -> None:
+        nonlocal attempts
+        attempts += 1
+        future = context.submit_to_service(operation)
+        entered.set()
+        if mode != "stop":
+            assert await asyncio.to_thread(started.wait, 5)
+            if mode == "error":
+                raise ValueError("entry failed with outstanding API work")
+            future.cancel()
+        await asyncio.wrap_future(future)
+
+    app = LclFastAPI(config_path=configuration, lifespan=lifespan, background_workers={"job": job})
+
+    async def serve() -> None:
+        async with app.router.lifespan_context(app):
+            await shutdown.wait()
+
+    service = asyncio.create_task(serve())
+    try:
+        await wait_event(entered)
+        await wait_event(started)
+        if mode == "stop":
+            shutdown.set()
+        await asyncio.wait_for(cleaning.wait(), 5)
+        await asyncio.sleep(0.05 if mode == "stop" else 1.2)
+        assert not closed, "business teardown overtook API Task cleanup"
+        assert attempts == 1, "restart overtook previous API Task cleanup"
+    finally:
+        shutdown.set()
+        release.set()
+        await asyncio.wait_for(service, 5)
+    assert closed
+
+
 async def test_config_defaults_overrides_nested_and_invalid(configuration: Path) -> None:
     with configuration.open("a") as file:
         file.write("background_worker.job.enabled: False\nbackground_worker.job.nested.value: 42\n")

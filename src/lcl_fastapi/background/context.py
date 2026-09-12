@@ -5,10 +5,11 @@ import threading
 from collections.abc import Awaitable, Callable, Mapping
 from concurrent.futures import Future
 from contextvars import Context
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from fastapi import FastAPI
 
+from lcl_fastapi.background.bridge import ServiceBridge
 from lcl_fastapi.context import get_config
 from lcl_fastapi.logging import RequestLogger
 
@@ -25,6 +26,7 @@ class BackgroundWorkerContext:
     :param runner: Owning background thread's runner, for synchronous entry points.
     :param service_loop: API loop owning shared asynchronous business resources.
     :param service_context: API configuration bindings, copied for each submitted operation.
+    :param bridge: Automatically owned service-task cleanup tracker.
     """
 
     name: str
@@ -35,6 +37,11 @@ class BackgroundWorkerContext:
     runner: asyncio.Runner
     service_loop: asyncio.AbstractEventLoop
     service_context: Context
+    bridge: ServiceBridge = field(init=False)
+
+    def __post_init__(self) -> None:
+        """Attach the worker's service-task owner without starting resources."""
+        object.__setattr__(self, "bridge", ServiceBridge(self.service_loop, self.service_context))
 
     async def get_config(self, key: str) -> object:
         """Resolve configuration in this thread's current derived Frame scope.
@@ -67,22 +74,7 @@ class BackgroundWorkerContext:
         The callback must not wait synchronously on the submitting worker.
         """
 
-        async def invoke() -> T:
-            """Await the factory inside the receiving loop.
-
-            :returns: Business operation's result.
-            :raises BaseException: Propagates business failure to the returned future.
-            """
-            return await operation()
-
-        pending = invoke()
-        try:
-            return self.service_context.copy().run(
-                asyncio.run_coroutine_threadsafe, pending, self.service_loop
-            )
-        except RuntimeError:
-            pending.close()
-            raise
+        return self.bridge.submit(operation)
 
 
 # Unitless callable contract; executables are supplied by code, never configuration.

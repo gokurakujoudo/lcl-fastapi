@@ -299,3 +299,52 @@ def test_controller_deadline_records_failure_before_kill(
     writer = ControllerWriter(LoggerHandlerConfig(file={}))
     with pytest.raises(RuntimeError, match="not active"):
         writer.emit_records([])
+
+
+@pytest.mark.parametrize("read_failure", [False, True])
+def test_controller_retirement_does_not_require_journal_delivery(
+    configuration: Path, monkeypatch: pytest.MonkeyPatch, read_failure: bool
+) -> None:
+    import lcl_fastapi.runtime.controller as controller
+
+    settings = asyncio.run(load_settings(configuration))
+    identity = process_identity() | {"service_id": "test"}
+    killed: list[dict[str, object]] = []
+    monkeypatch.setattr(controller, "terminate_background_process", killed.append)
+    with controller_logging(configuration, settings, identity):
+        if read_failure:
+            active = controller.CONTROLLER.get()
+            assert active is not None
+            monkeypatch.setattr(active.background, "read", Mock(side_effect=OSError("read failed")))
+        controller.controller_retiring(identity)
+        controller.controller_background_tick(force_kill=True)
+    assert len(killed) == 1
+    assert killed[0]["pid"] == identity["pid"]
+
+
+async def test_runtime_publication_failure_stops_workers_and_requests_shutdown(
+    configuration: Path, background_runtime: ObservedRuntime, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    entry = threading.Event()
+
+    def job(context: BackgroundWorkerContext) -> None:
+        entry.set()
+        context.stop_event.wait(5)
+
+    def fail_flush(self: BackgroundJournal) -> None:
+        raise OSError("runtime publication unavailable")
+
+    app = LclFastAPI(config_path=configuration, background_workers={"job": job})
+    async with app.router.lifespan_context(app):
+        assert await asyncio.to_thread(entry.wait, 5)
+        assert app.background_manager is not None
+        manager = app.background_manager
+        monkeypatch.setattr(BackgroundJournal, "flush", fail_flush)
+        assert manager.pump is not None
+        with pytest.raises(OSError, match="runtime publication unavailable"):
+            await manager.pump
+        assert background_runtime.stopped
+        assert manager.workers["job"].stop_event.is_set()
+    assert "background journal publication failed" in "".join(
+        path.read_text() for path in (configuration.parent / "logs").glob("*.log")
+    )

@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -24,6 +24,7 @@ class BackgroundManager:
     :param path: Formal configuration source.
     :param journal: API identity-scoped event queue and writer.
     :param timeout: Seconds allowed for cooperative shutdown before controller termination.
+    :param failure_callback: Optional service shutdown request after publication failure.
     """
 
     def __init__(
@@ -35,6 +36,7 @@ class BackgroundManager:
         path: Path,
         journal: BackgroundJournal,
         timeout: float,
+        failure_callback: Callable[[], None] | None = None,
     ) -> None:
         """Prepare owned threads without starting executables.
 
@@ -45,8 +47,10 @@ class BackgroundManager:
         :param path: Thread-local configuration source.
         :param journal: Ordered lifecycle event writer.
         :param timeout: Cooperative shutdown deadline in seconds.
+        :param failure_callback: Service-owned shutdown request, or None in isolated use.
         """
         self.journal, self.timeout, self.policies = journal, timeout, policies
+        self.failure_callback = failure_callback
         self.workers = {
             name: WorkerThread(name, executable, policies[name], app, state, path, journal.emit)
             for name, executable in workers.items()
@@ -77,10 +81,20 @@ class BackgroundManager:
 
         :raises OSError: If journal publication fails.
         """
-        while not self.finished.is_set():
+        try:
+            while not self.finished.is_set():
+                await asyncio.to_thread(self.journal.flush)
+                await asyncio.sleep(0.05)
             await asyncio.to_thread(self.journal.flush)
-            await asyncio.sleep(0.05)
-        await asyncio.to_thread(self.journal.flush)
+        except OSError:
+            for worker in self.workers.values():
+                worker.stop()
+            try:
+                logging.getLogger("lcl_fastapi").exception("background journal publication failed")
+            finally:
+                if self.failure_callback is not None and self.retirement is None:
+                    self.failure_callback()
+            raise
 
     async def start(self) -> None:
         """Wait for each thread's resources before exposing the API as ready.
@@ -94,6 +108,8 @@ class BackgroundManager:
             for worker in self.workers.values():
                 worker.thread.start()
                 await asyncio.shield(asyncio.wrap_future(worker.ready))
+                if self.pump.done():
+                    self.pump.result()
         except BaseException:
             await self.stop()
             raise
@@ -102,7 +118,7 @@ class BackgroundManager:
         """Complete retirement even if the lifespan task is repeatedly cancelled.
 
         :raises CancelledError: After retirement if the caller was cancelled.
-        :raises BaseException: If journal flushing fails.
+        :raises BaseException: If unexpected retirement cleanup fails.
         """
         if self.retirement is None:
             self.retirement = asyncio.create_task(self.retire())
@@ -122,7 +138,7 @@ class BackgroundManager:
         The controller observes the deadline and kills the complete API process if
         a callable cannot stop. The API loop stays available for cleanup bridges.
 
-        :raises BaseException: If journal flushing fails or retirement is cancelled.
+        :raises BaseException: If unexpected cleanup fails or retirement is cancelled.
         """
         self.journal.emit(logging.INFO, "background stopping", deadline=time.time() + self.timeout)
         for worker in self.workers.values():
@@ -140,4 +156,9 @@ class BackgroundManager:
         self.journal.emit(logging.INFO, "background retired", retired=True)
         self.finished.set()
         if self.pump is not None:
-            await self.pump
+            try:
+                await self.pump
+            except OSError:
+                # Publication failure was reported and supervised at its source;
+                # injecting it into business lifespan would skip post-yield teardown.
+                pass

@@ -9,7 +9,7 @@ import psutil
 from watchfiles import Change, watch
 
 from lcl_fastapi.config import Settings
-from lcl_fastapi.runtime.controller import controller_event
+from lcl_fastapi.runtime.controller import controller_event, controller_retiring
 from lcl_fastapi.runtime.service import shutdown_requested
 from lcl_fastapi.runtime.state import atomic_write, is_live, live_workers
 
@@ -99,6 +99,7 @@ class ReloadWatcher:
         self.retiring = None
         if self.pending and not shutdown_requested(self.settings.state_dir, self.identity):
             worker = workers[0]
+            controller_retiring(worker)
             if self.identity["runtime"] == "uvicorn":
                 atomic_write(self.settings.state_dir / "reload.json", worker)
             else:

@@ -11,6 +11,7 @@ from lcl_fastapi.runtime.application import load_application
 from lcl_fastapi.runtime.controller import (
     controller_background_tick,
     controller_fork,
+    controller_retiring,
     controller_tick,
 )
 from lcl_fastapi.runtime.reload import ReloadWatcher
@@ -169,6 +170,8 @@ def run_linux(settings: Settings, identity: dict[str, object], hot_reload: bool 
         :param sig: Signal selected by Gunicorn's native lifecycle.
         :raises OSError: If journal inspection fails.
         """
+        if sig != FORCED_TERMINATION_SIGNAL:
+            controller_retiring()
         controller_background_tick(force_kill=sig == FORCED_TERMINATION_SIGNAL)
         native_kill(sig)
 

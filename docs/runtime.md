@@ -136,6 +136,10 @@ Business lifespan exits before framework logging is flushed and closed.
 Background retirement finishes before that business teardown. A noncooperative
 background thread causes controller-logged termination of the entire API process
 after the graceful deadline; forced termination cannot guarantee cleanup.
+Retirement deadlines are armed by the controller before native stop/reload and
+do not rely on the API journal remaining writable. Actual submitted API Tasks,
+including asynchronous cancellation cleanup, settle before background attempts
+finish and before business resources close.
 Normal worker cleanup removes its observation and lease. Kernel file locks release
 after a process crash; the next allocation can reclaim a lease only after its
 old process identity is no longer live. Master exit removes abandoned worker

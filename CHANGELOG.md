@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Fix review-discovered lifecycle races: drain submitted API Tasks through their
+  cancellation cleanup before worker restart or business teardown; supervise
+  runtime journal failure and enforce independent controller retirement deadlines.
+  Preserve configured Exception/500 handlers even in debug mode.
+
 - Add code-registered background workers with dedicated threads/event loops,
   nested configuration scopes, explicit service-resource bridges, restart controls,
   controller lifecycle events, isolated log files and status/health observations.

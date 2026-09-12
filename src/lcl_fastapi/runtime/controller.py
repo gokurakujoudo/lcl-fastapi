@@ -16,7 +16,7 @@ from lcl_fastapi.background.journal import BackgroundEvents, terminate_backgroun
 from lcl_fastapi.config import Settings
 from lcl_fastapi.logging import resolve_log_directories
 from lcl_fastapi.runtime.controller_writer import ControllerWriter
-from lcl_fastapi.runtime.state import live_workers
+from lcl_fastapi.runtime.state import is_live, live_workers
 from lcl_fastapi.sources import configuration_frame
 
 # Process-manager-loop binding; forked workers never advance the controller observer.
@@ -45,6 +45,7 @@ class ControllerLog:
     :param workers: Previous live-worker observations keyed by PID and creation time.
     :param deadline: Next monotonic heartbeat deadline in seconds.
     :param background: Initialized controller-owned background journal reader.
+    :param retirements: Independently owned process identities and monotonic deadlines.
     """
 
     writer: ControllerWriter
@@ -53,6 +54,9 @@ class ControllerLog:
     workers: dict[tuple[object, object], dict[str, object]] = field(default_factory=dict)
     deadline: float = 0
     background: BackgroundEvents = field(init=False)
+    retirements: dict[tuple[object, object], tuple[dict[str, object], float]] = field(
+        default_factory=dict
+    )
 
     def __post_init__(self) -> None:
         """Attach the current start's journal reader without opening files."""
@@ -65,16 +69,45 @@ class ControllerLog:
         :raises OSError: If journals cannot be read.
         :raises psutil.AccessDenied: If an expired owned worker cannot be killed.
         """
-        events = self.background.read()
+        try:
+            events = self.background.read()
+        except OSError as error:
+            events = [(logging.ERROR, f"background journal read failed: {error!r}")]
         expired = self.background.expired(force_kill)
+        for key, (record, deadline) in list(self.retirements.items()):
+            if not is_live(record):
+                del self.retirements[key]
+            elif force_kill or time.monotonic() >= deadline:
+                expired.append(record)
+                del self.retirements[key]
+        expired = list({(r["pid"], r["process_create_time"]): r for r in expired}.values())
         events.extend(
             (logging.ERROR, f"background shutdown timeout: terminating worker_pid={record['pid']}")
             for record in expired
         )
-        if events:
-            self.writer.emit_records(events)
-        for record in expired:
-            terminate_background_process(record)
+        try:
+            if events:
+                self.writer.emit_records(events)
+        finally:
+            for record in expired:
+                terminate_background_process(record)
+
+    def retire(self, record: dict[str, object] | None = None) -> None:
+        """Arm deadlines before native stop/reload, independently of API publication.
+
+        :param record: One verified reload target, or None for all observed workers.
+        :raises OSError: If worker observations cannot be read.
+        """
+        records = (
+            live_workers(self.settings.worker_state_dir, self.identity["service_id"])
+            if record is None
+            else [record]
+        )
+        for worker in records:
+            key = (worker["pid"], worker["process_create_time"])
+            self.retirements.setdefault(
+                key, (worker, time.monotonic() + self.settings.graceful_timeout_seconds)
+            )
 
     def emit(self, events: list[str]) -> None:
         """Enqueue events through the controller-owned upstream scope.
@@ -132,6 +165,17 @@ def controller_background_tick(force_kill: bool = False) -> None:
     controller = CONTROLLER.get()
     if controller is not None:
         controller.background_tick(force_kill)
+
+
+def controller_retiring(record: dict[str, object] | None = None) -> None:
+    """Start controller-owned retirement clocks before sending stop/reload signals.
+
+    :param record: Specific reload identity, or None for every observed worker.
+    :raises OSError: If worker observations cannot be read.
+    """
+    controller = CONTROLLER.get()
+    if controller is not None:
+        controller.retire(record)
 
 
 def controller_event(message: str) -> None:

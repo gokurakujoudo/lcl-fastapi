@@ -133,13 +133,14 @@ def test_specific_handlers_validation_and_dependencies(
 
 
 @pytest.mark.parametrize("key", [Exception, 500])
+@pytest.mark.parametrize("debug", [False, True])
 def test_native_generic_handler_and_explicit_conflict(
-    configuration: Path, observed_runtime: ObservedRuntime, key: type[Exception] | int
+    configuration: Path, observed_runtime: ObservedRuntime, key: type[Exception] | int, debug: bool
 ) -> None:
     async def native(request: Request, err: Exception) -> Response:
         return Response(status_code=503)
 
-    app = LclFastAPI(config_path=configuration, exception_handlers={key: native})
+    app = LclFastAPI(config_path=configuration, exception_handlers={key: native}, debug=debug)
 
     @app.get("/broken")
     async def broken() -> None:
