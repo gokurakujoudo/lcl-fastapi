@@ -7,8 +7,10 @@ from typing import Literal
 from lclang.cli import CliContext, CliResult, Command, CommandGroup, ParameterDoc, cli
 
 from lcl_fastapi.cli.output import format_logs, format_status
+from lcl_fastapi.config import load_settings
 from lcl_fastapi.render.config import render_config
 from lcl_fastapi.render.validation import text_value
+from lcl_fastapi.sources import configuration_frame
 
 
 async def config_path(context: CliContext) -> Path:
@@ -22,6 +24,19 @@ async def config_path(context: CliContext) -> Path:
     return await asyncio.to_thread(Path(text_value(value, "config")).resolve)
 
 
+async def command_value(context: CliContext, name: str, fallback: object) -> object:
+    """Resolve an operational option with file and command-line precedence.
+
+    :param context: Active invocation containing the selected configuration path.
+    :param name: Qualified option name.
+    :param fallback: Value used when neither file nor invocation defines the option.
+    :returns: Native LCL value resolved in the complete service configuration.
+    :raises LclError: If the file or expression is invalid.
+    """
+    async with configuration_frame(await config_path(context)) as frame:
+        return await frame.get(name, fallback=fallback)
+
+
 async def json_output(context: CliContext) -> bool:
     """Resolve the explicit LCL Boolean controlling operational JSON output.
 
@@ -29,7 +44,7 @@ async def json_output(context: CliContext) -> bool:
     :returns: Whether the complete result should be emitted as JSON.
     :raises ValueError: If json is not a Boolean.
     """
-    value = await context.frame.get("json", fallback=False)
+    value = await command_value(context, "json", False)
     if not isinstance(value, bool):
         raise ValueError('json must be Boolean; use -o json or -o json "LCL[True]"')
     return value
@@ -51,8 +66,8 @@ def renderer_command(kind: Literal["nginx", "systemd"]) -> Command:
         :raises OSError: If reading configuration or writing the output fails.
         """
         result = await render_config(kind, await config_path(context))
-        output = await context.frame.get("output", fallback=None)
-        if output is None:
+        output = await command_value(context, "output", None)
+        if output is None or context.dryrun:
             return CliResult.success(result.rstrip("\n"))
         path = Path(text_value(output, "output"))
         await asyncio.to_thread(path.write_text, result, encoding="utf-8", newline="\n")
@@ -94,10 +109,14 @@ def command_group(pending: list[tuple[Path, bool]]) -> CommandGroup:
         :returns: Empty success after retaining the service configuration path.
         :raises ValueError: If the config parameter is invalid.
         """
-        hot_reload = await context.frame.get("hot_reload", fallback=False)
+        hot_reload = await command_value(context, "hot_reload", False)
         if not isinstance(hot_reload, bool):
             raise ValueError('hot_reload must be Boolean; use -o hot_reload or "LCL[True]"')
-        pending.append((await config_path(context), hot_reload))
+        path = await config_path(context)
+        if context.dryrun:
+            await load_settings(path)
+        else:
+            pending.append((path, hot_reload))
         return CliResult.success("")
 
     @cli.command(
@@ -139,9 +158,13 @@ def command_group(pending: list[tuple[Path, bool]]) -> CommandGroup:
         :raises ValueError: If configuration or service identity is invalid.
         :raises OSError: If the verified local service cannot be reached.
         """
-        from lcl_fastapi.runtime.common import stop
+        path = await config_path(context)
+        if context.dryrun:
+            await load_settings(path)
+        else:
+            from lcl_fastapi.runtime.common import stop
 
-        await stop(await config_path(context))
+            await stop(path)
         return CliResult.success("")
 
     return CommandGroup(

@@ -2,14 +2,13 @@
 
 import asyncio
 import math
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from lclang.config import Config, load_config
 from lclang.runtime import Frame
+
+from lcl_fastapi.sources import configuration_frame as configuration_frame
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,29 +124,6 @@ def origin_value(value: object) -> str:
     if parsed.port is not None and not 1 <= parsed.port <= 65535:
         raise ValueError("server.root_path: invalid port")
     return origin
-
-
-@asynccontextmanager
-async def configuration_frame(
-    config_path: Path,
-    worker_pid: int | None = None,
-) -> AsyncIterator[Frame]:
-    """Load fresh source files and own their combined LCL Frame.
-
-    :param config_path: Trusted service configuration file.
-    :param worker_pid: Actual worker PID, or None for non-worker settings inspection.
-    :returns: Async context manager yielding a caller-scoped Frame.
-    :raises LclConfigError: If a source cannot be loaded or parsed.
-    :raises ValueError: If a service defines the framework-owned worker PID.
-    """
-    defaults = await load_config(Path(__file__).parent / "static" / "defaults.lclcfg")
-    loaded = await load_config(config_path)
-    if "worker_pid" in loaded.definitions:
-        raise ValueError("worker_pid is provided by the framework")
-    combined = Config(loaded.version, loaded.root_origin, defaults.expanded + loaded.expanded)
-    values: dict[str, object] = {} if worker_pid is None else {"worker_pid": worker_pid}
-    async with combined.frame_factory().create(values=values) as frame:
-        yield frame
 
 
 async def settings_from_frame(frame: Frame, config_path: Path) -> Settings:

@@ -58,6 +58,7 @@ server.host: "127.0.0.1"
 server.port: 8080
 server.workers: 1
 logger.file.default.directory: "./logs"
+logger.file.controller.filename: f"{app.name}.controller.log"
 logger.file.service.filename: f"{app.name}.{worker_pid}.log"
 logger.level: "INFO"
 ```
@@ -84,8 +85,15 @@ lcl-fastapi logs -o config service.lclcfg
 lcl-fastapi stop -o config service.lclcfg
 ```
 
-The CLI deliberately follows `lclang.cli` syntax: `-o config`, not `-c` or
-`--config`; `-o json`, not `--json`. Listener settings have no CLI overrides.
+The CLI follows `lclang.cli` syntax: `-c`/`--config` and the existing `-o config`
+select the service file. Any setting can be overridden, for example
+`-o server.port "LCL[9000]"`; CLI values take precedence over the file.
+Use `-o json` for JSON output. Add your own `pyproject.toml` console command
+with `catalog = "lcl_fastapi.cli:run_cli"`, or wrap `run_cli` to supply a default
+configuration. See the [CLI reference](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/cli.md#downstream-console-entrances).
+Configuration supports native `using`, including `using f"{lcl_fastapi_defaults}"`
+to extend the bundled defaults. Controller lifecycle events and worker request
+logs use separate filename patterns under the shared log directory.
 Log paths are the most recently published live-worker observations, so rollover
 updates are eventually consistent. Stop uses a local control token and waits for
 graceful termination, including business teardown and logger flush.

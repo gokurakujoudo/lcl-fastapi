@@ -2,12 +2,15 @@
 
 import asyncio
 import http.client
+import json
 import os
 import sys
 import time
 from pathlib import Path
 
 from lcl_fastapi.config import load_settings
+from lcl_fastapi.overrides import OVERRIDES_ENV, current_overrides
+from lcl_fastapi.runtime.controller import controller_logging
 from lcl_fastapi.runtime.service import service_runtime
 from lcl_fastapi.runtime.startup import startup_settings
 from lcl_fastapi.runtime.state import is_live, live_workers, read_state
@@ -35,11 +38,15 @@ def serve(config_path: Path, hot_reload: bool = False) -> None:
         raise RuntimeError("serve must run after the CLI event loop has closed")
     path = config_path.resolve()
     settings = asyncio.run(startup_settings(path, hot_reload))
-    previous = {name: os.environ.get(name) for name in ("LCL_FASTAPI_CONFIG", "LCL_FASTAPI_STATE")}
+    previous = {
+        name: os.environ.get(name)
+        for name in ("LCL_FASTAPI_CONFIG", "LCL_FASTAPI_STATE", OVERRIDES_ENV)
+    }
+    os.environ[OVERRIDES_ENV] = json.dumps(current_overrides())
     os.environ["LCL_FASTAPI_CONFIG"] = str(path)
     os.environ["LCL_FASTAPI_STATE"] = str(settings.state_dir)
     try:
-        with service_runtime(settings) as identity:
+        with service_runtime(settings) as identity, controller_logging(path, settings, identity):
             if sys.platform == "win32":
                 from lcl_fastapi.runtime.windows import run_windows
 

@@ -9,6 +9,7 @@ import psutil
 from watchfiles import Change, watch
 
 from lcl_fastapi.config import Settings
+from lcl_fastapi.runtime.controller import controller_event
 from lcl_fastapi.runtime.service import shutdown_requested
 from lcl_fastapi.runtime.state import atomic_write, is_live, live_workers
 
@@ -103,6 +104,7 @@ class ReloadWatcher:
                     process.send_signal(signal.SIGTERM)
                 except psutil.NoSuchProcess:
                     return
+            controller_event(f"hot-reload retiring worker_pid={worker['pid']}")
             self.retiring = worker
             self.pending = False
 

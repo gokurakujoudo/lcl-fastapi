@@ -60,7 +60,7 @@ def check_http() -> None:
 
 def main() -> None:
     """Run the installed application in an isolated directory and stop it."""
-    executable = "lcl-fastapi.exe" if os.name == "nt" else "lcl-fastapi"
+    executable = "minimal-service.exe" if os.name == "nt" else "minimal-service"
     cli = Path(sys.executable).parent / executable
     environment = os.environ.copy()
     environment.pop("PYTHONPATH", None)
@@ -101,7 +101,7 @@ def main() -> None:
             if sys.platform == "win32":
                 creationflags = subprocess.CREATE_NO_WINDOW
             process = subprocess.Popen(
-                [str(cli), "serve", "-o", "config", str(config)],
+                [str(cli), "serve"],
                 cwd=working,
                 env=environment,
                 stdout=console,

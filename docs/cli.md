@@ -14,7 +14,10 @@ expressions are resolved only in an actual server worker.
 | `nginx render` | Generate an HTTPS reverse-proxy configuration | `-o output example.conf` |
 | `systemd render` | Generate a Linux service unit | `-o output example.service` |
 
-Every operation requires `-o config service.lclcfg`. Use `--help` on the root,
+Select a service file with `-c service.lclcfg` or `--config service.lclcfg`.
+The existing `-o config service.lclcfg` spelling remains supported and takes
+precedence if both are supplied. A downstream entrance can provide the default.
+Use `--help` on the root,
 command, or group to inspect the upstream command help; `--version` reports the
 installed distribution version. The help label ends in `.py` because lclang's
 argv adapter expects a Python script label; the installed command remains
@@ -33,19 +36,70 @@ lcl-fastapi systemd render -o config service.lclcfg -o output example.service
 Place a valueless `-o json` or `-o hot_reload` last. Both accept explicit Booleans;
 for example `-o hot_reload "LCL[True]"` enables watching and
 `-o hot_reload "LCL[False]"` keeps ordinary service behavior. Plain Boolean text
-is rejected. Hot reload defaults to false and is accepted only by `serve`.
+is rejected. Hot reload defaults to false and is used only by `serve`.
 For an explicit JSON Boolean, use
 `-o json "LCL[True]"` or `-o json "LCL[False]"`; plain `True` is a string and is
 rejected. Paths containing spaces must be quoted using the calling shell's
 normal rules. Relative `config` and `output` CLI paths use the calling working
 directory; relative paths *inside* the service file use that file's directory.
 
-`-c` and `--config` are rejected before lclang can open a CLI logger. Their
-upstream meaning would load the service file into the wrong lifecycle.
-Overrides are limited to `config`, plus `hot_reload`, `json`, or `output` on the commands shown
-above. In particular `-o server.port`, `-o logger.level`, `--host`, `--port`,
-`--workers`, and `--json` are rejected. The CLI does not implement dry-run,
-restart, configuration reload, or direct process-kill fallbacks.
+All native lclang common options are accepted, including `--override`,
+`--as-of`, `--verbose`, and `--dryrun`. Any application or framework configuration
+key can be overridden with `-o key value`; repeated keys use the last value.
+Values retain lclang semantics: plain text is a string, a valueless override is
+True, and `LCL[...]` is evaluated lazily against the effective configuration.
+For example, `-o server.port "LCL[9000]"` overrides the file's listener port;
+`-o logger.level DEBUG` overrides logging in both controller and workers.
+Validation still applies. `worker_pid` and `lcl_fastapi_defaults` are reserved.
+The native parser still rejects invented flags such as `--port` or `--json`.
+
+`hot_reload`, `json`, and `output` may also be defined in the service file;
+command-line values win. Commands use only the operational options relevant to
+them. Dry-run `serve` and `stop` validate settings without starting or stopping
+processes; dry-run render validates and prints text without writing the output
+file. Status and logs remain read-only. This does not import the application or
+prove that a listener can bind. The CLI logger remains a separate stderr-only
+scope so worker-dependent file expressions are never evaluated in that scope.
+There is no restart or configuration-watching command.
+
+## Downstream console entrances
+
+The simplest branded command points directly at the public entrance in your
+application's `pyproject.toml`:
+
+```toml
+[project.scripts]
+catalog = "lcl_fastapi.cli:run_cli"
+```
+
+For a default configuration and branded help, point it at your own wrapper:
+
+```toml
+[project.scripts]
+catalog = "catalog.cli:main"
+```
+
+<!-- python-doc-exec -->
+```python
+from lcl_fastapi.cli import run_cli
+
+
+def main() -> int:
+    return run_cli(config_path="service.lclcfg", prog="catalog", version_text="1.0.0")
+```
+
+Install the downstream package with `python -m pip install -e .`, then run
+`catalog serve`, `catalog status -o json`, or `catalog serve -o server.port
+"LCL[9000]"`. Explicit `-c`/`-o config` still overrides the wrapper's file default.
+Relative wrapper paths use the caller's working directory; use an absolute
+`Path` when the wrapper owns a fixed configuration location. `run_cli(arguments=None,
+*, config_path=None, prog="lcl-fastapi", version_text=None)` returns the native
+integer exit status; None arguments reads process argv, and None version uses
+installed framework metadata. It is a synchronous process entrance: call it
+outside an event loop and serialize invocations within a process. Its event loop
+and CLI logger close before native process management begins.
+
+## Output and errors
 
 Successful JSON output consists of exactly one JSON object on stdout.
 Diagnostics go to stderr. Plain `logs` output contains one absolute path per

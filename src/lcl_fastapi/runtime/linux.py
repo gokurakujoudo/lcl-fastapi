@@ -8,6 +8,7 @@ from starlette.types import ASGIApp
 
 from lcl_fastapi.config import Settings
 from lcl_fastapi.runtime.application import load_application
+from lcl_fastapi.runtime.controller import controller_fork, controller_tick
 from lcl_fastapi.runtime.reload import ReloadWatcher
 
 
@@ -28,6 +29,8 @@ class GunicornRunner(Protocol):
     def run(self) -> None:
         """Run master supervision until native graceful shutdown finishes."""
 
+    spawn_worker: Callable[[], object]
+    """Native worker-fork boundary; controller resources are drained before entry."""
     wait_for_signals: Callable[[float], list[int]]
     """Gunicorn 26's signal-queue wait boundary, wrapped for bounded watch polling."""
     stop: Callable[[bool], None]
@@ -137,27 +140,39 @@ def run_linux(settings: Settings, identity: dict[str, object], hot_reload: bool 
     )
     arbiter = factory(application)
     watcher = ReloadWatcher(settings, identity) if hot_reload else None
-    if watcher is not None:
-        native_wait = arbiter.wait_for_signals
+    native_wait = arbiter.wait_for_signals
+    native_spawn = arbiter.spawn_worker
 
-        def watch_signals(timeout: float = 1.0) -> list[int]:
-            """Preserve pending signal priority before polling Python changes.
+    def spawn_worker() -> object:
+        """Keep logger resources out of native worker forks.
 
-            :param timeout: Native signal-wait deadline in seconds.
-            :returns: Queued signals for the arbiter's normal dispatch.
-            :raises OSError: If watching or worker signaling fails.
-            :raises RuntimeError: If the watcher stops unexpectedly.
-            """
-            signals = native_wait(timeout)
-            if not signals:
-                try:
-                    watcher.tick()
-                except Exception:
-                    arbiter.stop(True)
-                    raise
-            return signals
+        :returns: Native worker-creation result without changing process ownership.
+        :raises BaseException: If logger lifecycle or native creation fails.
+        """
+        with controller_fork():
+            return native_spawn()
 
-        arbiter.wait_for_signals = watch_signals
+    arbiter.spawn_worker = spawn_worker
+
+    def watch_signals(timeout: float = 1.0) -> list[int]:
+        """Preserve pending signal priority before polling Python changes.
+
+        :param timeout: Native signal-wait deadline in seconds.
+        :returns: Queued signals for the arbiter's normal dispatch.
+        :raises OSError: If watching or worker signaling fails.
+        :raises RuntimeError: If the watcher stops unexpectedly.
+        """
+        signals = native_wait(timeout)
+        try:
+            controller_tick()
+            if not signals and watcher is not None:
+                watcher.tick()
+        except Exception:
+            arbiter.stop(True)
+            raise
+        return signals
+
+    arbiter.wait_for_signals = watch_signals
     try:
         arbiter.run()
     finally:

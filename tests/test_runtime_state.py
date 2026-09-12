@@ -210,3 +210,43 @@ def test_posix_lock_only_acquiring_process_unlocks(
     assert [mode for _, mode in calls] == ([6] if child_exit else [6, 8])
     with pytest.raises(OSError):
         os.fstat(calls[0][0])
+
+
+@pytest.mark.parametrize(
+    "platform, failures, succeeds",
+    [
+        ("win32", 1, True),
+        ("win32", 3, False),
+        ("linux", 1, False),
+    ],
+)
+def test_state_read_handles_only_bounded_windows_sharing_conflicts(
+    monkeypatch: pytest.MonkeyPatch,
+    platform: str,
+    failures: int,
+    succeeds: bool,
+) -> None:
+    from types import SimpleNamespace
+
+    from lcl_fastapi.runtime import state
+
+    calls = 0
+    sleeps: list[float] = []
+
+    def read(path: Path, **kwargs: object) -> str:
+        nonlocal calls
+        calls += 1
+        if calls <= failures:
+            raise PermissionError("state replacement sharing conflict")
+        return '{"pid": 123}'
+
+    monkeypatch.setattr(state, "sys", SimpleNamespace(platform=platform))
+    monkeypatch.setattr(Path, "read_text", read)
+    monkeypatch.setattr("time.sleep", sleeps.append)
+    if succeeds:
+        assert state.read_state(Path("worker.json")) == {"pid": 123}
+        assert calls == 2 and sleeps == [0.01]
+    else:
+        with pytest.raises(PermissionError, match="sharing conflict"):
+            state.read_state(Path("worker.json"))
+        assert calls == (3 if platform == "win32" else 1)

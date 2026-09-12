@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add downstream pyproject entrances, native CLI options and configuration overrides,
+  portable `using` of universal defaults, and separate controller/worker log files.
+- Retry brief Windows observation-file sharing conflicts without suppressing
+  persistent permission errors.
+
 - Keep downstream examples on 0.1.1 and resolve their installation together with
   the selected wheel so incompatible pins cannot silently downgrade CI validation.
 

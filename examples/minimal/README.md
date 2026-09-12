@@ -33,7 +33,7 @@ was performed on Windows; Linux validation is separate.
 With the environment active, keep the foreground server in the first terminal:
 
 ```console
-lcl-fastapi serve -o config service.lclcfg
+minimal-service serve -o config service.lclcfg
 ```
 
 Open [hello](http://127.0.0.1:18081/hello),
@@ -45,9 +45,9 @@ request supplies its own ID. The hello log includes that generated ID.
 In a second terminal, activate the same environment and run from this directory:
 
 ```console
-lcl-fastapi status -o config service.lclcfg -o json
-lcl-fastapi logs -o config service.lclcfg
-lcl-fastapi stop -o config service.lclcfg
+minimal-service status -o config service.lclcfg -o json
+minimal-service logs -o config service.lclcfg
+minimal-service stop -o config service.lclcfg
 ```
 
 Status reports the live service and workers. Logs prints each worker's actual
@@ -103,3 +103,11 @@ The application was authored from the public README and application,
 configuration, CLI, health, and logging references, without reading framework
 implementation or test modules. This example is a downstream project and is
 not part of the framework wheel.
+
+The installed `minimal-service` command is declared in `pyproject.toml` and wraps
+`lcl_fastapi.cli.run_cli`. Its default configuration is `service.lclcfg` in the
+calling directory, so `minimal-service serve` is sufficient. Explicit `-c` or
+`-o config` selects another file. Native overrides such as `-o server.port
+"LCL[18082]"` take precedence over that file. The service extends the bundled
+universal configuration with native `using` and separates controller and worker
+logs under `./logs`.

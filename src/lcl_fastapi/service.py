@@ -140,7 +140,9 @@ class LclFastAPI(FastAPI):
         config_path = await asyncio.to_thread(Path(configured).resolve)
         original_routes = list(self.router.routes)
         async with AsyncExitStack() as stack:
-            frame = await stack.enter_async_context(configuration_frame(config_path, os.getpid()))
+            frame = await stack.enter_async_context(
+                configuration_frame(config_path, os.getpid(), logger_role="worker")
+            )
             frame_token = CONFIG_FRAME.set(frame)
             stack.callback(CONFIG_FRAME.reset, frame_token)
             settings = await settings_from_frame(frame, config_path)

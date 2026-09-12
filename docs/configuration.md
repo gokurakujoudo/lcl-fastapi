@@ -3,15 +3,48 @@
 A trusted `.lclcfg` file is the formal configuration source. Framework defaults
 are shipped as [a `.lclcfg` resource](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/src/lcl_fastapi/static/defaults.lclcfg)
 and combined using the upstream LCL configuration model. The downstream file
-overrides these defaults. This per-start parsing is not a persistent snapshot or
+overrides these defaults, and command-line overrides win over both. This per-start parsing is not a persistent snapshot or
 a file watcher. Never treat LCL expressions as a hostile-code sandbox.
+
+## Reusable configuration with using
+
+The bundled universal configuration is available to native LCL `using` through
+`lcl_fastapi_defaults`, an absolute path supplied by the framework:
+
+```text
+__LCL_VERSION__: 1
+using f"{lcl_fastapi_defaults}"
+using "./team.lclcfg"
+app.name: "catalog"
+app.version: "1.0.0"
+app.target: "catalog.app:service"
+server.workers: 2
+```
+
+Each using path is resolved relative to its importing file. LCL expands imports
+in source order; later definitions win. Dynamic using targets can use preceding
+values and CLI overrides. Cycles and invalid targets retain native LCL errors.
+Application filesystem settings remain anchored to the root service file, even
+when their definitions came from another file. The defaults are also loaded
+implicitly for compatibility; placing an explicit using later can reset earlier
+definitions to universal defaults. Put it before application customizations.
+The framework-owned `lcl_fastapi_defaults` and `worker_pid` cannot be redefined.
+
+Command-line values use native lclang syntax, for example `-o server.port
+"LCL[9000]"`, `-o docs.enabled "LCL[False]"`, or `-o business.region west`.
+They apply to settings, renderers, business `get_config`, and logger resolution.
+Raw expressions are transported privately to native workers and re-evaluated
+against each worker's freshly loaded file, including after crash or hot reload.
+Overrides are not written into configuration or runtime-state files. Run local
+operations with the same state-directory overrides used at startup.
 
 Three application fields are required: `app.name`, `app.version`, and
 `app.target`, where the target is an importable `module:attribute` exposing the
 `LclFastAPI` object. Relative runtime, log, and disk paths are anchored to the
 configuration file's directory. No user-facing environment override layer exists.
-The internal `LCL_FASTAPI_CONFIG` and `LCL_FASTAPI_STATE` variables transport
-already-selected paths to child workers; users should use the CLI configuration
+The internal `LCL_FASTAPI_CONFIG`, `LCL_FASTAPI_STATE`, and
+`LCL_FASTAPI_OVERRIDES` variables transport selected paths and raw overrides to
+child workers; users should use the CLI configuration
 option instead of setting those variables themselves.
 
 | Setting | Default and contract |

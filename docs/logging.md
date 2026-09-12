@@ -1,15 +1,37 @@
 # Request logging
 
-The worker owns one `lclang.logger` handler scope. Configure its real upstream
-schema without framework aliases:
+Configure one shared directory and two filename expressions using the native
+`lclang.logger` schema:
 
 ```text
 logger.file.default.directory: "./logs"
+logger.file.controller.filename: f"{app.name}.controller.log"
 logger.file.service.filename: f"{app.name}.{worker_pid}.log"
 logger.level: "INFO"
 logger.file.service.rotation.mode: "size"
 logger.file.service.rotation.max_bytes: 10485760
 ```
+
+`logger.file.controller` belongs exclusively to the service controller.
+`logger.file.service` retains its existing name and belongs exclusively to each
+worker. The default directory is inherited by both; native per-sink level,
+rotation, and directory settings remain available. Additional named sinks belong
+to workers. Controller resolution never evaluates worker filenames. Workers do
+not open the controller sink. Native masked bindings retain their masking in
+the selected role.
+
+Controller files record complete-service start/stop/failure, heartbeat, observed
+worker up/down transitions, hot-reload retirement, and observed worker log segment
+changes. Observations follow `health.sample_interval_seconds` and the native
+manager loop, so they are eventually consistent and can miss workers that start
+and exit between samples. Controller messages are file-only. The controller keeps
+an upstream handler
+scope open between events. Before Gunicorn forks a worker, it drains the writer
+and closes its event loop and executor; only the parent reopens the scope after
+the fork. This starts a new upstream segment per worker creation, rather than
+per heartbeat. No logger thread or file handler survives into the fork. Windows
+spawns workers and retains the controller scope until service exit. Worker request
+and business logs retain their worker-long handler scope.
 
 `worker_pid` is supplied inside the real worker. Defining it in the application
 file is rejected. LCL computes the filename, while lclang owns permanent

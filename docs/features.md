@@ -6,11 +6,11 @@ claim a successful release or validation on an operating system without a run.
 
 | Capability | Contract and evidence |
 | --- | --- |
-| LCL configuration and typed application | Native Router/lifespan composition; application behavior tests. |
-| Request context and logs | Server-generated lclang Snowflake IDs, response headers, isolated context, and worker-specific upstream logging. Upstream clock/sequence failures return 503 without an ID and record one failure access log. |
+| LCL configuration and typed application | Native using inheritance with portable bundled defaults and lazy CLI precedence; Router/lifespan composition; application behavior tests. |
+| Request context and logs | Server-generated lclang Snowflake IDs, response headers, isolated context, and separate controller/worker upstream logging with lifecycle observations. Upstream clock/sequence failures return 503 without an ID and record one failure access log. |
 | Windows and Linux service runtimes | Uvicorn with Winloop and Gunicorn respectively; real-process tests run separately on each platform. |
 | Development Python reload | `serve -o hot_reload`, explicit recursive `server.reload_dirs`, one effective worker, graceful native replacement, and cross-platform process tests. |
-| Local operational CLI | Status, observed active log paths, identity validation, token-authenticated graceful stop. |
+| Local operational CLI | Downstream pyproject entrances, native CLI configuration overrides and dry-run; status, observed active log paths, identity validation, token-authenticated graceful stop. |
 | Health and offline API documentation | Nonblocking sampled system metrics and bundled Swagger UI resources. |
 | Deployment configuration rendering | Nginx and systemd text output; deterministic renderer and executable guide tests. |
 
