@@ -12,7 +12,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import FileResponse, Response, StreamingResponse
 from starlette.staticfiles import StaticFiles
 
-from directory_service.events import Inventory, monitor
+from directory_service.events import EventStream, Inventory, monitor
 from directory_service.files import save, within
 from lcl_fastapi import LclFastAPI, get_config
 
@@ -82,7 +82,7 @@ async def events(request: Request) -> StreamingResponse:
         inventory.subscribers.add(queue)
         queue.put_nowait(inventory.current())
         try:
-            while not await request.is_disconnected():
+            while True:
                 try:
                     snapshot = await asyncio.wait_for(queue.get(), timeout=5)
                     yield (
@@ -94,7 +94,7 @@ async def events(request: Request) -> StreamingResponse:
         finally:
             inventory.subscribers.discard(queue)
 
-    return StreamingResponse(
+    return EventStream(
         stream(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},

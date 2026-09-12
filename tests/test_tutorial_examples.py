@@ -6,11 +6,52 @@ from tempfile import TemporaryDirectory
 from typing import Any
 
 import pytest
+from directory_service.app import events
 from directory_service.events import Inventory
 from directory_service.files import save, scan, within
 from fastapi import FastAPI, HTTPException
 from playground_service import app as playground_app
 from playground_service.engine import Engine
+from starlette.requests import Request
+from starlette.types import Message, Scope
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("version", ["2.3", "2.4"])
+async def test_sse_survives_updates_and_releases_disconnected_subscriber(version: str) -> None:
+    app = FastAPI()
+    inventory = Inventory(Path("."), 100)
+    app.state.inventory = inventory
+    scope: Scope = {"type": "http", "asgi": {"spec_version": version}, "app": app}
+    incoming: asyncio.Queue[Message] = asyncio.Queue()
+    outgoing: asyncio.Queue[Message] = asyncio.Queue()
+    cancelled_receive = False
+
+    async def receive() -> Message:
+        nonlocal cancelled_receive
+        try:
+            return await incoming.get()
+        except asyncio.CancelledError:
+            cancelled_receive = True
+            raise
+
+    response = await events(Request(scope, receive))
+    task = asyncio.create_task(response(scope, receive, outgoing.put))
+    try:
+        async with asyncio.timeout(2):
+            assert (await outgoing.get())["type"] == "http.response.start"
+            for revision in range(3):
+                body = await outgoing.get()
+                assert f"id: {revision}\n".encode() in body["body"]
+                assert body["more_body"] and not task.done()
+                assert not cancelled_receive
+                await inventory.publish({"entries": [revision]})
+            await incoming.put({"type": "http.disconnect"})
+            await task
+        assert not inventory.subscribers
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 
 
 @pytest.mark.parametrize("name", ["../outside", "/absolute", "a/../../b", "C:/file", "a\\b"])

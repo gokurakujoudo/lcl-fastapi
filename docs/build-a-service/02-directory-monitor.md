@@ -66,6 +66,12 @@ publication callback with `context.submit_to_service(...).result()`. Only that
 callback touches asyncio queues. It waits using the cooperative `stop_event`, so
 shutdown interrupts the delay. The framework drains callbacks before teardown.
 
+The response keeps one persistent disconnect listener. It never polls by cancelling
+`receive()`: Gunicorn 26.2.0 treats that cancellation as a closed connection. For
+ASGI versions before 2.4, Starlette already supplies the listener; newer versions
+use the small response subclass below. A real disconnect cancels the stream and
+removes its subscription.
+
 The exact queue/worker implementation is maintained in the example:
 
 <!-- example-source: examples/directory_monitor/directory_service/events.py -->
@@ -77,8 +83,30 @@ import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from starlette.responses import StreamingResponse
+from starlette.types import Receive, Scope, Send
+
 from directory_service.files import scan
 from lcl_fastapi import BackgroundWorkerContext
+
+
+class EventStream(StreamingResponse):
+    """Wait for real disconnects without cancelling receive between snapshots."""
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        version = tuple(map(int, scope.get("asgi", {}).get("spec_version", "2.0").split(".")))
+        if version < (2, 4):
+            # Starlette already owns a persistent disconnect listener here.
+            await super().__call__(scope, receive, send)
+            return
+        async with asyncio.TaskGroup() as tasks:
+            response = tasks.create_task(super().__call__(scope, receive, send))
+            disconnected = tasks.create_task(self.listen_for_disconnect(receive))
+            _, pending = await asyncio.wait(
+                (response, disconnected), return_when=asyncio.FIRST_COMPLETED
+            )
+            for task in pending:
+                task.cancel()
 
 
 @dataclass

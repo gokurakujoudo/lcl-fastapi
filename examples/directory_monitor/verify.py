@@ -88,6 +88,11 @@ def main() -> None:
                 verify(origin, root)
                 status = json.loads(command("status").stdout)
                 assert status["service"]["configured_workers"] == 1
+            except BaseException:
+                print((root / "console.log").read_text(encoding="utf-8"), file=sys.stderr)
+                for log in sorted(root.glob("logs/*.log*")):
+                    print(log.read_text(encoding="utf-8"), file=sys.stderr)
+                raise
             finally:
                 if process.poll() is None:
                     owner = psutil.Process(process.pid)
@@ -114,6 +119,7 @@ def verify(origin: str, root: Path) -> None:
         def event() -> dict[str, Any]:
             for _ in range(100):
                 line = stream.readline().decode()
+                assert line, "SSE connection ended before the expected filesystem update"
                 if line.startswith("data: "):
                     value: dict[str, Any] = json.loads(line[6:])
                     return value
