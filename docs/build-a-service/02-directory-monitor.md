@@ -715,6 +715,7 @@ import json
 import os
 import subprocess
 import sys
+import sysconfig
 import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -725,7 +726,9 @@ from urllib.request import Request, urlopen
 import psutil
 
 HERE = Path(__file__).resolve().parent
-CLI = Path(sys.executable).parent / ("lcl-fastapi.exe" if os.name == "nt" else "lcl-fastapi")
+CLI = Path(sysconfig.get_path("scripts")) / (
+    "lcl-fastapi.exe" if os.name == "nt" else "lcl-fastapi"
+)
 
 
 def http(
