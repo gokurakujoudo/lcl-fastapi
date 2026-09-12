@@ -16,7 +16,7 @@ Write business routes, a trusted `.lclcfg` file, and an optional business lifesp
 The framework owns worker startup, request IDs, health sampling, local operations,
 and bundled offline Swagger UI.
 
-Install version 0.1.1 with `python -m pip install lcl-fastapi==0.1.1` in a
+Install version 0.2.0 with `python -m pip install lcl-fastapi==0.2.0` in a
 Python 3.14 virtual environment. See the [release process](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/releasing.md)
 for version notes, publication requirements, and artifact verification.
 
@@ -27,7 +27,7 @@ for a complete step-by-step project with configuration, routes, logging, verific
 and deployment preparation.
 
 Use a Python 3.14+ virtual environment. Install the built artifact with
-`python -m pip install path/to/lcl_fastapi-0.1.1-py3-none-any.whl`. Dependencies must
+`python -m pip install path/to/lcl_fastapi-0.2.0-py3-none-any.whl`. Dependencies must
 also be installed; offline Swagger means that documentation serving does not
 require a CDN after installation.
 

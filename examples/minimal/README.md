@@ -13,7 +13,7 @@ been built in the repository's `dist` directory:
 
 ```powershell
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install ..\..\dist\lcl_fastapi-0.1.1-py3-none-any.whl
+.venv\Scripts\python.exe -m pip install ..\..\dist\lcl_fastapi-0.2.0-py3-none-any.whl
 .venv\Scripts\python.exe -m pip install .
 .venv\Scripts\Activate.ps1
 ```
@@ -91,8 +91,8 @@ the isolated runtime files when complete. No external service or credentials
 are used. The environment must permit system temporary files, child processes,
 and loopback HTTP.
 
-On Windows with CPython 3.14, the built `lcl-fastapi==0.1.1` wheel and a clean
-independent environment passed this check on 2026-09-10. Expected final output:
+Run the built `lcl-fastapi==0.2.0` wheel in a clean independent environment on
+Windows or Linux with CPython 3.14. Expected final output:
 
 ```text
 PASS: nginx/systemd render to stdout and files

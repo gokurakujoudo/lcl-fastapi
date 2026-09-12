@@ -7,7 +7,7 @@ name = "lcl-fastapi-minimal-example"
 version = "1.0.0"
 description = "An independently installed minimal lcl-fastapi service"
 requires-python = ">=3.14"
-dependencies = ["lcl-fastapi==0.1.1"]
+dependencies = ["lcl-fastapi==0.2.0"]
 
 [project.scripts]
 minimal-service = "minimal_service.cli:main"

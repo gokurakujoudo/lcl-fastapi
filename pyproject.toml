@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lcl-fastapi"
-version = "0.1.1"
+version = "0.2.0"
 description = "A lightweight LCL-powered FastAPI service framework"
 readme = "README.md"
 requires-python = ">=3.14"

@@ -2,10 +2,14 @@
 
 ## Unreleased
 
+## 0.2.0 - 2026-09-12
+
 - Replace the README and documentation logo with the updated project artwork.
 
-- Make status/logs output always JSON and remove the JSON option, preserving the
-  native LCL JSON namespace. Expand the catalog tutorial with installed entrances,
+- Breaking CLI change: status/logs output is always JSON. Remove `-o json` from
+  scripts and parse the `paths` array instead of newline-delimited log paths.
+  This preserves the native LCL JSON namespace.
+- Expand the catalog tutorial with installed entrances,
   inherited defaults, CLI overrides, and log rotation with file samples.
 
 - Add downstream pyproject entrances, native CLI options and configuration overrides,
@@ -13,7 +17,7 @@
 - Retry brief Windows observation-file sharing conflicts without suppressing
   persistent permission errors.
 
-- Keep downstream examples on 0.1.1 and resolve their installation together with
+- Pin downstream examples to the release version and resolve installation together with
   the selected wheel so incompatible pins cannot silently downgrade CI validation.
 
 ## 0.1.1 - 2026-09-12

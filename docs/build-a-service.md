@@ -6,8 +6,7 @@ with typed responses, validated business configuration, worker startup/cleanup,
 request logs, a branded console command, reusable defaults, command-line overrides,
 a repeatable HTTP check, and deployment configuration.
 
-You need CPython 3.14 and either Windows or Linux. This guide describes the current source revision; build and install its wheel
-to try features that have not yet been published. Installation needs package-index
+You need CPython 3.14 and either Windows or Linux. Installation needs package-index
 access; running the finished service needs no external account or database.
 Run one lcl-fastapi service per machine, and reserve local port `18083` for this guide.
 
@@ -24,7 +23,7 @@ In PowerShell on Windows:
 mkdir catalog-api
 cd catalog-api
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install path/to/lcl_fastapi-0.1.1-py3-none-any.whl
+.venv\Scripts\python.exe -m pip install lcl-fastapi==0.2.0
 ```
 
 In a Linux shell:
@@ -33,7 +32,7 @@ In a Linux shell:
 mkdir catalog-api
 cd catalog-api
 python3.14 -m venv .venv
-.venv/bin/python -m pip install path/to/lcl_fastapi-0.1.1-py3-none-any.whl
+.venv/bin/python -m pip install lcl-fastapi==0.2.0
 ```
 
 Keep all subsequent files and commands in this directory. The explicit executable
@@ -99,7 +98,7 @@ build-backend = "hatchling.build"
 name = "corner-shop-catalog"
 version = "1.0.0"
 requires-python = ">=3.14"
-dependencies = ["lcl-fastapi==0.1.1"]
+dependencies = ["lcl-fastapi==0.2.0"]
 
 [project.scripts]
 catalog = "catalog_cli:main"
