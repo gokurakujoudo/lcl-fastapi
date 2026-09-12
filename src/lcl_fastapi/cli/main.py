@@ -22,7 +22,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
     """
     tokens = list(sys.argv[1:] if arguments is None else arguments)
     full_arguments = [sys.executable, "lcl-fastapi.py", *tokens]
-    pending: list[Path] = []
+    pending: list[tuple[Path, bool]] = []
     try:
         validate_arguments(full_arguments)
         entrance = CliEntrance(
@@ -34,7 +34,11 @@ def main(arguments: Sequence[str] | None = None) -> int:
         if result == 0 and pending:
             from lcl_fastapi.runtime.common import serve
 
-            serve(pending[0])
+            path, hot_reload = pending[0]
+            if hot_reload:
+                serve(path, hot_reload=True)
+            else:
+                serve(path)
         return result
     except (ValueError, OSError, RuntimeError, LclError) as error:
         print(f"error: {error}", file=sys.stderr)

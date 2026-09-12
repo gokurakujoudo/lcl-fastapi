@@ -7,7 +7,7 @@ expressions are resolved only in an actual server worker.
 
 | Command | Operation | Optional parameters |
 | --- | --- | --- |
-| `serve` | Run the platform process manager in the foreground | None |
+| `serve` | Run the platform process manager in the foreground | `-o hot_reload` |
 | `status` | Read verified local service and worker state | `-o json` |
 | `logs` | Read live workers' observed log paths | `-o json` |
 | `stop` | Request authenticated loopback graceful shutdown | None |
@@ -22,6 +22,7 @@ argv adapter expects a Python script label; the installed command remains
 
 ```sh
 lcl-fastapi serve -o config service.lclcfg
+lcl-fastapi serve -o config service.lclcfg -o hot_reload
 lcl-fastapi status -o config service.lclcfg -o json
 lcl-fastapi logs -o config service.lclcfg
 lcl-fastapi stop -o config service.lclcfg
@@ -29,7 +30,11 @@ lcl-fastapi nginx render -o config service.lclcfg -o output example.conf
 lcl-fastapi systemd render -o config service.lclcfg -o output example.service
 ```
 
-Place a valueless `-o json` last. For an explicit Boolean, use
+Place a valueless `-o json` or `-o hot_reload` last. Both accept explicit Booleans;
+for example `-o hot_reload "LCL[True]"` enables watching and
+`-o hot_reload "LCL[False]"` keeps ordinary service behavior. Plain Boolean text
+is rejected. Hot reload defaults to false and is accepted only by `serve`.
+For an explicit JSON Boolean, use
 `-o json "LCL[True]"` or `-o json "LCL[False]"`; plain `True` is a string and is
 rejected. Paths containing spaces must be quoted using the calling shell's
 normal rules. Relative `config` and `output` CLI paths use the calling working
@@ -37,7 +42,7 @@ directory; relative paths *inside* the service file use that file's directory.
 
 `-c` and `--config` are rejected before lclang can open a CLI logger. Their
 upstream meaning would load the service file into the wrong lifecycle.
-Overrides are limited to `config`, plus `json` or `output` on the commands shown
+Overrides are limited to `config`, plus `hot_reload`, `json`, or `output` on the commands shown
 above. In particular `-o server.port`, `-o logger.level`, `--host`, `--port`,
 `--workers`, and `--json` are rejected. The CLI does not implement dry-run,
 restart, configuration reload, or direct process-kill fallbacks.

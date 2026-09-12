@@ -23,6 +23,31 @@ Apply coordinated changes by stopping the entire service and starting it again.
 `https://api.example.com:8443`. It is never an ASGI path prefix. Business paths
 come from Router registration; the ASGI root path remains empty.
 
+## Development hot reload
+
+`serve -o config service.lclcfg -o hot_reload` watches the explicit
+[`server.reload_dirs`](configuration.md) roots with watchfiles on both platforms.
+One master-owned iterator groups editor changes and is advanced from the native
+process manager loop. Native automatic reload watchers remain disabled, so imported
+modules outside the selected roots cannot trigger a reload.
+
+Each change batch gracefully retires the current worker. Uvicorn or Gunicorn owns
+its replacement; the master PID, listener, service-start identity, and control token
+remain unchanged. Business teardown, logger flushing, observation removal, and lease
+release run before replacement. Requests may be unavailable briefly during reload.
+Changes during replacement are coalesced into a pending reload, and whole-service
+shutdown takes priority. On Windows an identity-specific `reload.json` marker drives
+the existing worker exit bridge without console signals. Linux signals the verified
+worker with SIGTERM. Both platforms record an accepted whole-service shutdown before
+signaling, preventing a pending reload from retiring another worker. Master cleanup
+removes the markers and closes the watcher.
+
+Import or lifespan startup failures stop the complete service with the original
+diagnostic and a nonzero exit. Watcher failures also stop the service; they are not
+silently ignored. Fix the problem and start the service again. Configuration edits
+do not trigger reload, but replacement workers still read current configuration.
+Use a full restart for configuration changes. Browser refresh is not provided.
+
 ## Local observations
 
 `runtime.state_dir/runtime.json` records the actual master PID, its operating

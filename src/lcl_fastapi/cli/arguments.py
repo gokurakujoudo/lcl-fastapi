@@ -26,6 +26,8 @@ def validate_arguments(arguments: Sequence[str]) -> None:
     if params.dryrun:
         raise ValueError("dryrun is unavailable; render commands already only generate files")
     allowed = {"config"}
+    if command == ("serve",):
+        allowed.add("hot_reload")
     if command in (("status",), ("logs",)):
         allowed.add("json")
     if command in (("nginx", "render"), ("systemd", "render")):

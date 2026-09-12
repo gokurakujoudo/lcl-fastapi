@@ -3,13 +3,27 @@
 import ast
 import asyncio
 import inspect
+import re
+import tomllib
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import pytest
 
 from scripts.documentation import documents, link_errors, snippets
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.mark.documentation
+def test_pypi_description_links_are_absolute_and_homepage_is_declared() -> None:
+    text = (ROOT / "README.md").read_text(encoding="utf-8")
+    links = re.findall(r"\[[^\]]+\]\(([^)]+)\)", text)
+    links += re.findall(r'(?:src|href)="([^"]+)"', text)
+    assert links
+    assert all(urlsplit(link).scheme == "https" and urlsplit(link).netloc for link in links)
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+    assert project["urls"]["Homepage"] == "https://gokurakujoudo.github.io/lcl-fastapi/"
 
 
 @pytest.mark.documentation

@@ -132,6 +132,38 @@ def test_serve_begins_only_after_cli_logger_and_event_loop_exit(
     assert capsys.readouterr().out == ""
 
 
+@pytest.mark.parametrize(
+    "option, expected", [([], True), (["LCL[True]"], True), (["LCL[False]"], False)]
+)
+def test_serve_hot_reload_boolean_handoff(
+    runtime: ModuleType, monkeypatch: pytest.MonkeyPatch, option: list[str], expected: bool
+) -> None:
+    calls: list[bool] = []
+
+    def serve(path: Path, hot_reload: bool = False) -> None:
+        with pytest.raises(RuntimeError, match="no running event loop"):
+            asyncio.get_running_loop()
+        calls.append(hot_reload)
+
+    monkeypatch.setattr(runtime, "serve", serve, raising=False)
+    assert main(["serve", "-o", "config", "service.lclcfg", "-o", "hot_reload", *option]) == 0
+    assert calls == [expected]
+
+
+@pytest.mark.parametrize("value", ["True", "LCL[1]", "LCL[None]"])
+def test_hot_reload_rejects_nonboolean(value: str, capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["serve", "-o", "config", "service.lclcfg", "-o", "hot_reload", value]) != 0
+    assert "Boolean" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "command", [["status"], ["logs"], ["stop"], ["nginx", "render"], ["systemd", "render"]]
+)
+def test_hot_reload_is_serve_only(command: list[str], capsys: pytest.CaptureFixture[str]) -> None:
+    assert main([*command, "-o", "config", "service.lclcfg", "-o", "hot_reload"]) != 0
+    assert "unsupported override" in capsys.readouterr().err
+
+
 def test_startup_failure_becomes_stderr_error(
     runtime: ModuleType, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

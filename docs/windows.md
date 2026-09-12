@@ -62,3 +62,13 @@ venv\Scripts\python.exe -m pytest tests/test_runtime_process.py
 
 See [runtime ownership and observations](runtime.md) for state consistency,
 configuration changes, graceful deadlines, and the route-override warning.
+
+## Development reload
+
+Use `serve -o config service.lclcfg -o hot_reload` with
+`server.reload_dirs: ["./src", "../shared"]` to select recursive Python roots.
+Windows retires a reload worker through an identity-specific marker and its
+existing graceful Server exit bridge, retaining console-free operation.
+Hot reload forces one worker and warns when the configured count is higher.
+Native automatic reload is disabled. See [the shared contract](runtime.md#development-hot-reload)
+for errors, cleanup, and configuration boundaries.

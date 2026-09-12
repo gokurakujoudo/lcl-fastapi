@@ -9,6 +9,7 @@ claim a successful release or validation on an operating system without a run.
 | LCL configuration and typed application | Native Router/lifespan composition; application behavior tests. |
 | Request context and logs | Server-generated lclang Snowflake IDs, response headers, isolated context, and worker-specific upstream logging. Upstream clock/sequence failures return 503 without an ID and record one failure access log. |
 | Windows and Linux service runtimes | Uvicorn with Winloop and Gunicorn respectively; real-process tests run separately on each platform. |
+| Development Python reload | `serve -o hot_reload`, explicit recursive `server.reload_dirs`, one effective worker, graceful native replacement, and cross-platform process tests. |
 | Local operational CLI | Status, observed active log paths, identity validation, token-authenticated graceful stop. |
 | Health and offline API documentation | Nonblocking sampled system metrics and bundled Swagger UI resources. |
 | Deployment configuration rendering | Nginx and systemd text output; deterministic renderer and executable guide tests. |
@@ -29,7 +30,7 @@ Their full API/CLI and cleanup checks must pass on the final PR head. Both
 projects are excluded from the wheel.
 
 The framework does not implement authentication systems, a management service,
-HTTP log streaming, configuration watching, hot restart, or deployment commands.
+HTTP log streaming, configuration watching, or deployment commands.
 
 The [from-scratch catalog guide](build-a-service.md) teaches an independent
 read-only service. Its documentation test extracts the exact application,

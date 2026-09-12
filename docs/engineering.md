@@ -20,7 +20,7 @@ Production dependencies flow toward configuration/context and core operations;
 CLI, runtime, filesystem, and rendering adapters depend on those contracts.
 Public re-exports are curated in package `__init__.py` files without starting
 resources. Do not add a second Snowflake algorithm, CLI parser, supervisor,
-authentication subsystem, management service, restart mechanism, or log-stream
+authentication subsystem, management service, configuration restart mechanism, or log-stream
 backend. The [development plan](development-plan.md) maps the accepted scope to
 reference pages and behavioral acceptance evidence.
 
@@ -79,7 +79,7 @@ contain the wheel hash, platform, commands, output, and failure diagnostics.
 
 The build metadata declares Python >=3.14. The initial evidence matrix is
 CPython 3.14 on Windows and Linux; future interpreters are not yet verified.
-Version `0.1.0` is maintained in pyproject.toml. Later releases use PEP 440
+Version `0.1.1` is maintained in pyproject.toml. Later releases use PEP 440
 versions with compatibility-aware increments and exact version tags without a
 `v` prefix, following the root release policy.
 

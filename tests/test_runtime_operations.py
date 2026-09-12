@@ -94,6 +94,8 @@ def test_shutdown_uses_verified_master_and_current_start_marker(
         with worker_runtime(settings) as worker:
             worker.request_shutdown()
             assert signals == [(worker.service["pid"], signal.SIGTERM)]
+            assert shutdown_requested(settings.state_dir, service)
+            (settings.state_dir / "shutdown.json").unlink()
             service["runtime"] = "uvicorn"
             worker.service["runtime"] = "uvicorn"
             atomic_write(settings.state_dir / "runtime.json", service)

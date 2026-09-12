@@ -3,6 +3,7 @@ __LCL_VERSION__: 1
 server.host: "127.0.0.1"
 server.port: 8080
 server.workers: 1
+server.reload_dirs: ["."]
 server.root_path: ""
 server.backlog: 2048
 server.keep_alive_seconds: 5

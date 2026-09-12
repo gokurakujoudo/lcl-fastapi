@@ -54,3 +54,13 @@ configuration under your deployment policy.
 
 See [runtime ownership and observations](runtime.md) for state consistency,
 configuration changes, deadlines, and predefined-route override consequences.
+
+## Development reload
+
+Use `serve -o config service.lclcfg -o hot_reload` with
+`server.reload_dirs: ["./src", "../shared"]` to select recursive Python roots.
+Linux advances the shared watcher in the Gunicorn arbiter idle loop, then sends
+SIGTERM to the identity-verified worker. Gunicorn owns replacement.
+Hot reload forces one worker and warns when the configured count is higher.
+Native automatic reload is disabled. See [the shared contract](runtime.md#development-hot-reload)
+for errors, cleanup, and configuration boundaries.

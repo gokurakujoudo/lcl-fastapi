@@ -55,6 +55,14 @@ def main() -> None:
             raise SystemExit("Wheel does not carry its MIT license")
         if not metadata.get_payload():
             raise SystemExit("Wheel metadata does not include the README")
+        description = metadata.get_payload(decode=True)
+        if not isinstance(description, bytes) or description.decode("utf-8") != Path(
+            "README.md"
+        ).read_text(encoding="utf-8"):
+            raise SystemExit("Wheel description differs from the canonical README")
+        expected_urls = {f"{name}, {url}" for name, url in project["urls"].items()}
+        if set(metadata.get_all("Project-URL", [])) != expected_urls:
+            raise SystemExit("Wheel project links differ from pyproject.toml")
     with tarfile.open(source) as archive:
         source_names = [
             Path(member.name).parts[1:] for member in archive.getmembers() if member.isfile()
