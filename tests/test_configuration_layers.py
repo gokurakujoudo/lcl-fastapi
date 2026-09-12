@@ -43,7 +43,8 @@ async def test_using_precedence_and_fresh_worker_evaluation() -> None:
             async with configuration_frame(source, 456) as frame:
                 assert await frame.get("business.result") == 9002
                 assert await frame.get("logger.file.service.filename") == "layers.456.log"
-            assert (await load_settings(source)).state_dir == root / "run"
+            expected_state = await asyncio.to_thread((root / "run").resolve)
+            assert (await load_settings(source)).state_dir == expected_state
         assert source.read_text(encoding="utf-8") == CONFIG
         assert current_overrides() == {}
 
