@@ -176,7 +176,7 @@ async def test_background_rotation_updates_observed_actual_path(
                 await asyncio.sleep(0.01)
         segments = list((configuration.parent / "logs").glob("*.job.*.log"))
         assert len(segments) == 3
-        assert paths[0] in segments
+        assert any(paths[0].samefile(segment) for segment in segments)
     contents = "".join(path.read_text() for path in segments)
     assert all(f"rotation record {number}" in contents for number in range(3))
     assert "API rotation isolation" not in contents
