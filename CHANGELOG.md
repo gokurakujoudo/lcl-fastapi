@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Expand Build a service into three ordered tutorials, preserving the catalog and
+  adding independently installed directory-monitor/SSE and session-based LCL
+  playground applications with static browser UIs and cross-platform verifiers.
+
 ## 0.3.0 - 2026-09-12
 
 - Fix review-discovered lifecycle races: drain submitted API Tasks through their

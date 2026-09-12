@@ -30,7 +30,11 @@ validation:
 
 nav:
   - Home: index.md
-  - Build a service: build-a-service.md
+  - Build a service:
+      - Series overview: build-a-service.md
+      - 1. Product catalog: build-a-service/01-catalog.md
+      - 2. Directory monitor: build-a-service/02-directory-monitor.md
+      - 3. LCL playground: build-a-service/03-lcl-playground.md
   - Reference:
       - Application and lifespan: application.md
       - Background workers: background-workers.md

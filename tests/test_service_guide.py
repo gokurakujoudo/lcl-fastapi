@@ -13,7 +13,7 @@ from urllib.request import urlopen
 
 import pytest
 
-GUIDE = Path(__file__).resolve().parents[1] / "docs" / "build-a-service.md"
+GUIDE = Path(__file__).resolve().parents[1] / "docs" / "build-a-service" / "01-catalog.md"
 
 
 @pytest.mark.documentation

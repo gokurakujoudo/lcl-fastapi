@@ -86,7 +86,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        example: [minimal, composed]
+        example: [minimal, composed, directory_monitor, playground]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:

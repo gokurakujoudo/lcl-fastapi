@@ -1,0 +1,11 @@
+__LCL_VERSION__: 1
+using f"{lcl_fastapi_defaults}"
+app.name: "lcl-playground"
+app.version: "1.0.0"
+app.target: "playground_service.app:service"
+server.host: "127.0.0.1"
+server.port: 18086
+server.workers: 1
+logger.file.default.directory: "./logs"
+business.sessions.max_count: 32
+business.sessions.idle_seconds: 900

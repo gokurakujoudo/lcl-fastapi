@@ -27,6 +27,8 @@ def main() -> None:
         [sys.executable, "-m", "mypy"],
         [sys.executable, "-m", "mypy", "examples/minimal"],
         [sys.executable, "-m", "mypy", "examples/composed"],
+        [sys.executable, "-m", "mypy", "examples/directory_monitor"],
+        [sys.executable, "-m", "mypy", "examples/playground"],
         [sys.executable, "-m", "pytest", "-m", "documentation", "--no-cov"],
         [sys.executable, "-m", "coverage", "erase"],
         [

@@ -16,6 +16,34 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.mark.documentation
+def test_service_series_has_one_complete_ordered_index_and_exact_example_source() -> None:
+    index = ROOT / "docs/build-a-service.md"
+    chapters = re.findall(
+        r"^\d+\. \[[^\]]+\]\((build-a-service/[^)]+)\)",
+        index.read_text(encoding="utf-8"),
+        re.M,
+    )
+    assert chapters == [
+        "build-a-service/01-catalog.md",
+        "build-a-service/02-directory-monitor.md",
+        "build-a-service/03-lcl-playground.md",
+    ]
+    assert {ROOT / "docs" / name for name in chapters} == set(
+        ROOT.joinpath("docs/build-a-service").glob("*.md")
+    )
+    navigation = ROOT.joinpath("mkdocs.yml").read_text(encoding="utf-8")
+    for name in chapters:
+        assert name in navigation
+        source = ROOT.joinpath("docs", name).read_text(encoding="utf-8")
+        for filename, code in re.findall(
+            r"<!-- example-source: ([^ ]+) -->\s*<!-- python-doc-exec -->\s*```python\n(.*?)```",
+            source,
+            re.S,
+        ):
+            assert code == ROOT.joinpath(filename).read_text(encoding="utf-8")
+
+
+@pytest.mark.documentation
 def test_downstream_examples_require_current_release() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     for path in (ROOT / "examples").glob("*/pyproject.toml"):
