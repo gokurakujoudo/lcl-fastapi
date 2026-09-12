@@ -5,6 +5,8 @@
 - Expand Build a service into three ordered tutorials, preserving the catalog and
   adding independently installed directory-monitor/SSE and session-based LCL
   playground applications with static browser UIs and cross-platform verifiers.
+  Both new guides explain the application background, learning objectives and
+  step-by-step use of configuration, lifespan, resource ownership and operations.
 
 ## 0.3.0 - 2026-09-12
 
