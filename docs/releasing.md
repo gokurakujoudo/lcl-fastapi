@@ -7,7 +7,8 @@ reviewing and squash-merging the release changes into `main`.
 
 Version increments reflect compatibility. During the 0.x series, a minor
 increment introduces new features or incompatible public behavior; patch releases
-contain compatible fixes. Version 0.2.0 changes `status` and `logs` to fixed JSON
+contain compatible fixes. Version 0.3.0 adds derived Frame scopes, configurable
+uncaught HTTP exception handling, and managed background workers. Version 0.2.0 changes `status` and `logs` to fixed JSON
 output: remove the former JSON switch and read log paths from the `paths` array.
 The [CLI reference](cli.md#output-and-errors) defines the output contract.
 

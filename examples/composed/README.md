@@ -24,7 +24,7 @@ From this directory, use these PowerShell commands on Windows:
 
 ```powershell
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install ..\..\dist\lcl_fastapi-0.2.0-py3-none-any.whl .
+.venv\Scripts\python.exe -m pip install ..\..\dist\lcl_fastapi-0.3.0-py3-none-any.whl .
 .venv\Scripts\lcl-fastapi.exe serve -o config service.lclcfg
 ```
 
@@ -32,13 +32,12 @@ On Linux:
 
 ```sh
 python3.14 -m venv .venv
-.venv/bin/python -m pip install ../../dist/lcl_fastapi-0.2.0-py3-none-any.whl .
+.venv/bin/python -m pip install ../../dist/lcl_fastapi-0.3.0-py3-none-any.whl .
 .venv/bin/lcl-fastapi serve -o config service.lclcfg
 ```
 
-The wheel must have been built from this feature branch. The new APIs are Unreleased
-and are not in the existing PyPI 0.2.0 package; the development wheel retains that
-metadata version until a separately requested release preparation.
+These APIs are available in version 0.3.0. To install from PyPI, replace the wheel
+path with `lcl-fastapi==0.3.0` while retaining `.` to install this example.
 The application is installed as `lcl-fastapi-composed-example`, importing
 `catalog_service`. When copying this project elsewhere, replace the wheel path
 with its actual location. Dependencies require package-index access or an

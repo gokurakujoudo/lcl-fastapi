@@ -16,14 +16,13 @@ Write business routes, a trusted `.lclcfg` file, and an optional business lifesp
 The framework owns worker startup, request IDs, health sampling, local operations,
 and bundled offline Swagger UI.
 
-Development source also provides `use_lcl_frame()` for nested configuration scopes
+Version 0.3.0 provides `use_lcl_frame()` for nested configuration scopes
 and `uncaught_exception_handler` for custom HTTP error responses with detailed
 default traceback logging, plus managed `background_workers` on dedicated threads
 and event loops. Background registration forces one API worker. See the application
-reference and composed example;
-this addition is not part of the published 0.2.0 artifact.
+reference and composed example.
 
-Install version 0.2.0 with `python -m pip install lcl-fastapi==0.2.0` in a
+Install version 0.3.0 with `python -m pip install lcl-fastapi==0.3.0` in a
 Python 3.14 virtual environment. See the [release process](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/releasing.md)
 for version notes, publication requirements, and artifact verification.
 
@@ -34,7 +33,7 @@ for a complete step-by-step project with configuration, routes, logging, verific
 and deployment preparation.
 
 Use a Python 3.14+ virtual environment. Install the built artifact with
-`python -m pip install path/to/lcl_fastapi-0.2.0-py3-none-any.whl`. Dependencies must
+`python -m pip install path/to/lcl_fastapi-0.3.0-py3-none-any.whl`. Dependencies must
 also be installed; offline Swagger means that documentation serving does not
 require a CDN after installation.
 

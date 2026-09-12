@@ -20,7 +20,7 @@ configuration.
 Install in a Python 3.14 virtual environment:
 
 ```console
-python -m pip install lcl-fastapi==0.2.0
+python -m pip install lcl-fastapi==0.3.0
 ```
 
 Follow the [quick start](https://github.com/gokurakujoudo/lcl-fastapi#start-a-service)

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0 - 2026-09-12
+
 - Fix review-discovered lifecycle races: drain submitted API Tasks through their
   cancellation cleanup before worker restart or business teardown; supervise
   runtime journal failure and enforce independent controller retirement deadlines.
