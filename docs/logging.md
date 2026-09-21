@@ -112,7 +112,7 @@ produce a short best-effort summary without recursive callback invocation.
 
 ## Rotation and permanent segments
 
-The pinned `lclang==1.0.10` writer owns rotation. Without an explicit policy,
+The pinned `lclang==1.0.11` writer owns rotation. Without an explicit policy,
 rotation mode is `none`: opening a logger scope still creates a fresh segment,
 but size and time do not switch it. Configure a shared policy, then specialize
 either sink:

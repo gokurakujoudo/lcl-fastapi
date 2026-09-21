@@ -24,6 +24,29 @@ authentication subsystem, management service, configuration restart mechanism, o
 backend. The [development plan](development-plan.md) maps the accepted scope to
 reference pages and behavioral acceptance evidence.
 
+## lclang 1.0.11 integration assessment
+
+The dependency is pinned to `lclang==1.0.11`. The upstream
+[release changes](https://github.com/gokurakujoudo/lclang/compare/1.0.10...1.0.11)
+add `lcl_mixin` to `CliEntrance` and workflow definitions, allowing shared Python
+values and callables in command configuration and workflow tasks. Definitions
+take shallow mapping snapshots; the bound objects remain shared by reference.
+
+These additions can help downstream applications that build their own lclang
+command groups or workflows. The framework's `run_cli` does not expose this
+option, and an entrance mixin would not automatically reach service Frames:
+controllers and native workers load their configuration independently. Supporting
+host callables there would require an explicit per-process construction and
+ownership contract. The existing configuration loading remains appropriate.
+
+The upstream production diff leaves the logger, Snowflake generator, Frame,
+parser and diagnostics implementations unchanged. It provides no demonstrated
+performance improvement for this framework. The playground still uses the
+version-sensitive `internal_verbose_scope` adapter; its executable tutorial and
+installed-example checks verify native tracing, branch skipping and cache reuse.
+Upstream website changes do not alter the framework's bundled assets or MkDocs
+configuration. No additional framework API is introduced by this dependency bump.
+
 ## Documentation website
 
 The [documentation site](https://gokurakujoudo.github.io/lcl-fastapi/) renders
