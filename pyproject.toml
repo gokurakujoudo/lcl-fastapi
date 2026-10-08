@@ -12,7 +12,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 authors = [{name = "gokurakujoudo"}]
 dependencies = [
-  "lclang==1.0.10",
+  "lclang>=1.0.15",
   "fastapi>=0.141,<0.142",
   "uvicorn>=0.52,<0.53",
   "watchfiles>=1.1,<2",

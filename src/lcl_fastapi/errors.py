@@ -2,12 +2,13 @@
 
 import asyncio
 import sys
-from collections.abc import Mapping
+from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
 from fastapi import Request
 from lclang.runtime import Frame
+from lclang.utils import invoke
 from starlette.responses import JSONResponse, Response
 
 from lcl_fastapi.logging import RequestLogger
@@ -33,17 +34,19 @@ class UncaughtExceptionContext:
 
 
 class UncaughtExceptionHandler(Protocol):
-    """Describe an asynchronous application-selected HTTP error callback."""
+    """Describe a synchronous or asynchronous application-selected HTTP error callback."""
 
-    async def __call__(
+    def __call__(
         self, err: Exception, request: Request, *, context: UncaughtExceptionContext
-    ) -> Response:
+    ) -> Response | Awaitable[Response]:
         """Resolve an otherwise unhandled HTTP failure.
 
         :param err: Original escaping exception with its traceback.
         :param request: Current HTTP request and application state.
         :param context: Borrowed request and service resources.
-        :returns: Response to send if response headers have not started.
+        :returns: Response or awaitable resolving to it before headers have started.
+
+        Synchronous callbacks run in the request task and must remain nonblocking.
         """
 
 
@@ -94,10 +97,14 @@ async def handle_uncaught_exception(
     :param request: Current HTTP request.
     :param context: Resources borrowed for the duration of error handling.
     :returns: Custom response or the default JSON 500.
+    :raises BaseException: Propagates cancellation and process-control signals.
+
+    Native invocation resolves callback results in this task without creating
+    a background task or starting another event loop.
     """
     if handler is not None:
         try:
-            response = await handler(err, request, context=context)
+            response = await invoke(handler, err, request, context=context)
             if not isinstance(response, Response):
                 raise TypeError("uncaught_exception_handler must return a Response")
             return response

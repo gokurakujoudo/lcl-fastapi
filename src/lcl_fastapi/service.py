@@ -45,7 +45,7 @@ class LclFastAPI(FastAPI):
 
     :param lifespan: Optional business lifespan following FastAPI's convention.
     :param config_path: Optional path to the formal LCL file; CLI supplies it internally.
-    :param uncaught_exception_handler: Optional asynchronous unhandled HTTP error callback.
+    :param uncaught_exception_handler: Optional sync or async unhandled HTTP error callback.
     :param background_workers: Code-registered synchronous or asynchronous background callables.
     :param kwargs: Native FastAPI business options except framework-owned docs and root_path.
     """

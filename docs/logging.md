@@ -9,9 +9,20 @@ logger.file.default.directory: "./logs"
 logger.file.controller.filename: f"{app.name}.controller.log"
 logger.file.service.filename: f"{app.name}.{worker_pid}.log"
 logger.level: "INFO"
+logger.timezone: "local"
 logger.file.service.rotation.mode: "size"
 logger.file.service.rotation.max_bytes: 10485760
 ```
+
+The development source requires `lclang>=1.0.15`. Log timestamps default to the
+server's local time with microseconds and a numeric offset, such as
+`2026-10-08T15:30:00.123456+08:00`. Set `logger.timezone: "utc"` or pass
+`-o logger.timezone utc` to use timestamps ending in `Z`. These settings apply
+to controller, API and background logs. Verbose mode preserves the timezone.
+Only `"local"` and `"utc"` are accepted; non-text values and named timezones
+are rejected before service sinks open, with source-aware diagnostics.
+Segment filenames and aligned rotation continue to use UTC. The separate
+short-lived CLI stderr logger retains its own local-time default.
 
 `logger.file.controller` belongs exclusively to the service controller.
 `logger.file.service` retains its existing name and belongs exclusively to each
@@ -112,7 +123,7 @@ produce a short best-effort summary without recursive callback invocation.
 
 ## Rotation and permanent segments
 
-The pinned `lclang==1.0.10` writer owns rotation. Without an explicit policy,
+The upstream lclang writer owns rotation. Without an explicit policy,
 rotation mode is `none`: opening a logger scope still creates a fresh segment,
 but size and time do not switch it. Configure a shared policy, then specialize
 either sink:

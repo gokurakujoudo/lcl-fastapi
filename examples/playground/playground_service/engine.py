@@ -116,7 +116,7 @@ class Engine:
         logger = logging.Logger("playground.trace", level=logging.DEBUG)
         logger.addHandler(trace)
         report: dict[str, Any] = {}
-        # This pinned-version adapter is the only internal lclang integration.
+        # This version-sensitive adapter is the only internal lclang integration.
         # Native task-local diagnostics preserve branch skipping and cache hits.
         with internal_verbose_scope(logger):
             try:

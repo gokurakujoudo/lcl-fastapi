@@ -78,6 +78,7 @@ option instead of setting those variables themselves.
 | `request.id_header` | `X-Request-ID`, a valid ASCII header name. |
 | `snowflake.worker_id_base` | `0`; first allowed ID in the range 0–1023. |
 | `snowflake.worker_id_count` | `64`; at least the worker count, with base + count at most 1024. |
+| `logger.timezone` | `"local"`; native log timestamps with microseconds and a numeric offset. `"utc"` selects a `Z` suffix. Filenames and rotation remain UTC-based. |
 
 There is no `api.prefix`. Configure prefixes on business Routers.
 

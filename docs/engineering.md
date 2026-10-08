@@ -24,6 +24,50 @@ authentication subsystem, management service, configuration restart mechanism, o
 backend. The [development plan](development-plan.md) maps the accepted scope to
 reference pages and behavioral acceptance evidence.
 
+## lclang 1.0.15 integration assessment
+
+The development source requires `lclang>=1.0.15`, without an upper bound.
+These integration changes are unreleased after 0.3.0. Review the upstream
+[1.0.11 through 1.0.15 changes](https://github.com/gokurakujoudo/lclang/compare/1.0.11...1.0.15)
+and [1.0.15 release notes](https://github.com/gokurakujoudo/lclang/releases/tag/1.0.15).
+The existing quality and installed-example jobs resolve the current stable
+version; separate Windows/Linux compatibility jobs run the complete tests with
+`lclang==1.0.15`. Passing checks establish evidence for those actual resolved
+versions, not every future release allowed by the requirement.
+
+The framework adopts native `logger.timezone`, defaulting to local timestamps
+with microseconds and a numeric offset. Explicit UTC remains available through
+LCL and CLI overrides. Role filtering and logger configuration transformations
+retain this setting; permanent segment naming and aligned rotation remain UTC.
+The short-lived CLI logger remains independent of service configuration.
+
+`utils.invoke`, added in 1.0.13, now resolves HTTP exception callbacks exactly
+once. The typed interface accepts a synchronous Response or an awaitable, while
+existing asynchronous callbacks continue to work. Invocation stays in the
+request task, with native cancellation and the existing diagnostic/500 fallback.
+Synchronous callbacks must remain nonblocking.
+
+`Config.to_frame(preset=...)`, added in 1.0.15, is a useful shortcut for directly
+running loaded configuration. The framework still composes CLI expression
+winners, sticky masks and controller/worker sink filtering into a Module before
+creating its Frame. The shortcut has no Module-filtering argument and presets
+are below configuration definitions, so it cannot directly replace this flow.
+
+The 1.0.12-1.0.14 workflow additions cover subtree skipping, typed defaults,
+dataclass mappings, scoped nested execution and multiline business events.
+They benefit downstream finite workflows. The service's native supervisors and
+owned resource scopes do not need a workflow migration. In particular, invoking
+synchronous background entries inside an active loop would break their explicit
+`BackgroundWorkerContext.run()` boundary. Full traceback diagnostics also retain
+their untruncated representation contract rather than adopting bounded field
+formatting. No performance improvement is claimed without measurements.
+
+1.0.15 removes standalone `evaluate` and `evaluate_sync`; this project uses
+`Frame.evaluate` and named Frame lookup already. The playground's sole internal
+adapter, `internal_verbose_scope`, remains version-sensitive and is revalidated
+by native trace, skipped-branch, cache, session and cleanup tests plus its exact
+executable tutorial. The open dependency range does not make that adapter public.
+
 ## Documentation website
 
 The [documentation site](https://gokurakujoudo.github.io/lcl-fastapi/) renders

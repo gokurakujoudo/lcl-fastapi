@@ -61,6 +61,6 @@ def main(
                 else:
                     serve(path)
             return result
-    except (ValueError, OSError, RuntimeError, LclError) as error:
+    except (TypeError, ValueError, OSError, RuntimeError, LclError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

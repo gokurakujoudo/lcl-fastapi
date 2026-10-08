@@ -51,6 +51,8 @@ True, and `LCL[...]` is evaluated lazily against the effective configuration.
 For example, `-o server.port "LCL[9000]"` overrides the file's listener port;
 `-o logger.level DEBUG` overrides logging in both controller and workers.
 Validation still applies. `worker_pid` and `lcl_fastapi_defaults` are reserved.
+Invalid logger settings, including non-text `logger.timezone` values, produce a
+nonzero status and a source-aware diagnostic on stderr before service sinks open.
 The native parser still rejects invented flags such as `--port` or `--json`.
 
 `hot_reload` and `output` may also be defined in the service file;
