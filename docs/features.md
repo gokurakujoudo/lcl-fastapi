@@ -4,8 +4,8 @@ The current implementation provides the following capabilities. The verification
 column identifies the acceptance evidence that must remain green; it does not
 claim a successful release or validation on an operating system without a run.
 
-Synchronous HTTP exception callbacks and native local/UTC log timezone selection
-are development changes after the published 0.3.0 release.
+Version 0.4.0 adds synchronous HTTP exception callbacks and native local/UTC log
+timezone selection.
 
 | Capability | Contract and evidence |
 | --- | --- |

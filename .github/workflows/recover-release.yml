@@ -12,6 +12,9 @@ permissions:
   actions: read
   contents: write
 
+env:
+  TZ: Asia/Shanghai
+
 concurrency:
   group: lcl-fastapi-publication
   cancel-in-progress: false

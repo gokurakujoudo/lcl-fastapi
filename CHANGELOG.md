@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.0 - 2026-10-09
+
 - Accept synchronous HTTP exception callbacks and callbacks returning awaitables,
   resolving each callback once through lclang's native invocation utility.
 - Default log timestamps to server local time with microseconds and a numeric

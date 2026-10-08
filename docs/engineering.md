@@ -26,8 +26,7 @@ reference pages and behavioral acceptance evidence.
 
 ## lclang 1.0.15 integration assessment
 
-The development source requires `lclang>=1.0.15`, without an upper bound.
-These integration changes are unreleased after 0.3.0. Review the upstream
+Version 0.4.0 requires `lclang>=1.0.15`, without an upper bound. Review the upstream
 [1.0.11 through 1.0.15 changes](https://github.com/gokurakujoudo/lclang/compare/1.0.11...1.0.15)
 and [1.0.15 release notes](https://github.com/gokurakujoudo/lclang/releases/tag/1.0.15).
 The existing quality and installed-example jobs resolve the current stable
@@ -125,7 +124,7 @@ contain the wheel hash, platform, commands, output, and failure diagnostics.
 
 The build metadata declares Python >=3.14. The initial evidence matrix is
 CPython 3.14 on Windows and Linux; future interpreters are not yet verified.
-Version `0.3.0` is maintained in pyproject.toml. Later releases use PEP 440
+Version `0.4.0` is maintained in pyproject.toml. Later releases use PEP 440
 versions with compatibility-aware increments and exact version tags without a
 `v` prefix, following the root release policy.
 

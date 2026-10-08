@@ -27,7 +27,7 @@ In PowerShell on Windows:
 mkdir catalog-api
 cd catalog-api
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install lcl-fastapi==0.3.0
+.venv\Scripts\python.exe -m pip install lcl-fastapi==0.4.0
 ```
 
 In a Linux shell:
@@ -36,7 +36,7 @@ In a Linux shell:
 mkdir catalog-api
 cd catalog-api
 python3.14 -m venv .venv
-.venv/bin/python -m pip install lcl-fastapi==0.3.0
+.venv/bin/python -m pip install lcl-fastapi==0.4.0
 ```
 
 Keep all subsequent files and commands in this directory. The explicit executable
@@ -111,7 +111,7 @@ build-backend = "hatchling.build"
 name = "corner-shop-catalog"
 version = "1.0.0"
 requires-python = ">=3.14"
-dependencies = ["lcl-fastapi==0.3.0"]
+dependencies = ["lcl-fastapi==0.4.0"]
 
 [project.scripts]
 catalog = "catalog_cli:main"

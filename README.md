@@ -16,9 +16,10 @@ Write business routes, a trusted `.lclcfg` file, and an optional business lifesp
 The framework owns worker startup, request IDs, health sampling, local operations,
 and bundled offline Swagger UI.
 
-The dependency floor, synchronous HTTP exception callbacks, and local/UTC log
-timezone selection are unreleased development changes after 0.3.0. See the
-application and logging references for their contracts.
+Version 0.4.0 adds synchronous HTTP exception callbacks, callbacks returning
+awaitables, and native local/UTC log timezone selection. Logs default to server
+local time; `logger.timezone: "utc"` retains UTC timestamps. See the application
+and logging references for their contracts.
 
 Version 0.3.0 provides `use_lcl_frame()` for nested configuration scopes
 and `uncaught_exception_handler` for custom HTTP error responses with detailed
@@ -26,7 +27,7 @@ default traceback logging, plus managed `background_workers` on dedicated thread
 and event loops. Background registration forces one API worker. See the application
 reference and composed example.
 
-Install version 0.3.0 with `python -m pip install lcl-fastapi==0.3.0` in a
+Install version 0.4.0 with `python -m pip install lcl-fastapi==0.4.0` in a
 Python 3.14 virtual environment. See the [release process](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/releasing.md)
 for version notes, publication requirements, and artifact verification.
 
@@ -39,7 +40,7 @@ step by step, with configuration, resource ownership and executable checks.
 The playground includes standalone reusable LCL highlighting assets for other UIs.
 
 Use a Python 3.14+ virtual environment. Install the built artifact with
-`python -m pip install path/to/lcl_fastapi-0.3.0-py3-none-any.whl`. Dependencies must
+`python -m pip install path/to/lcl_fastapi-0.4.0-py3-none-any.whl`. Dependencies must
 also be installed; offline Swagger means that documentation serving does not
 require a CDN after installation.
 
