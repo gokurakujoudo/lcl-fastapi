@@ -11,10 +11,14 @@
 [Changelog](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/CHANGELOG.md)
 
 `lcl-fastapi` is a small Python 3.14+ service framework combining FastAPI with
-`lclang==1.0.11` configuration, logging, CLI infrastructure, and Snowflake IDs.
+`lclang>=1.0.15` configuration, logging, CLI infrastructure, and Snowflake IDs.
 Write business routes, a trusted `.lclcfg` file, and an optional business lifespan.
 The framework owns worker startup, request IDs, health sampling, local operations,
 and bundled offline Swagger UI.
+
+The dependency floor, synchronous HTTP exception callbacks, and local/UTC log
+timezone selection are unreleased development changes after 0.3.0. See the
+application and logging references for their contracts.
 
 Version 0.3.0 provides `use_lcl_frame()` for nested configuration scopes
 and `uncaught_exception_handler` for custom HTTP error responses with detailed

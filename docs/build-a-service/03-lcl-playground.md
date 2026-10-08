@@ -157,7 +157,7 @@ bounded list. All returned data can be serialized; live Frames cannot.
 <!-- tutorial-file: playground_service/inspection.py -->
 <!-- python-doc-exec -->
 ```python
-"""Render native AST and capture real diagnostics from pinned lclang 1.0.11."""
+"""Render native AST and capture real lclang diagnostics."""
 
 import logging
 from dataclasses import asdict
@@ -397,7 +397,7 @@ Append the remaining `Engine` methods:
         logger = logging.Logger("playground.trace", level=logging.DEBUG)
         logger.addHandler(trace)
         report: dict[str, Any] = {}
-        # This pinned-version adapter is the only internal lclang integration.
+        # This version-sensitive adapter is the only internal lclang integration.
         # Native task-local diagnostics preserve branch skipping and cache hits.
         with internal_verbose_scope(logger):
             try:
@@ -426,9 +426,10 @@ Named definitions remain cached until parse replacement, deletion, expiry or
 shutdown closes the Frame. `close()` queues cleanup on the evaluator loop before
 closing its Runner and joining the thread.
 
-The pinned `lclang.diagnostics.internal_verbose_scope` adapter is internal to
-lclang 1.0.11; AST/Frame/dependency APIs are public. Revalidate the trace adapter
-before upgrading lclang. It is not a newly promised lcl-fastapi tracing API.
+The version-sensitive `lclang.diagnostics.internal_verbose_scope` adapter is
+internal to lclang and has been revalidated with 1.0.15; AST/Frame/dependency APIs
+are public. The dependency allows newer lclang versions, so revalidate this
+adapter on upgrades. It is not a promised lcl-fastapi tracing API.
 
 **Checkpoint:** run this exact script before adding HTTP. It proves the failing
 right branch is skipped and the next evaluation uses a cache:
@@ -789,7 +790,7 @@ total: price * quantity</textarea><p id="source-help" class="muted">In-memory de
 <section id="ast" role="tabpanel" aria-labelledby="tab-ast"><h2>Native syntax tree</h2><p class="muted">Expand nodes to inspect the source and one-based line/column span.</p><div id="tree" class="tree">Parse a program to build its tree.</div></section>
 <section id="dependencies" role="tabpanel" aria-labelledby="tab-dependencies" hidden><h2>Dependency map</h2><p class="muted">Arrows point from a definition to a name it may read. Conditional and deferred edges need not execute.</p><div id="graph"></div><div class="scroll"><table><thead><tr><th>From</th><th>Reads</th><th>Kind</th></tr></thead><tbody id="edges"></tbody></table></div></section>
 <section id="trace" role="tabpanel" aria-labelledby="tab-trace" hidden><h2>Actual execution, one event at a time</h2><p class="muted">Replay of a completed native evaluation, not a paused debugger. Skipped branches are not evaluated for display.</p><pre id="result">No evaluation yet.</pre><div class="toolbar"><button id="previous" disabled>Previous</button><button id="next" disabled>Next step</button><button id="play" disabled>Play</button><span id="position" aria-live="polite">0 / 0</span></div><label for="cursor">Replay position</label><input id="cursor" type="range" min="0" max="0" value="0" style="width:100%" disabled><div id="step" class="step">Evaluate a parsed program to capture its trace.</div></section></section></div>
-<footer>Trusted local learning tool · One API worker · Opaque sessions expire after inactivity · Native lclang 1.0.11 diagnostics, with bounded trace display.</footer></main></body></html>
+<footer>Trusted local learning tool · One API worker · Opaque sessions expire after inactivity · Native lclang diagnostics, with bounded trace display.</footer></main></body></html>
 ```
 
 </details>

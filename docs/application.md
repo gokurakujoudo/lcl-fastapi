@@ -123,12 +123,38 @@ async def scoped() -> dict[str, object]:
 
 ## Uncaught HTTP exceptions
 
-`LclFastAPI(uncaught_exception_handler=callback)` accepts an asynchronous
-`callback(err, request, *, context) -> Response`. The exported
+`LclFastAPI(uncaught_exception_handler=callback)` accepts a synchronous or
+asynchronous `callback(err, request, *, context) -> Response`. A synchronous
+callback may also return an awaitable resolving to a Response. The callback is
+called exactly once in the current request task; synchronous work is not moved
+to a thread pool and must remain nonblocking. The exported
 `UncaughtExceptionContext` borrows `request_id`, `logger`, the current `frame`,
 the selected `endpoint` (or None), and public `service` identity. Access application
 resources through `request.app.state` and lifespan state through `request.state`.
 Do not retain these borrowed resources beyond the callback.
+
+A small synchronous callback can select a response without asynchronous I/O:
+
+<!-- python-doc-exec -->
+```python
+from fastapi import Request
+from starlette.responses import JSONResponse, Response
+
+from lcl_fastapi import LclFastAPI, UncaughtExceptionContext
+
+
+def service_unavailable(
+    err: Exception, request: Request, *, context: UncaughtExceptionContext
+) -> Response:
+    context.logger.error("service unavailable: %s", err)
+    return JSONResponse({"request_id": context.request_id}, status_code=502)
+
+
+service = LclFastAPI(uncaught_exception_handler=service_unavailable)
+```
+
+Use an asynchronous callback when it needs to await configuration or resource I/O.
+Synchronous callbacks must not start another event loop in the request task.
 
 Specific FastAPI exception handlers, HTTPException, and request validation retain
 their normal priority. Without an explicit callback, an existing Exception/500

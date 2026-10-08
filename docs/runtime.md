@@ -162,7 +162,7 @@ The lease pool uses `snowflake.worker_id_base` and `snowflake.worker_id_count`.
 Concurrent live leases in this local service receive different numbers. This
 does not enlarge lclang's historical ID guarantees across rapid reuse, crashes,
 or clock rollback. The framework delegates Snowflake generation to
-`lclang==1.0.11` and does not change its algorithm.
+`lclang>=1.0.15` and does not change its algorithm.
 
 For multiple machines, assign nonoverlapping ranges through LCL's environment
 configuration facilities. The runtime does not read environment variables as an

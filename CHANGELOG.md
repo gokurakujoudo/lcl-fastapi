@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Accept synchronous HTTP exception callbacks and callbacks returning awaitables,
+  resolving each callback once through lclang's native invocation utility.
+- Default log timestamps to server local time with microseconds and a numeric
+  offset; `logger.timezone: "utc"` retains UTC timestamps. Rotation and segment
+  filenames remain UTC-based.
+- Report invalid non-text logger configuration as a CLI error with its source
+  diagnostic instead of allowing TypeError to escape the command boundary.
+
 ## 0.3.0 - 2026-09-12
 
 - Fix review-discovered lifecycle races: drain submitted API Tasks through their

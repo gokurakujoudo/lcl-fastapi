@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import sys
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable
 from pathlib import Path
 from typing import cast
 from unittest.mock import Mock
@@ -19,7 +19,12 @@ from test_application import configuration as configuration
 from test_application import observed_runtime as observed_runtime
 
 import lcl_fastapi.errors as error_module
-from lcl_fastapi import LclFastAPI, UncaughtExceptionContext, default_uncaught_exception_handler
+from lcl_fastapi import (
+    LclFastAPI,
+    UncaughtExceptionContext,
+    UncaughtExceptionHandler,
+    default_uncaught_exception_handler,
+)
 from lcl_fastapi.errors import handle_uncaught_exception, report_error
 from lcl_fastapi.logging import RequestLogger
 from lcl_fastapi.tracebacks import exception_trace, safe_repr, traceback_lines
@@ -64,12 +69,14 @@ def test_default_route_failure_has_id_and_arguments(
 
 
 @pytest.mark.parametrize("failure", [None, "raise", "invalid"])
+@pytest.mark.parametrize("style", ["async", "sync", "awaitable"])
 def test_custom_callback_context_and_fallback_order(
-    configuration: Path, observed_runtime: ObservedRuntime, failure: str | None
+    configuration: Path, observed_runtime: ObservedRuntime, failure: str | None, style: str
 ) -> None:
     contexts: list[UncaughtExceptionContext] = []
+    request_tasks: list[asyncio.Task[object] | None] = []
 
-    async def callback(
+    def synchronous(
         err: Exception, request: Request, *, context: UncaughtExceptionContext
     ) -> Response:
         contexts.append(context)
@@ -77,17 +84,35 @@ def test_custom_callback_context_and_fallback_order(
         assert request.app is app
         assert context.endpoint is broken
         assert context.service["worker_pid"]
-        assert await context.frame.get("app.name") == "test-service"
+        assert asyncio.current_task() is request_tasks[0]
         if failure == "raise":
             raise RuntimeError("callback failed deliberately")
         if failure == "invalid":
             return cast(Response, None)
         return JSONResponse({"request_id": context.request_id}, status_code=502)
 
+    async def asynchronous(
+        err: Exception, request: Request, *, context: UncaughtExceptionContext
+    ) -> Response:
+        assert await context.frame.get("app.name") == "test-service"
+        return synchronous(err, request, context=context)
+
+    def awaitable(
+        err: Exception, request: Request, *, context: UncaughtExceptionContext
+    ) -> Awaitable[Response]:
+        return asynchronous(err, request, context=context)
+
+    callbacks: dict[str, UncaughtExceptionHandler] = {
+        "async": asynchronous,
+        "sync": synchronous,
+        "awaitable": awaitable,
+    }
+    callback = callbacks[style]
     app = LclFastAPI(config_path=configuration, uncaught_exception_handler=callback)
 
     @app.get("/broken")
     async def broken() -> None:
+        request_tasks.append(asyncio.current_task())
         raise ValueError("original error")
 
     with TestClient(app, raise_server_exceptions=False) as client:
@@ -95,10 +120,13 @@ def test_custom_callback_context_and_fallback_order(
         assert len(contexts) == 1
         assert response.headers["X-Request-ID"] == contexts[0].request_id
         assert response.status_code == (502 if failure is None else 500)
+        if failure is None:
+            assert response.json() == {"request_id": contexts[0].request_id}
     logs = "".join(p.read_text(encoding="utf-8") for p in configuration.parent.glob("logs/*.log"))
     if failure is not None:
         assert logs.index("uncaught_exception_handler failed:") < logs.index("original error")
         assert response.json() == {"detail": "Internal Server Error"}
+    assert logs.count("method=GET path=/broken") == 1
 
 
 def test_specific_handlers_validation_and_dependencies(
@@ -195,13 +223,21 @@ async def test_default_formatter_failure_and_cancellation(
     assert result.status_code == 500
     cast(Mock, error_context.logger.error).assert_called_once()
 
-    async def cancelled(
+    def cancelled(
         err: Exception, request: Request, *, context: UncaughtExceptionContext
     ) -> Response:
         raise asyncio.CancelledError
 
     with pytest.raises(asyncio.CancelledError):
         await handle_uncaught_exception(cancelled, ValueError(), request, error_context)
+
+    async def cancelled_awaitable(
+        err: Exception, request: Request, *, context: UncaughtExceptionContext
+    ) -> Response:
+        raise asyncio.CancelledError
+
+    with pytest.raises(asyncio.CancelledError):
+        await handle_uncaught_exception(cancelled_awaitable, ValueError(), request, error_context)
 
 
 @pytest.mark.parametrize("stderr", [None, "working", "broken"])

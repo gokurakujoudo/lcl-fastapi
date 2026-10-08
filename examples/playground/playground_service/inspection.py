@@ -1,4 +1,4 @@
-"""Render native AST and capture real diagnostics from pinned lclang 1.0.11."""
+"""Render native AST and capture real lclang diagnostics."""
 
 import logging
 from dataclasses import asdict
