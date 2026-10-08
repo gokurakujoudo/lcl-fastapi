@@ -14,7 +14,7 @@ logger.file.service.rotation.mode: "size"
 logger.file.service.rotation.max_bytes: 10485760
 ```
 
-The development source requires `lclang>=1.0.15`. Log timestamps default to the
+Version 0.4.0 requires `lclang>=1.0.15`. Log timestamps default to the
 server's local time with microseconds and a numeric offset, such as
 `2026-10-08T15:30:00.123456+08:00`. Set `logger.timezone: "utc"` or pass
 `-o logger.timezone utc` to use timestamps ending in `Z`. These settings apply

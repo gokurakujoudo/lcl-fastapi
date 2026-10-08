@@ -16,7 +16,7 @@ open either browser-based example independently.
 
 ## Before you start
 
-Use CPython 3.14 on Windows or Linux and lcl-fastapi 0.3.0. Run one service at a
+Use CPython 3.14 on Windows or Linux and lcl-fastapi 0.4.0. Run one service at a
 time; the framework supports one service per machine. All examples bind to
 loopback, use local resources, and need no external account. Installation requires
 package-index access or an operator-prepared wheelhouse.

@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  TZ: Asia/Shanghai
+
 concurrency:
   group: lcl-fastapi-publication
   cancel-in-progress: false

@@ -2,12 +2,17 @@
 
 Releases use one source commit and the same wheel and source distribution on
 PyPI and GitHub. Version metadata lives in `pyproject.toml`; tags use the exact
-version without a `v` prefix. Finalize a nonempty dated changelog section before
+version without a `v` prefix. Release dates use Asia/Shanghai; publication and
+recovery jobs use that timezone for the existing future-date validation.
+Finalize a nonempty dated changelog section before
 reviewing and squash-merging the release changes into `main`.
 
 Version increments reflect compatibility. During the 0.x series, a minor
 increment introduces new features or incompatible public behavior; patch releases
-contain compatible fixes. Version 0.3.0 adds derived Frame scopes, configurable
+contain compatible fixes. Version 0.4.0 adds synchronous/awaitable HTTP exception
+callbacks and configurable log timezones, defaults timestamps to local time, and
+requires `lclang>=1.0.15`. Set `logger.timezone: "utc"` to retain UTC timestamps.
+Version 0.3.0 adds derived Frame scopes, configurable
 uncaught HTTP exception handling, and managed background workers. Version 0.2.0 changes `status` and `logs` to fixed JSON
 output: remove the former JSON switch and read log paths from the `paths` array.
 The [CLI reference](cli.md#output-and-errors) defines the output contract.

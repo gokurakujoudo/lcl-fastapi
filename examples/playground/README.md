@@ -1,6 +1,6 @@
 # LCL Workbench
 
-An independent lcl-fastapi 0.3.0 application with a packaged static browser UI.
+An independent lcl-fastapi 0.4.0 application with a packaged static browser UI.
 Its [standalone JavaScript highlighter](playground_service/static/lcl-highlight.js)
 and [stylesheet](playground_service/static/lcl-highlight.css) can be copied into
 other projects under the included MIT license. They require no framework or CDN.
@@ -29,7 +29,7 @@ For source-change verification, install the built framework wheel and this proje
 in one command, replacing the installation command above:
 
 ```powershell
-.venv\Scripts\python.exe -m pip install ../../dist/lcl_fastapi-0.3.0-py3-none-any.whl .
+.venv\Scripts\python.exe -m pip install ../../dist/lcl_fastapi-0.4.0-py3-none-any.whl .
 ```
 
 Stop the manual service before running `.venv\Scripts\python.exe verify.py`
