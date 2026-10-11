@@ -1,5 +1,50 @@
 # Controller and request logging
 
+For executable examples and captured logs from the main process, API handler,
+Worker, hot reload and exception boundaries, see [logging practices](logging-practices.md).
+
+## Native verbose control
+
+Start with `lcl-fastapi serve -c service.lclcfg --verbose` to enable native LCL
+diagnostics. The same `--verbose` flag controls the short-lived lclang CLI scope
+and the deferred service's downstream scopes. The Boolean `__verbose__` binding
+is available to `.lclcfg` expressions and `get_config("__verbose__")`; it is
+framework-owned and cannot be redefined. Omitting the flag selects False.
+
+Enabled service sinks admit DEBUG records while preserving source filters,
+timezone, exception style, and disabled sinks. Business lifespan, API requests
+and background Worker evaluation use public
+`use_verbose(logger, enabled=...)`. Requests retain their IDs on diagnostic
+records; Workers use their own file routing. Spawned and replacement workers
+receive the original flag. The playground passes it to its bounded trace capture.
+
+A local `with use_verbose(logger, enabled=False):` silences tracing until scope
+exit, including child tasks created inside that scope. In a synchronous Worker,
+put that scope inside the coroutine passed to `context.run()` so it runs in the
+Worker Runner's context. The caller owns child tasks and must finish them before
+the logger closes. Turning off tracing preserves ordinary records and exception
+diagnostics. `logger.traceback_style` remains an independent compact/full policy.
+
+## Sinks and timestamps
+
+Controller-owned lifecycle events use `timestamp | level | pid | message`.
+They omit thread, logger name, source filename and helper function fields.
+Other records retain the configured native format and timezone.
+
+Every HTTP invocation produces one multiline `REST API started` record before
+business dispatch and one `REST API completed` record after response/error
+handling. Each contains a native text tree with the API method/path, generated
+request ID, worker PID and connection metadata. Completion adds the observed
+status and elapsed milliseconds. Paths exclude queries; bodies and headers
+are not logged. Allocation failures retain `request_id=unavailable` and a 503,
+with native error type/code in the single completion record. No ID is invented.
+
+Service exception reports hide Python frames inside the installed FastAPI and
+Starlette packages in both compact and full modes. Business frames, causes,
+notes, groups and LCL diagnostic trees remain. Full mode additionally retains
+lclang Python frames. Filtering changes the rendered tree and never rewrites
+the original exception or traceback.
+
 Configure one shared directory and two filename expressions using the native
 `lclang.logger` schema:
 
@@ -14,7 +59,7 @@ logger.file.service.rotation.mode: "size"
 logger.file.service.rotation.max_bytes: 10485760
 ```
 
-Version 0.4.0 requires `lclang>=1.0.15`. Log timestamps default to the
+Current source requires `lclang>=1.1.0`. Log timestamps default to the
 server's local time with microseconds and a numeric offset, such as
 `2026-10-08T15:30:00.123456+08:00`. Set `logger.timezone: "utc"` or pass
 `-o logger.timezone utc` to use timestamps ending in `Z`. These settings apply
@@ -84,19 +129,21 @@ the message so the default lclang formatter displays it. `emit_level` skips that
 many additional business wrapper frames; the normal file/function/line point to
 the business call site rather than the framework wrapper.
 
-The framework records one access line for each HTTP request, including failures,
+The framework records paired multiline invocation trees for each HTTP request, including failures,
 with method, path, status code, duration in milliseconds, worker PID, and Request
 ID. Uvicorn and Gunicorn access loggers are disabled inside the worker scope
-after logger takeover to prevent duplicate access lines, and their prior flags
+after logger takeover to prevent duplicate access records, and their prior flags
 are restored on exit. Query strings, credentials, cookies, and request bodies are
 not automatically logged.
 
-If the upstream Snowflake generator reports clock rollback (`RuntimeError`) or
-timestamp/sequence exhaustion (`OverflowError`), the framework returns HTTP 503
+If the upstream Snowflake generator reports an invalid epoch (`LclValidationError`),
+clock rollback (`LclStateError`) or timestamp/sequence exhaustion (`LclUtilityError`),
+the framework returns HTTP 503
 with `{"detail": "Request ID generation unavailable"}`. Business routing is not
 entered. This response has no generated request-ID header or request-state ID.
-The single access record explicitly contains `request_id=unavailable` and
-`id_generation_error` naming the exception type; it never borrows a prior request's
+The completion record explicitly contains `request_id=unavailable` and
+`id_generation_error` naming the native exception type and `id_generation_code`
+containing its LCL error code; it never borrows a prior request's
 ID. Configuration and request-context bindings are restored even if sending the
 failure response is cancelled or fails. The framework does not retry, synthesize
 a fallback ID, or change the upstream clock/sequence algorithm. A later request
@@ -104,22 +151,25 @@ can succeed once the upstream generator can issue an ID again.
 
 ## Uncaught exception diagnostics
 
-The default HTTP error callback logs the original exception traceback, chained
-causes/contexts and ExceptionGroup members. Every Python frame includes its file,
-function, exact traceback line number and available source line. Each parameter
-appears on its own tab-indented line as `parameter: repr(value)`, including `*args`
-and `**kwargs`. Values are read from the traceback's argument slots at failure time;
-historical values overwritten or mutated earlier cannot be reconstructed.
+The default HTTP error callback submits the original exception and its traceback
+to the native logger. Reports retain causes, contexts and ordinary exception-group
+members. LCL failures include their error code, failed dependency path, source
+excerpt and correlation identifiers. Native diagnostics preserve declared masks.
+Masks protect named LCL diagnostic values; exception messages and application
+text follow their producers' policies.
 
-There is no additional masking or truncation: representation policy belongs to
-each object's `repr`. A failing repr, deleted parameter or unavailable source gets
-an explicit placeholder. The callback never collects its own current call stack,
-and does not read the HTTP body for logging. User arguments may themselves contain
-request or application data, so protect these detailed log files accordingly.
+`logger.traceback_style` accepts `"compact"` (default) or `"full"`. Both hide
+installed FastAPI/Starlette frames. Compact reports retain business and other
+external-library frames; full reports also include lclang frames.
+Select the same policy with `-o logger.traceback_style full`.
+Controller, API and background logs share the selected policy. Invalid values
+fail before service sinks open.
 
-Formatting runs away from the API event loop. Custom callback failures are logged
-before the original exception's default diagnostic. Logger or formatter failures
-produce a short best-effort summary without recursive callback invocation.
+The callback does not inspect function arguments or read the HTTP body. The native
+writer formats records away from the API event loop. Custom callback failures are
+logged before the original exception's default diagnostic. Producer logging
+failures receive a short best-effort stderr summary without recursive callbacks;
+native writer failures follow the upstream sink-isolation and cleanup policy.
 
 ## Rotation and permanent segments
 
@@ -233,7 +283,20 @@ operations and have no HTTP request ID. A worker's catalog log contains:
 log file: "/opt/catalog-api/logs/catalog-api.28146.20260912T100000.123456Z.000001.log"
 catalog catalog ready
 catalog request_id=123456789 list products
-lcl_fastapi request_id=123456789 method=GET path=/api/v1/products status_code=200 duration_ms=0.420 worker_pid=28146
+lcl_fastapi request_id=123456789 REST API started
+├─ method=GET path=/api/v1/products
+│  └─ request_id=123456789
+└─ context
+   ├─ worker_pid=28146
+   ├─ client=('127.0.0.1', 50000)
+   └─ scheme=http
+lcl_fastapi request_id=123456789 REST API completed
+├─ method=GET path=/api/v1/products status_code=200 duration_ms=0.420
+│  └─ request_id=123456789
+└─ context
+   ├─ worker_pid=28146
+   ├─ client=('127.0.0.1', 50000)
+   └─ scheme=http
 continued in: "/opt/catalog-api/logs/catalog-api.28146.20260912T100010.123456Z.000002.log"
 ```
 

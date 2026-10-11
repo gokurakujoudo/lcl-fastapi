@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lcl-fastapi"
-version = "0.4.0"
+version = "0.5.0"
 description = "A lightweight LCL-powered FastAPI service framework"
 readme = "README.md"
 requires-python = ">=3.14"
@@ -12,7 +12,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 authors = [{name = "gokurakujoudo"}]
 dependencies = [
-  "lclang>=1.0.15",
+  "lclang>=1.1.0",
   "fastapi>=0.141,<0.142",
   "uvicorn>=0.52,<0.53",
   "watchfiles>=1.1,<2",

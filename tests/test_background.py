@@ -132,13 +132,15 @@ async def test_sync_async_resources_frames_logs_and_shutdown(
     )
     assert app.state.resource == "closed"
     logs = configuration.parent / "logs"
-    sync_logs = "".join(p.read_text() for p in logs.glob("*.sync_job.*.log"))
-    async_logs = "".join(p.read_text() for p in logs.glob("*.async_job.*.log"))
+    sync_logs = "".join(p.read_text(encoding="utf-8") for p in logs.glob("*.sync_job.*.log"))
+    async_logs = "".join(p.read_text(encoding="utf-8") for p in logs.glob("*.async_job.*.log"))
     assert "sync worker record" in sync_logs and "async worker record" not in sync_logs
     assert "async worker record" in async_logs and "sync_job sync worker record" not in async_logs
     assert "api-only record" not in sync_logs + async_logs
     assert "composed route failure" not in sync_logs + async_logs
-    assert "composed route failure" in "".join(p.read_text() for p in logs.glob("*.log"))
+    assert "composed route failure" in "".join(
+        p.read_text(encoding="utf-8") for p in logs.glob("*.log")
+    )
     events = BackgroundEvents(configuration.parent / "run", "test").read()
     assert any("cancelled" in message for _, message in events)
     assert events[-1] == (logging.INFO, "background retired")
@@ -171,13 +173,13 @@ async def test_background_rotation_updates_observed_actual_path(
                     for path in background_runtime.observations[-1][0]
                     if ".job." in Path(path).name
                 ]
-                if paths and "rotation record 2" in paths[0].read_text():
+                if paths and "rotation record 2" in paths[0].read_text(encoding="utf-8"):
                     break
                 await asyncio.sleep(0.01)
         segments = list((configuration.parent / "logs").glob("*.job.*.log"))
         assert len(segments) == 3
         assert any(paths[0].samefile(segment) for segment in segments)
-    contents = "".join(path.read_text() for path in segments)
+    contents = "".join(path.read_text(encoding="utf-8") for path in segments)
     assert all(f"rotation record {number}" in contents for number in range(3))
     assert "API rotation isolation" not in contents
 

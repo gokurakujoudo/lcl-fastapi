@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import cast
 
 from fastapi import FastAPI
+from lclang.logger import use_verbose
 
 from lcl_fastapi.background.config import WorkerPolicy
 from lcl_fastapi.background.context import BackgroundWorker, BackgroundWorkerContext
@@ -21,7 +22,6 @@ from lcl_fastapi.context import CONFIG_FRAME, use_lcl_frame
 from lcl_fastapi.logging import get_logger
 from lcl_fastapi.overrides import current_overrides, override_scope
 from lcl_fastapi.sources import configuration_frame
-from lcl_fastapi.tracebacks import exception_trace
 
 # Seconds between all completed attempts; prevents tight loops for returning callables.
 RESTART_DELAY = 1.0
@@ -133,11 +133,13 @@ class WorkerThread:
         frame = await stack.enter_async_context(configuration_frame(self.path, os.getpid()))
         token = CONFIG_FRAME.set(frame)
         stack.callback(CONFIG_FRAME.reset, token)
+        logger = await get_logger(self.name)
+        stack.enter_context(use_verbose(logger, enabled=cast(bool, await frame.get("__verbose__"))))
         return BackgroundWorkerContext(
             self.name,
             self.app,
             self.state,
-            await get_logger(self.name),
+            logger,
             self.stop_event,
             runner,
             self.service_loop,
@@ -171,7 +173,7 @@ class WorkerThread:
                             self.transition("stopped", attempt, logging.INFO, "cancelled")
                         except Exception as error:
                             level = logging.WARNING
-                            context.logger.error(exception_trace(error))
+                            context.logger.exception("background worker entry failed")
                             self.transition(
                                 "failed",
                                 attempt,

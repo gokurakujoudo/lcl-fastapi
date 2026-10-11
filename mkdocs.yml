@@ -36,6 +36,7 @@ nav:
       - 2. Directory monitor: build-a-service/02-directory-monitor.md
       - 3. LCL playground: build-a-service/03-lcl-playground.md
   - Reference:
+      - Logging practices and captured output: logging-practices.md
       - Application and lifespan: application.md
       - Background workers: background-workers.md
       - Configuration: configuration.md

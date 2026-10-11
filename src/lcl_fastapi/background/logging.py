@@ -42,7 +42,7 @@ def background_log_config(
     :param app_name: Validated application name used for default filenames.
     :param pid: API process identifier, shared by its background threads.
     :returns: Logger settings retaining native rotation, levels and template inheritance.
-    :raises ValueError: If the resulting upstream file declaration is invalid.
+    :raises LclValidationError: If the resulting upstream file declaration is invalid.
     """
     if not policies:
         return config

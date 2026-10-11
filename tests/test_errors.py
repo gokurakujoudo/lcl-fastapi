@@ -1,4 +1,4 @@
-"""Verify HTTP error responses, callback failures and original argument diagnostics."""
+"""Verify HTTP error responses, callback failures and native exception diagnostics."""
 
 import asyncio
 import logging
@@ -11,28 +11,28 @@ from unittest.mock import Mock
 import pytest
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
 from fastapi.testclient import TestClient
-from lclang.runtime import Frame, Module
-from lclang.types import ModuleName
+from lclang.error import LclErrorGroup
+from lclang.lang import Frame, Module, ModuleName
 from starlette.responses import JSONResponse, Response, StreamingResponse
 from test_application import ObservedRuntime
 from test_application import configuration as configuration
 from test_application import observed_runtime as observed_runtime
 
-import lcl_fastapi.errors as error_module
 from lcl_fastapi import (
     LclFastAPI,
     UncaughtExceptionContext,
     UncaughtExceptionHandler,
     default_uncaught_exception_handler,
+    get_config,
 )
 from lcl_fastapi.errors import handle_uncaught_exception, report_error
 from lcl_fastapi.logging import RequestLogger
-from lcl_fastapi.tracebacks import exception_trace, safe_repr, traceback_lines
+from lcl_fastapi.overrides import override_scope
 
 
 @pytest.mark.parametrize("debug", [False, True])
 @pytest.mark.parametrize("synchronous", [False, True])
-def test_default_route_failure_has_id_and_arguments(
+def test_default_route_failure_has_id_and_native_traceback(
     configuration: Path, observed_runtime: ObservedRuntime, debug: bool, synchronous: bool
 ) -> None:
     app = LclFastAPI(config_path=configuration, debug=debug)
@@ -56,16 +56,19 @@ def test_default_route_failure_has_id_and_arguments(
         request_id = response.headers["X-Request-ID"]
     logs = "".join(p.read_text(encoding="utf-8") for p in configuration.parent.glob("logs/*.log"))
     for text in (
-        "\tquantity: 3",
-        "\ttags: ('sale',)",
-        "\tcurrency: 'USD'",
-        "\toptions: {'enabled': True}",
+        "uncaught HTTP exception",
+        "catalog failure",
+        "Python traceback:",
         'raise ValueError("catalog failure")',
         f"request_id={request_id}",
     ):
         assert text in logs
+    assert "\tquantity: 3" not in logs
+    assert "\toptions:" not in logs
     assert logs.count("method=GET path=/broken status_code=500") == 1
     assert "in default_uncaught_exception_handler" not in logs
+    portable = logs.replace("\\", "/")
+    assert "/fastapi/" not in portable and "/starlette/" not in portable
 
 
 @pytest.mark.parametrize("failure", [None, "raise", "invalid"])
@@ -126,7 +129,7 @@ def test_custom_callback_context_and_fallback_order(
     if failure is not None:
         assert logs.index("uncaught_exception_handler failed:") < logs.index("original error")
         assert response.json() == {"detail": "Internal Server Error"}
-    assert logs.count("method=GET path=/broken") == 1
+    assert logs.count("method=GET path=/broken") == 2
 
 
 def test_specific_handlers_validation_and_dependencies(
@@ -210,15 +213,12 @@ async def error_context() -> AsyncIterator[UncaughtExceptionContext]:
         yield UncaughtExceptionContext(None, cast(RequestLogger, Mock()), frame, None, {})
 
 
-async def test_default_formatter_failure_and_cancellation(
+async def test_default_logging_failure_and_cancellation(
     error_context: UncaughtExceptionContext, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     request = Request({"type": "http"})
 
-    def failed(error: BaseException) -> str:
-        raise RuntimeError("formatter failure")
-
-    monkeypatch.setattr(error_module, "exception_trace", failed)
+    cast(Mock, error_context.logger.error).side_effect = RuntimeError("producer failure")
     result = await default_uncaught_exception_handler(ValueError(), request, context=error_context)
     assert result.status_code == 500
     cast(Mock, error_context.logger.error).assert_called_once()
@@ -250,47 +250,70 @@ def test_logging_failure_is_nonrecursive(
     if stderr == "broken":
         stream.write.side_effect = OSError("stderr closed")
     monkeypatch.setattr(sys, "__stderr__", None if stderr is None else stream)
-    report_error("original diagnostic", context)
+    report_error("original diagnostic", context, ValueError("original failure"))
     if stderr is not None:
         stream.write.assert_called_once()
 
 
-def test_traceback_chains_groups_missing_arguments_and_repr() -> None:
-    class BrokenRepresentation:
-        def __repr__(self) -> str:
-            raise ValueError("repr failure")
+@pytest.mark.parametrize("style", ["compact", "full"])
+@pytest.mark.parametrize("verbose", [False, True])
+def test_lcl_failure_uses_native_tree_masks_and_traceback_policy(
+    configuration: Path, observed_runtime: ObservedRuntime, style: str, verbose: bool
+) -> None:
+    with configuration.open("a", encoding="utf-8") as source:
+        source.write(
+            f'logger.traceback_style: "{style}"\n'
+            'business.secret!: "do-not-display-this"\n'
+            "business.failure: [business.secret, 1 / 0]\n"
+        )
+    app = LclFastAPI(config_path=configuration)
 
-    assert safe_repr(BrokenRepresentation()) == "<repr unavailable: BrokenRepresentation>"
-    assert traceback_lines(None) == []
+    @app.get("/native")
+    async def native() -> object:
+        return await get_config("business.failure")
 
-    def missing(argument: str) -> None:
-        del argument
-        raise ValueError("missing")
+    with (
+        override_scope({"__verbose__": verbose}),
+        TestClient(app, raise_server_exceptions=False) as client,
+    ):
+        response = client.get("/native")
+        assert response.status_code == 500
+        assert response.json() == {"detail": "Internal Server Error"}
+        request_id = response.headers["X-Request-ID"]
+    logs = "".join(p.read_text(encoding="utf-8") for p in configuration.parent.glob("logs/*.log"))
+    assert "business.failure" in logs and "LCL" in logs and "Python traceback:" in logs
+    assert "service.lclcfg" in logs and "*masked*" in logs
+    assert "do-not-display-this" not in logs
+    assert f"request_id={request_id}" in logs
+    assert ("binding_evaluation.py" in logs) == (style == "full")
+    assert ("VERBOSE" in logs) is verbose
 
-    try:
+
+@pytest.mark.parametrize("grouped", [False, True])
+def test_native_reports_retain_causes_and_all_group_members(
+    configuration: Path, observed_runtime: ObservedRuntime, grouped: bool
+) -> None:
+    app = LclFastAPI(config_path=configuration)
+
+    @app.get("/chain")
+    async def chain() -> None:
         try:
-            missing("original")
-        except ValueError as error:
-            raise RuntimeError("outer") from error
-    except RuntimeError as error:
-        rendered = exception_trace(error)
-    assert "direct cause" in rendered and "\targument: <unavailable>" in rendered
-    try:
-        try:
-            raise ValueError("inner")
-        except ValueError:
-            raise RuntimeError("context") from None
-    except RuntimeError as error:
-        assert "During handling" not in exception_trace(error)
-        error.__suppress_context__ = False
-        assert "During handling" in exception_trace(error)
-    cycle = ValueError("cycle")
-    cycle.__cause__ = cycle
-    assert "already shown" in exception_trace(ExceptionGroup("group", [cycle, cycle]))
-    code = compile("raise ValueError('dynamic')", "<unavailable-source>", "exec")
-    with pytest.raises(ValueError) as caught:
-        exec(code)
-    assert "<source unavailable>" in exception_trace(caught.value)
+            raise ValueError("original cause")
+        except ValueError as cause:
+            if grouped:
+                raise LclErrorGroup(
+                    "combined failure", [RuntimeError("first member"), OSError("second member")]
+                ) from cause
+            raise RuntimeError("outer failure") from cause
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        assert client.get("/chain").status_code == 500
+    logs = "".join(p.read_text(encoding="utf-8") for p in configuration.parent.glob("logs/*.log"))
+    assert "original cause" in logs
+    if grouped:
+        assert "combined failure" in logs and "first member" in logs and "second member" in logs
+    else:
+        assert "outer failure" in logs
 
 
 async def test_direct_callback_without_request_binding(

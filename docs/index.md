@@ -17,10 +17,10 @@ Follow [Build a service: catalog, directory monitor and LCL playground](build-a-
 from an empty directory to a validated API with logs, HTTP checks, and deployment
 configuration.
 
-Install in a Python 3.14 virtual environment:
+Install from PyPI in a Python 3.14 virtual environment:
 
 ```console
-python -m pip install lcl-fastapi==0.4.0
+python -m pip install lcl-fastapi==0.5.0
 ```
 
 Follow the [quick start](https://github.com/gokurakujoudo/lcl-fastapi#start-a-service)

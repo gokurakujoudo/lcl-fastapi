@@ -66,7 +66,7 @@ def main() -> None:
 
         with (root / "console.log").open("w+", encoding="utf-8") as output:
             process = subprocess.Popen(
-                [str(CLI), "serve", "-o", "config", str(config)],
+                [str(CLI), "serve", "-o", "config", str(config), "--verbose"],
                 cwd=root,
                 stdout=output,
                 stderr=subprocess.STDOUT,
@@ -133,7 +133,8 @@ def verify(origin: str, root: Path) -> None:
     )
     status, result = json_http(origin, path + "/evaluate", "POST")
     assert status == 200 and result["result"]["repr"] == "42"
-    assert not any("name='right'" in row for row in result["trace"])
+    assert not any("right:" in row for row in result["trace"])
+    assert any("Evaluation tree for <expr>" in row for row in result["trace"])
     assert any("cached" in row for row in json_http(origin, path + "/evaluate", "POST")[1]["trace"])
     second = json_http(origin, "/api/sessions", "POST")[1]["id"]
     assert json_http(origin, "/api/sessions/" + second + "/evaluate", "POST")[0] == 409

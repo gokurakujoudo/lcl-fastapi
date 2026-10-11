@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+## 0.5.0 - 2026-10-11
+
+- Hide installed FastAPI/Starlette Python frames in service exception reports,
+  preserving native diagnostics, business frames, causes and groups.
+- Emit paired multiline REST invocation trees with request IDs and connection
+  context; completion includes status and duration. Use concise controller
+  event headers without thread, logger or helper call-site columns.
+
+- Carry the native CLI `--verbose` flag and its `__verbose__` binding into downstream
+  configuration, business lifespan, HTTP handlers and background workers.
+  Enabled service sinks admit DEBUG records; local `use_verbose(enabled=False)`
+  scopes suppress tracing.
+- Require lclang >=1.1.0 and compose configuration with native Module mixins,
+  retaining import namespaces, masks and effective CLI-dependent definitions.
+  Declare required application fields with lazy NEED_OVERRIDE values.
+- Use native compact/full exception reports for HTTP failures, causes and groups
+  instead of inspecting function argument locals. Support logger.traceback_style
+  across controller, API and background logs.
+- Handle native Snowflake validation, state and utility failures as HTTP 503
+  responses without request IDs, recording their error types and LCL codes.
+
 ## 0.4.0 - 2026-10-09
 
 - Accept synchronous HTTP exception callbacks and callbacks returning awaitables,

@@ -24,7 +24,7 @@ SOFTWARE.
 /* MIT License. Standalone lexical highlighting for LCL 1; no parser or execution. */
 (function (root) {
   "use strict";
-  const keywords = new Set("and or not if else for in is true false none True False None raise try except finally assert with as using".split(" "));
+  const keywords = new Set("and or not if else for in is true false none True False None raise try except finally assert with as using import FRAME_PROXY NEED_OVERRIDE RUNTIME_OVERRIDE".split(" "));
   const pattern = /(?<space>\s+)|(?<comment>#[^\r\n]*)|(?<string>(?:[rRbBfF]{1,2})?(?:"""(?:\\[\s\S]|(?!""")[^\\])*?(?:"""|$)|'''(?:\\[\s\S]|(?!''')[^\\])*?(?:'''|$)|"(?:\\[\s\S]|[^"\\\r\n])*(?:"|(?=\r|\n|$))|'(?:\\[\s\S]|[^'\\\r\n])*(?:'|(?=\r|\n|$))))|(?<number>0[xX][\da-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|(?:\d[\d_]*(?:\.[\d_]*)?|\.\d[\d_]*)(?:[eE][+-]?[\d_]+)?)|(?<name>[_\p{ID_Start}][_\p{ID_Continue}]*)|(?<operator>\*\*|\/\/|<<|>>|<=|>=|==|!=|\?\.|\?\?|->|[+\-*\/%@&|^~<>=])|(?<punctuation>[()[\]{},.:])|(?<text>[\s\S])/guy;
 
   /** Return lossless {kind, text} slices, including unfinished input and whitespace. */

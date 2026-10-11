@@ -7,7 +7,7 @@ from importlib.metadata import version
 from pathlib import Path
 
 from lclang.cli import CliConfig, CliEntrance
-from lclang.errors import LclError
+from lclang.error import LclError
 from lclang.logger import LoggerHandlerConfig
 
 from lcl_fastapi.cli.arguments import entrance_arguments, validate_arguments
@@ -45,6 +45,8 @@ def main(
                 if key != "config"
             }
         )
+        if params is not None:
+            overrides["__verbose__"] = params.verbose
         entrance = CliEntrance(
             command_group(pending),
             version=version_text or version("lcl-fastapi"),

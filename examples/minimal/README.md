@@ -8,24 +8,21 @@ service at a time, as the framework supports one service per machine.
 
 ## Install
 
-Run these PowerShell commands from this directory after the framework wheel has
-been built in the repository's `dist` directory:
+Run these PowerShell commands from this directory:
 
 ```powershell
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install ..\..\dist\lcl_fastapi-0.4.0-py3-none-any.whl
 .venv\Scripts\python.exe -m pip install .
 .venv\Scripts\Activate.ps1
 ```
 
-The second installation builds and installs this downstream package. Neither
-installation is editable. Dependencies require package-index access or a local
-wheel cache. The framework's development version is installed from its built
-wheel; these instructions do not assume it is published on PyPI.
+Installation builds this downstream package and installs its pinned
+`lcl-fastapi==0.5.0` dependency from PyPI. Dependencies require package-index
+access or a local wheel cache.
 
 On Linux, create the environment with `python3.14 -m venv .venv`, use
-`.venv/bin/python` for both installations, change the wheel path separators to
-`/`, and activate with `source .venv/bin/activate`. The recorded validation below
+`.venv/bin/python -m pip install .` for installation and activate with
+`source .venv/bin/activate`. The recorded validation below
 was performed on Windows; Linux validation is separate.
 
 ## Run and inspect
@@ -91,7 +88,7 @@ the isolated runtime files when complete. No external service or credentials
 are used. The environment must permit system temporary files, child processes,
 and loopback HTTP.
 
-Run the built `lcl-fastapi==0.4.0` wheel in a clean independent environment on
+Run `lcl-fastapi==0.5.0` in a clean independent environment on
 Windows or Linux with CPython 3.14. Expected final output:
 
 ```text

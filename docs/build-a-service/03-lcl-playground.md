@@ -57,7 +57,7 @@ On Windows:
 mkdir lcl-workbench
 cd lcl-workbench
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install lcl-fastapi==0.4.0
+.venv\Scripts\python.exe -m pip install lcl-fastapi==0.5.0
 mkdir playground_service
 mkdir playground_service\static
 ```
@@ -68,7 +68,7 @@ On Linux:
 mkdir lcl-workbench
 cd lcl-workbench
 python3.14 -m venv .venv
-.venv/bin/python -m pip install lcl-fastapi==0.4.0
+.venv/bin/python -m pip install lcl-fastapi==0.5.0
 mkdir -p playground_service/static
 ```
 
@@ -98,7 +98,7 @@ build-backend = "hatchling.build"
 name = "lcl-fastapi-playground-example"
 version = "1.0.0"
 requires-python = ">=3.14"
-dependencies = ["lcl-fastapi==0.4.0"]
+dependencies = ["lcl-fastapi==0.5.0"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["playground_service"]
@@ -162,8 +162,10 @@ bounded list. All returned data can be serialized; live Frames cannot.
 import logging
 from dataclasses import asdict
 
-from lclang import LclAstNode, LclError, to_source
-from lclang.runtime import analyze_dependencies
+from lclang.error import LclError
+from lclang.lang import LclAstNode, to_source
+from lclang.lang.runtime import analyze_dependencies
+from lclang.logger import LclExceptionFormatter
 
 
 def tree(node: LclAstNode) -> dict[str, object]:
@@ -203,10 +205,11 @@ class Trace(logging.Handler):
         super().__init__()
         self.events: list[str] = []
         self.truncated = False
+        self.setFormatter(LclExceptionFormatter("%(levelname)s %(message)s"))
 
     def emit(self, record: logging.LogRecord) -> None:
         if len(self.events) < 2000:
-            self.events.append(record.getMessage())
+            self.events.append(self.format(record))
         else:
             self.truncated = True
 ```
@@ -216,8 +219,8 @@ conditional alternatives without executing either:
 
 <!-- python-doc-exec -->
 ```python
-from lclang import parse_expression
-from lclang.runtime import analyze_dependencies
+from lclang.lang import parse_expression
+from lclang.lang.runtime import analyze_dependencies
 
 node = parse_expression("left if flag else right")
 assert type(node).__name__ == "LclConditional"
@@ -245,9 +248,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from fastapi import HTTPException
-from lclang import EvaluationLimits, Frame, LclError, Module, ModuleName, parse_expression
 from lclang.config import ConfigDefinition, parse_config
-from lclang.diagnostics import internal_verbose_scope
+from lclang.error import LclError
+from lclang.lang import EvaluationLimits, Frame, Module, ModuleName, parse_expression
+from lclang.logger import use_verbose
 
 from playground_service.inspection import Trace, dependencies, diagnostic, tree
 
@@ -264,8 +268,9 @@ class Session:
 class Engine:
     """Serialize session operations; Frames never leave the evaluation thread."""
 
-    def __init__(self, maximum: int, ttl: float) -> None:
+    def __init__(self, maximum: int, ttl: float, *, verbose: bool = True) -> None:
         self.maximum, self.ttl = maximum, ttl
+        self.verbose = verbose
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="lcl-playground")
         self.runner: asyncio.Runner | None = None
         self.sessions: dict[str, Session] = {}
@@ -343,15 +348,22 @@ Append this method inside `Engine` in `playground_service/engine.py`:
         try:
             document = parse_config(source, source_name="session.lclcfg")
             definitions = {}
+            masked_names: set[str] = set()
             for declaration in document.declarations:
                 if not isinstance(declaration, ConfigDefinition):
-                    raise ValueError("using is not enabled in this in-memory playground")
+                    raise ValueError(
+                        "configuration introductions are not enabled in this playground"
+                    )
                 name = str(declaration.name)
                 if name in definitions:
                     raise ValueError(f"Duplicate definition: {name}")
                 definitions[name] = declaration.expression
+                if declaration.masked:
+                    masked_names.add(name)
             node = parse_expression(expression)
-            module = Module(ModuleName("playground"), definitions)
+            module = Module(
+                ModuleName("playground"), definitions, masked_names=frozenset(masked_names)
+            )
             report = {
                 "ast": {name: tree(value) for name, value in definitions.items()},
                 "expression_ast": tree(node),
@@ -397,9 +409,8 @@ Append the remaining `Engine` methods:
         logger = logging.Logger("playground.trace", level=logging.DEBUG)
         logger.addHandler(trace)
         report: dict[str, Any] = {}
-        # This version-sensitive adapter is the only internal lclang integration.
-        # Native task-local diagnostics preserve branch skipping and cache hits.
-        with internal_verbose_scope(logger):
+        # Public task-local diagnostics preserve branch skipping and cache hits.
+        with use_verbose(logger, enabled=self.verbose):
             try:
                 value = await session.frame.evaluate(session.expression)
                 report["result"] = {"type": type(value).__name__, "repr": repr(value)[:8192]}
@@ -426,10 +437,13 @@ Named definitions remain cached until parse replacement, deletion, expiry or
 shutdown closes the Frame. `close()` queues cleanup on the evaluator loop before
 closing its Runner and joining the thread.
 
-The version-sensitive `lclang.diagnostics.internal_verbose_scope` adapter is
-internal to lclang and has been revalidated with 1.0.15; AST/Frame/dependency APIs
-are public. The dependency allows newer lclang versions, so revalidate this
-adapter on upgrades. It is not a promised lcl-fastapi tracing API.
+Public `lclang.logger.use_verbose(logger, enabled=self.verbose)` borrows the trace
+logger for this task. The service reads the native CLI `__verbose__` binding;
+start it with `--verbose` to include evaluation replay, or omit the flag to keep
+evaluation results without trace events.
+`LclExceptionFormatter` displays DEBUG trace records as VERBOSE and renders the
+executed dependency tree. The scope restores its previous destination without
+changing logger ownership or thresholds. The trace remains a bounded string list.
 
 **Checkpoint:** run this exact script before adding HTTP. It proves the failing
 right branch is skipped and the next evaluation uses a cache:
@@ -456,7 +470,8 @@ answer: left if flag else right
         await engine.submit("parse", session, source=source, expression="answer")
         first = await engine.submit("evaluate", session)
         assert first["result"]["repr"] == "42"
-        assert not any("name='right'" in event for event in first["trace"])
+        assert not any("right:" in event for event in first["trace"])
+        assert any("Evaluation tree for <expr>" in event for event in first["trace"])
         second = await engine.submit("evaluate", session)
         assert any("cached" in event for event in second["trace"])
     finally:
@@ -502,7 +517,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     ttl = float(str(await get_config("business.sessions.idle_seconds")))
     if not 1 <= maximum <= 100 or not 1 <= ttl <= 86400:
         raise ValueError("Invalid session count or idle duration")
-    engine = Engine(maximum, ttl)
+    engine = Engine(maximum, ttl, verbose=await get_config("__verbose__") is True)
     app.state.engine = engine
     try:
         yield
@@ -550,7 +565,7 @@ them, create one Engine, store it on `app.state`, and yield. Routes borrow it fr
 Business cleanup finishes before framework/logger teardown. Resource creation at
 module import would bypass this ownership and could run during startup probes.
 
-Start `lcl-fastapi serve -o config service.lclcfg`, then call:
+Start `lcl-fastapi serve -o config service.lclcfg --verbose`, then call:
 
 ```sh
 curl -i -X POST http://127.0.0.1:18086/api/sessions
@@ -633,7 +648,7 @@ SOFTWARE.
 /* MIT License. Standalone lexical highlighting for LCL 1; no parser or execution. */
 (function (root) {
   "use strict";
-  const keywords = new Set("and or not if else for in is true false none True False None raise try except finally assert with as using".split(" "));
+  const keywords = new Set("and or not if else for in is true false none True False None raise try except finally assert with as using import FRAME_PROXY NEED_OVERRIDE RUNTIME_OVERRIDE".split(" "));
   const pattern = /(?<space>\s+)|(?<comment>#[^\r\n]*)|(?<string>(?:[rRbBfF]{1,2})?(?:"""(?:\\[\s\S]|(?!""")[^\\])*?(?:"""|$)|'''(?:\\[\s\S]|(?!''')[^\\])*?(?:'''|$)|"(?:\\[\s\S]|[^"\\\r\n])*(?:"|(?=\r|\n|$))|'(?:\\[\s\S]|[^'\\\r\n])*(?:'|(?=\r|\n|$))))|(?<number>0[xX][\da-fA-F_]+|0[bB][01_]+|0[oO][0-7_]+|(?:\d[\d_]*(?:\.[\d_]*)?|\.\d[\d_]*)(?:[eE][+-]?[\d_]+)?)|(?<name>[_\p{ID_Start}][_\p{ID_Continue}]*)|(?<operator>\*\*|\/\/|<<|>>|<=|>=|==|!=|\?\.|\?\?|->|[+\-*\/%@&|^~<>=])|(?<punctuation>[()[\]{},.:])|(?<text>[\s\S])/guy;
 
   /** Return lossless {kind, text} slices, including unfinished input and whitespace. */
@@ -1018,7 +1033,7 @@ def main() -> None:
 
         with (root / "console.log").open("w+", encoding="utf-8") as output:
             process = subprocess.Popen(
-                [str(CLI), "serve", "-o", "config", str(config)],
+                [str(CLI), "serve", "-o", "config", str(config), "--verbose"],
                 cwd=root,
                 stdout=output,
                 stderr=subprocess.STDOUT,
@@ -1085,7 +1100,8 @@ def verify(origin: str, root: Path) -> None:
     )
     status, result = json_http(origin, path + "/evaluate", "POST")
     assert status == 200 and result["result"]["repr"] == "42"
-    assert not any("name='right'" in row for row in result["trace"])
+    assert not any("right:" in row for row in result["trace"])
+    assert any("Evaluation tree for <expr>" in row for row in result["trace"])
     assert any("cached" in row for row in json_http(origin, path + "/evaluate", "POST")[1]["trace"])
     second = json_http(origin, "/api/sessions", "POST")[1]["id"]
     assert json_http(origin, "/api/sessions/" + second + "/evaluate", "POST")[0] == 409

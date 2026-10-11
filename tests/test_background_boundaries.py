@@ -294,7 +294,7 @@ def test_controller_deadline_records_failure_before_kill(
             }
         ]
     assert "background shutdown timeout" in "".join(
-        p.read_text() for p in (configuration.parent / "logs").glob("*controller*")
+        p.read_text(encoding="utf-8") for p in (configuration.parent / "logs").glob("*controller*")
     )
     writer = ControllerWriter(LoggerHandlerConfig(file={}))
     with pytest.raises(RuntimeError, match="not active"):
@@ -346,5 +346,5 @@ async def test_runtime_publication_failure_stops_workers_and_requests_shutdown(
         assert background_runtime.stopped
         assert manager.workers["job"].stop_event.is_set()
     assert "background journal publication failed" in "".join(
-        path.read_text() for path in (configuration.parent / "logs").glob("*.log")
+        path.read_text(encoding="utf-8") for path in (configuration.parent / "logs").glob("*.log")
     )

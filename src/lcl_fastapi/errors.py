@@ -1,18 +1,16 @@
 """Typed HTTP failure callbacks with a nonrecursive default response."""
 
-import asyncio
 import sys
 from collections.abc import Awaitable, Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
 from fastapi import Request
-from lclang.runtime import Frame
-from lclang.utils import invoke
+from lclang.lang import Frame
+from lclang.utils import invoke, safe_repr
 from starlette.responses import JSONResponse, Response
 
 from lcl_fastapi.logging import RequestLogger
-from lcl_fastapi.tracebacks import exception_trace, safe_repr
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,18 +48,21 @@ class UncaughtExceptionHandler(Protocol):
         """
 
 
-def report_error(message: str, context: UncaughtExceptionContext) -> None:
+def report_error(message: str, context: UncaughtExceptionContext, error: Exception) -> None:
     """Attempt a diagnostic without allowing logger failure to replace the response.
 
-    :param message: Already formatted error diagnostic.
+    :param message: Short description of the failed HTTP operation.
     :param context: Borrowed logger and request resources.
+    :param error: Original exception whose traceback is retained for native formatting.
     """
     try:
-        context.logger.error(message)
-    except Exception as error:
+        context.logger.error(message, exc_info=(type(error), error, error.__traceback__))
+    except Exception as logging_error:
         try:
             if sys.__stderr__ is not None:
-                sys.__stderr__.write(f"uncaught exception logging failed: {safe_repr(error)}\n")
+                sys.__stderr__.write(
+                    f"uncaught exception logging failed: {safe_repr(logging_error)}\n"
+                )
         except Exception:
             pass
 
@@ -69,18 +70,14 @@ def report_error(message: str, context: UncaughtExceptionContext) -> None:
 async def default_uncaught_exception_handler(
     err: Exception, request: Request, *, context: UncaughtExceptionContext
 ) -> Response:
-    """Format the original exception away from the API loop and return a generic 500.
+    """Queue the original exception for native writer formatting and return a generic 500.
 
     :param err: Original escaping exception; no live handler stack is collected.
     :param request: HTTP request, whose body is never consumed for diagnostics.
     :param context: Borrowed configuration, logger and service information.
     :returns: JSON 500 without exception details.
     """
-    try:
-        detail = await asyncio.to_thread(exception_trace, err)
-        report_error(detail, context)
-    except Exception as error:
-        report_error(f"default uncaught exception handler failed: {safe_repr(error)}", context)
+    report_error("uncaught HTTP exception", context, err)
     return JSONResponse({"detail": "Internal Server Error"}, status_code=500)
 
 
@@ -109,5 +106,5 @@ async def handle_uncaught_exception(
                 raise TypeError("uncaught_exception_handler must return a Response")
             return response
         except Exception as error:
-            report_error(f"uncaught_exception_handler failed: {safe_repr(error)}", context)
+            report_error("uncaught_exception_handler failed:", context, error)
     return await default_uncaught_exception_handler(err, request, context=context)

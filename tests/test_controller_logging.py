@@ -6,6 +6,7 @@ import threading
 from pathlib import Path
 
 import pytest
+from lclang.error import LclLoggerError
 from lclang.logger import resolve_logger_config, use_logger, use_logger_handler
 
 from lcl_fastapi.config import load_settings
@@ -69,6 +70,9 @@ def test_controller_lifecycle_rotation_and_worker_file_separation(
         assert event in control
     assert not list((tmp_path / "logs").glob("worker*"))
     assert len(list((tmp_path / "logs").glob("control*"))) == 2
+    assert "thread=MainThread" not in control
+    assert "lcl_fastapi.controller |" not in control
+    assert "write_events" not in control and "write_records" not in control
 
     async def business_log() -> None:
         async with configuration_frame(source, os.getpid(), logger_role="worker") as frame:
@@ -126,8 +130,9 @@ def test_writer_initialization_failure_releases_runtime_and_closed_writer_reject
             file={"controller": {"directory": str(destination), "filename": "controller.log"}},
         )
     )
-    with pytest.raises(FileExistsError):
+    with pytest.raises(LclLoggerError) as failure:
         writer.open()
+    assert isinstance(failure.value.__cause__, FileExistsError)
     assert writer.runner is None
     writer.close()
     with pytest.raises(RuntimeError, match="not active"):

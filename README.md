@@ -11,10 +11,21 @@
 [Changelog](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/CHANGELOG.md)
 
 `lcl-fastapi` is a small Python 3.14+ service framework combining FastAPI with
-`lclang>=1.0.15` configuration, logging, CLI infrastructure, and Snowflake IDs.
+`lclang>=1.1.0` configuration, logging, CLI infrastructure, and Snowflake IDs.
 Write business routes, a trusted `.lclcfg` file, and an optional business lifespan.
 The framework owns worker startup, request IDs, health sampling, local operations,
 and bundled offline Swagger UI.
+
+Version 0.5.0 composes native configuration Modules before evaluation, supports
+isolated configuration imports and lazy required values, and uses upstream
+compact/full exception reports. The playground captures native diagnostic trees
+through public `use_verbose(logger, enabled=...)`. Downstream services can enable
+LCL diagnostics with the native CLI `--verbose` flag and read its `__verbose__`
+binding in configuration. See the configuration and logging references.
+HTTP calls produce paired context trees, and service exception reports omit
+FastAPI/Starlette frames. Controller events use concise time/level/PID headers.
+[Logging practices with real output](https://gokurakujoudo.github.io/lcl-fastapi/logging-practices/)
+show a complete service with main-process, API, Worker, reload and error records.
 
 Version 0.4.0 adds synchronous HTTP exception callbacks, callbacks returning
 awaitables, and native local/UTC log timezone selection. Logs default to server
@@ -22,13 +33,12 @@ local time; `logger.timezone: "utc"` retains UTC timestamps. See the application
 and logging references for their contracts.
 
 Version 0.3.0 provides `use_lcl_frame()` for nested configuration scopes
-and `uncaught_exception_handler` for custom HTTP error responses with detailed
-default traceback logging, plus managed `background_workers` on dedicated threads
+and `uncaught_exception_handler` for custom HTTP error responses with
+default exception logging, plus managed `background_workers` on dedicated threads
 and event loops. Background registration forces one API worker. See the application
 reference and composed example.
 
-Install version 0.4.0 with `python -m pip install lcl-fastapi==0.4.0` in a
-Python 3.14 virtual environment. See the [release process](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/releasing.md)
+See the [release process](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/releasing.md)
 for version notes, publication requirements, and artifact verification.
 
 ## Start a service
@@ -39,8 +49,8 @@ playground from empty directories. Each guide prints every file and adds feature
 step by step, with configuration, resource ownership and executable checks.
 The playground includes standalone reusable LCL highlighting assets for other UIs.
 
-Use a Python 3.14+ virtual environment. Install the built artifact with
-`python -m pip install path/to/lcl_fastapi-0.4.0-py3-none-any.whl`. Dependencies must
+Use a Python 3.14+ virtual environment. Install from PyPI with
+`python -m pip install lcl-fastapi==0.5.0`. Dependencies must
 also be installed; offline Swagger means that documentation serving does not
 require a CDN after installation.
 

@@ -10,15 +10,21 @@ from typing import Any, Self
 
 import httpx
 import pytest
+from lclang.logger import resolve_logger_config
 from test_application import ObservedRuntime
 from test_application import observed_runtime as observed_runtime
 
 from lcl_fastapi import BackgroundWorkerContext, LclFastAPI, get_logger
+from lcl_fastapi.background.config import WorkerPolicy
+from lcl_fastapi.background.logging import background_log_config
 from lcl_fastapi.cli.main import main
 from lcl_fastapi.config import load_settings
+from lcl_fastapi.logging import resolve_log_directories
+from lcl_fastapi.overrides import override_scope
 from lcl_fastapi.runtime import common
 from lcl_fastapi.runtime.controller import controller_logging
 from lcl_fastapi.runtime.state import process_identity
+from lcl_fastapi.sources import configuration_frame
 
 CONFIG = """app.name: "test-service"
 app.version: "1"
@@ -75,7 +81,7 @@ def test_timezone_reaches_each_service_role(
         return record
 
     monkeypatch.setattr(logging, "_logRecordFactory", fixed_record)
-    monkeypatch.setattr("lclang.logger.formatter.datetime", LocalDatetime)
+    monkeypatch.setattr("lclang.logger.record_formatter.datetime", LocalDatetime)
     observed_runtime.directory = tmp_path / "run"
     observed_runtime.identity = process_identity()
     observed_runtime.service = {"configured_workers": 1, "service_id": "test"}
@@ -140,4 +146,40 @@ def test_invalid_timezone_has_diagnostics_without_opening_sinks(
     result = capsys.readouterr()
     assert result.out == ""
     assert "logger.timezone" in result.err and "service.lclcfg" in result.err
+    assert not (tmp_path / "logs").exists()
+
+
+@pytest.mark.parametrize(
+    "configured,override,expected",
+    [("full", None, "full"), ("full", "compact", "compact"), ("compact", "full", "full")],
+)
+async def test_traceback_policy_survives_role_and_background_transforms(
+    tmp_path: Path, configured: str, override: str | None, expected: str
+) -> None:
+    source = tmp_path / "service.lclcfg"
+    source.write_text(CONFIG + f'logger.traceback_style: "{configured}"\n', encoding="utf-8")
+    with override_scope({} if override is None else {"logger.traceback_style": override}):
+        async with configuration_frame(source, logger_role="controller") as frame:
+            config = await resolve_logger_config(frame)
+            assert config.traceback_style == expected
+            assert resolve_log_directories(config, tmp_path).traceback_style == expected
+        async with configuration_frame(source, 123, logger_role="worker") as frame:
+            config = await resolve_logger_config(frame)
+            transformed = background_log_config(
+                config, {"job": WorkerPolicy(True, False)}, "test-service", 123
+            )
+            assert transformed.traceback_style == expected
+            assert resolve_log_directories(transformed, tmp_path).traceback_style == expected
+
+
+@pytest.mark.parametrize("value", ['"other"', "None", "True", "1"])
+def test_invalid_traceback_policy_has_diagnostics_before_sinks_open(
+    tmp_path: Path, value: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "service.lclcfg"
+    source.write_text(CONFIG + f"logger.traceback_style: {value}\n", encoding="utf-8")
+    assert main(["serve", "-c", str(source)]) != 0
+    result = capsys.readouterr()
+    assert result.out == ""
+    assert "logger.traceback_style" in result.err and "service.lclcfg" in result.err
     assert not (tmp_path / "logs").exists()

@@ -76,6 +76,7 @@ def test_render_only_writes_explicit_output(
     "tokens, message",
     [
         (["serve", "-o", "worker_pid", "123"], "provided by the framework"),
+        (["serve", "-o", "__verbose__", "LCL[True]"], "reserved override key"),
         (["serve", "--host", "0.0.0.0"], "unknown option"),
         (["logs", "--json"], "unknown option"),
     ],
@@ -131,6 +132,24 @@ def test_serve_begins_only_after_cli_logger_and_event_loop_exit(
     assert main(["serve", "-o", "config", str(source)]) == 0
     assert called == [source]
     assert capsys.readouterr().out == ""
+
+
+@pytest.mark.parametrize("options,enabled", [([], False), (["--verbose"], True)])
+def test_native_verbose_survives_deferred_service_handoff(
+    runtime: ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    options: list[str],
+    enabled: bool,
+) -> None:
+    results: list[bool] = []
+
+    def serve(path: Path) -> None:
+        results.append(asyncio.run(load_settings(path)).verbose)
+
+    monkeypatch.setattr(runtime, "serve", serve, raising=False)
+    assert main(["serve", "-c", "service.lclcfg", *options]) == 0
+    assert results == [enabled]
+    assert "__verbose__" not in current_overrides()
 
 
 @pytest.mark.parametrize(

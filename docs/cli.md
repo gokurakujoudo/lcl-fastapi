@@ -50,6 +50,9 @@ Values retain lclang semantics: plain text is a string, a valueless override is
 True, and `LCL[...]` is evaluated lazily against the effective configuration.
 For example, `-o server.port "LCL[9000]"` overrides the file's listener port;
 `-o logger.level DEBUG` overrides logging in both controller and workers.
+`serve --verbose` carries the native Boolean `__verbose__` binding into service
+configuration and enables LCL diagnostics in API lifespan/handlers and Workers.
+Downstream expressions can read that binding; it cannot be overridden.
 Validation still applies. `worker_pid` and `lcl_fastapi_defaults` are reserved.
 Invalid logger settings, including non-text `logger.timezone` values, produce a
 nonzero status and a source-aware diagnostic on stderr before service sinks open.

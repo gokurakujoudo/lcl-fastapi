@@ -123,8 +123,10 @@ async def test_playground_native_ast_dependencies_trace_and_session_isolation() 
         )
         result = await engine.submit("evaluate", key)
         assert result["result"]["repr"] == "42"
-        assert not any("name='right'" in event for event in result["trace"])
-        assert any("lcl-evaluated" in event for event in result["trace"])
+        assert not any("right:" in event for event in result["trace"])
+        assert any("Evaluation tree for <expr>" in event for event in result["trace"])
+        assert any("Evaluated answer: (int) 42" in event for event in result["trace"])
+        assert all(event.startswith("VERBOSE ") for event in result["trace"])
         again = await engine.submit("evaluate", key)
         assert any("cached" in event for event in again["trace"])
         assert len(again["trace"]) < len(result["trace"])
@@ -159,7 +161,7 @@ async def test_session_capacity_expiry_and_no_configuration_imports() -> None:
         result = await engine.submit(
             "parse", key, source='__LCL_VERSION__: 1\nusing "private.lclcfg"', expression="1"
         )
-        assert "using is not enabled" in result["error"]["message"]
+        assert "introductions are not enabled" in result["error"]["message"]
         await asyncio.sleep(0.07)
         with pytest.raises(HTTPException) as expired:
             await engine.submit("read", key)

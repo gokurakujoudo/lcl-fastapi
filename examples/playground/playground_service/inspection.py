@@ -3,8 +3,10 @@
 import logging
 from dataclasses import asdict
 
-from lclang import LclAstNode, LclError, to_source
-from lclang.runtime import analyze_dependencies
+from lclang.error import LclError
+from lclang.lang import LclAstNode, to_source
+from lclang.lang.runtime import analyze_dependencies
+from lclang.logger import LclExceptionFormatter
 
 
 def tree(node: LclAstNode) -> dict[str, object]:
@@ -44,9 +46,10 @@ class Trace(logging.Handler):
         super().__init__()
         self.events: list[str] = []
         self.truncated = False
+        self.setFormatter(LclExceptionFormatter("%(levelname)s %(message)s"))
 
     def emit(self, record: logging.LogRecord) -> None:
         if len(self.events) < 2000:
-            self.events.append(record.getMessage())
+            self.events.append(self.format(record))
         else:
             self.truncated = True

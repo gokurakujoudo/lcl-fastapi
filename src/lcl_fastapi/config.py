@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from lclang.runtime import Frame
+from lclang.lang import Frame
 
 from lcl_fastapi.sources import configuration_frame as configuration_frame
 
@@ -39,6 +39,7 @@ class Settings:
     :param worker_id_base: First allowed Snowflake worker ID.
     :param worker_id_count: Number of allowed consecutive worker IDs.
     :param reload_dirs: Resolved Python watch roots, used only in hot reload mode.
+    :param verbose: Whether to emit native LCL diagnostics in service scopes.
     """
 
     app_name: str
@@ -65,6 +66,7 @@ class Settings:
     worker_id_base: int
     worker_id_count: int
     reload_dirs: tuple[Path, ...] = ()
+    verbose: bool = False
 
 
 def text_value(value: object, name: str) -> str:
@@ -248,6 +250,7 @@ async def settings_from_frame(frame: Frame, config_path: Path) -> Settings:
         worker_base,
         worker_count,
         tuple(dict.fromkeys(reload_dirs)),
+        await flag("__verbose__"),
     )
 
 
