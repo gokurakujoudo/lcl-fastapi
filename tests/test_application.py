@@ -9,10 +9,11 @@ from tempfile import TemporaryDirectory
 from typing import cast
 
 import httpx
-import lclang.utils.snowflake as upstream_snowflake
+import lclang.utils.snowflake_id as upstream_snowflake
 import pytest
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.testclient import TestClient
+from lclang.error import UtilityErrorCode
 from starlette.types import Message, Scope
 
 import lcl_fastapi.service as service_module
@@ -340,7 +341,7 @@ def test_business_documentation_override(
         assert observed_runtime.observations
 
 
-@pytest.mark.parametrize("failure", ["rollback", "exhaustion"])
+@pytest.mark.parametrize("failure", ["rollback", "exhaustion", "epoch", "timestamp"])
 @pytest.mark.parametrize("send_failure", [None, OSError, asyncio.CancelledError])
 async def test_expected_generator_failure_returns_503_without_borrowing_context(
     configuration: Path,
@@ -361,10 +362,20 @@ async def test_expected_generator_failure_returns_503_without_borrowing_context(
         runtime = service.current_request_runtime()
         clock = runtime.generator.epoch_ms * 1_000_000 + 1_000_000_000
         monkeypatch.setattr(upstream_snowflake, "time_ns", lambda: clock)
-        for _ in range(1 if failure == "rollback" else 4096):
+        for _ in range(4096 if failure == "exhaustion" else 1):
             runtime.generator.next_id()
         if failure == "rollback":
             monkeypatch.setattr(upstream_snowflake, "time_ns", lambda: clock - 1_000_000)
+        elif failure == "epoch":
+            monkeypatch.setattr(
+                upstream_snowflake, "time_ns", lambda: runtime.generator.epoch_ms * 1_000_000 - 1
+            )
+        elif failure == "timestamp":
+            monkeypatch.setattr(
+                upstream_snowflake,
+                "time_ns",
+                lambda: (runtime.generator.epoch_ms + 2**41) * 1_000_000,
+            )
         messages: list[Message] = []
         scope: Scope = {
             "type": "http",
@@ -422,8 +433,20 @@ async def test_expected_generator_failure_returns_503_without_borrowing_context(
     )
     failures = [line for line in logs.splitlines() if "status_code=503" in line]
     assert len(failures) == 1
-    error_name = "RuntimeError" if failure == "rollback" else "OverflowError"
+    error_name, error_code = {
+        "rollback": (
+            "LclStateError",
+            UtilityErrorCode.E41_CLOCK_MOVED_BACKWARD_DURING_SNOWFLAKE_GENERATION,
+        ),
+        "exhaustion": (
+            "LclUtilityError",
+            UtilityErrorCode.E41_SNOWFLAKE_SEQUENCE_EXHAUSTED_RETRY_AFTER_THE_CLOCK_ADVANCES,
+        ),
+        "epoch": ("LclValidationError", UtilityErrorCode.E41_CLOCK_PRECEDES_THE_SNOWFLAKE_EPOCH),
+        "timestamp": ("LclUtilityError", UtilityErrorCode.E41_SNOWFLAKE_TIMESTAMP_EXHAUSTED),
+    }[failure]
     assert f"id_generation_error={error_name}" in failures[0]
+    assert f"id_generation_code={error_code}" in failures[0]
     assert "request_id=unavailable" in failures[0]
     assert "previous-request" not in logs
     assert observed_runtime.observations

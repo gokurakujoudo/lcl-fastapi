@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Require lclang >=1.1.0 and compose configuration with native Module mixins,
+  retaining import namespaces, masks and effective CLI-dependent definitions.
+  Declare required application fields with lazy NEED_OVERRIDE values.
+- Use native compact/full exception reports for HTTP failures, causes and groups
+  instead of inspecting function argument locals. Support logger.traceback_style
+  across controller, API and background logs.
+- Handle native Snowflake validation, state and utility failures as HTTP 503
+  responses without request IDs, recording their error types and LCL codes.
+
 ## 0.4.0 - 2026-10-09
 
 - Accept synchronous HTTP exception callbacks and callbacks returning awaitables,

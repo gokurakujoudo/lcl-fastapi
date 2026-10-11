@@ -21,7 +21,6 @@ from lcl_fastapi.context import CONFIG_FRAME, use_lcl_frame
 from lcl_fastapi.logging import get_logger
 from lcl_fastapi.overrides import current_overrides, override_scope
 from lcl_fastapi.sources import configuration_frame
-from lcl_fastapi.tracebacks import exception_trace
 
 # Seconds between all completed attempts; prevents tight loops for returning callables.
 RESTART_DELAY = 1.0
@@ -171,7 +170,7 @@ class WorkerThread:
                             self.transition("stopped", attempt, logging.INFO, "cancelled")
                         except Exception as error:
                             level = logging.WARNING
-                            context.logger.error(exception_trace(error))
+                            context.logger.exception("background worker entry failed")
                             self.transition(
                                 "failed",
                                 attempt,

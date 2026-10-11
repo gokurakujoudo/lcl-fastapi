@@ -5,7 +5,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from time import perf_counter_ns
 
-from lclang.runtime import Frame
+from lclang.error import LclStateError, LclUtilityError, LclValidationError
+from lclang.lang import Frame
 from lclang.utils import SnowflakeGenerator
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -87,10 +88,11 @@ class RequestContextMiddleware:
         try:
             try:
                 request_id = str(runtime.generator.next_id())
-            except (RuntimeError, OverflowError) as error:
+            except (LclValidationError, LclStateError, LclUtilityError) as error:
                 status_code = 503
                 failure_detail = (
                     f"request_id=unavailable id_generation_error={type(error).__name__} "
+                    f"id_generation_code={error.code} "
                 )
                 await JSONResponse(
                     {"detail": "Request ID generation unavailable"},

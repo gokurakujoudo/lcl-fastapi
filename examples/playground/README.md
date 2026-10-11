@@ -18,19 +18,12 @@ From this directory on Windows:
 
 ```powershell
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install .
+.venv\Scripts\python.exe -m pip install ../../dist/lcl_fastapi-0.4.0-py3-none-any.whl .
 .venv\Scripts\lcl-fastapi.exe serve -o config service.lclcfg
 ```
 
-On Linux, use `python3.14 -m venv .venv`, `.venv/bin/python -m pip install .`, then
+On Linux, use `python3.14 -m venv .venv`, `.venv/bin/python -m pip install ../../dist/lcl_fastapi-0.4.0-py3-none-any.whl .`, then
 `.venv/bin/lcl-fastapi serve -o config service.lclcfg`.
-
-For source-change verification, install the built framework wheel and this project
-in one command, replacing the installation command above:
-
-```powershell
-.venv\Scripts\python.exe -m pip install ../../dist/lcl_fastapi-0.4.0-py3-none-any.whl .
-```
 
 Stop the manual service before running `.venv\Scripts\python.exe verify.py`
 (Linux: `.venv/bin/python verify.py`). It runs this exact installed source using

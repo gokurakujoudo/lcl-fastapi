@@ -94,7 +94,7 @@ async def error_example(mode: str, quantity: int = 3) -> None:
     """Raise a controlled error to exercise each callback path.
 
     :param mode: default, custom or callback demonstration path.
-    :param quantity: Example argument included in the original traceback log.
+    :param quantity: Example quantity included in the exception message.
     :raises ValueError: Deliberate demonstration failure.
     """
     raise ValueError(f"demonstration route failure: {mode}, quantity={quantity}")

@@ -36,8 +36,7 @@ python3.14 -m venv .venv
 .venv/bin/lcl-fastapi serve -o config service.lclcfg
 ```
 
-These APIs are available in version 0.4.0. To install from PyPI, replace the wheel
-path with `lcl-fastapi==0.4.0` while retaining `.` to install this example.
+Use a wheel built from current source for the unreleased lclang 1.1.0 integration.
 The application is installed as `lcl-fastapi-composed-example`, importing
 `catalog_service`. When copying this project elsewhere, replace the wheel path
 with its actual location. Dependencies require package-index access or an
@@ -50,7 +49,7 @@ Open the local endpoints:
 | `/api/v1/catalog` | Router prefix, initialized catalog, LCL greeting, public-origin metadata, request ID, and current worker PID. |
 | `/about` | A directly registered route remains outside the Router prefix. |
 | `/api/v1/scope` | Nested derived Frames, temporary name overrides, and restored runtime configuration. |
-| `/api/v1/errors/default?quantity=7` | Default detailed traceback and generic JSON 500. |
+| `/api/v1/errors/default?quantity=7` | Native exception report and generic JSON 500. |
 | `/api/v1/errors/custom?quantity=7` | Custom JSON 502 containing the request ID. |
 | `/api/v1/errors/callback?quantity=7` | A failing custom callback falls back to logged JSON 500. |
 | `/health` | Framework service identity and cached host observations. |
@@ -110,7 +109,7 @@ Replace `default` with `custom` or `callback` for the other modes. The default a
 fallback responses contain `{"detail":"Internal Server Error"}`; the custom 502
 contains `error` and `request_id`. Search the worker log paths reported by `logs`
 for the response's `X-Request-ID`. Default diagnostics show the original raise
-line and a tab-indented `quantity: 7`; callback failure is recorded first.
+line and the exception message's `quantity=7`; callback failure is recorded first.
 The verifier checks all three responses and these diagnostics after shutdown flush.
 
 Visit `/api/v1/scope` to receive `{"original":"Reader","local":"Scoped Reader",

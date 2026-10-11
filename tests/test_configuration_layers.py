@@ -4,9 +4,10 @@ import asyncio
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from typing import Literal
 
 import pytest
-from lclang.config.errors import LclConfigCycleError
+from lclang.error import LclConfigCycleError, LclConfigError, LclEvaluationError, LclValidationError
 
 from lcl_fastapi.config import load_settings
 from lcl_fastapi.overrides import OVERRIDES_ENV, current_overrides, override_scope
@@ -74,6 +75,16 @@ async def test_reserved_names_cannot_be_overridden(tmp_path: Path, name: str) ->
             pytest.fail("reserved override accepted")
 
 
+@pytest.mark.parametrize("name", ["worker_pid", "lcl_fastapi_defaults"])
+async def test_reserved_names_cannot_be_import_namespaces(tmp_path: Path, name: str) -> None:
+    (tmp_path / "empty.lclcfg").write_text("", encoding="utf-8")
+    source = tmp_path / "service.lclcfg"
+    source.write_text(f'import "empty.lclcfg" as {name}\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="provided by the framework"):
+        async with configuration_frame(source):
+            pytest.fail("empty import replaced a framework-owned binding")
+
+
 @pytest.mark.parametrize("payload", ["[]", '{"key": 1}', '{"key": null}', "invalid"])
 def test_invalid_worker_transport_is_rejected(
     monkeypatch: pytest.MonkeyPatch, payload: str
@@ -120,3 +131,75 @@ async def test_operational_json_default_does_not_shadow_native_json_import(tmp_p
     source.write_text('business.payload: json.encode({"value": 1})\n', encoding="utf-8")
     async with configuration_frame(source) as frame:
         assert json.loads(str(await frame.get("business.payload"))) == {"value": 1}
+
+
+async def test_import_composition_preserves_empty_namespaces_and_masks(tmp_path: Path) -> None:
+    (tmp_path / "empty.lclcfg").write_text("", encoding="utf-8")
+    (tmp_path / "part.lclcfg").write_text("base: 3\nvalue!: base + 1\n", encoding="utf-8")
+    source = tmp_path / "service.lclcfg"
+    source.write_text(
+        'base: 99\nimport "part.lclcfg" as part\nimport "empty.lclcfg" as empty\n'
+        "business.result: part.value + server.port\n",
+        encoding="utf-8",
+    )
+    with override_scope({"server.port": "LCL[9000]", "part.value": "LCL[42]"}):
+        async with configuration_frame(source) as frame:
+            assert frame.has("empty")
+            assert await frame.get("part.base") == 3
+            assert await frame.get("business.result") == 9042
+            assert frame.is_masked("part.value")
+    with override_scope({"empty": "collision"}), pytest.raises(LclValidationError):
+        async with configuration_frame(source):
+            pytest.fail("empty import namespace was replaced with an ordinary value")
+
+
+@pytest.mark.parametrize("role,excluded", [("controller", "service"), ("worker", "controller")])
+async def test_role_filter_drops_import_namespace_reservations(
+    tmp_path: Path, role: Literal["controller", "worker"], excluded: str
+) -> None:
+    (tmp_path / "sink.lclcfg").write_text('filename!: "imported.log"\n', encoding="utf-8")
+    source = tmp_path / "service.lclcfg"
+    source.write_text(
+        'app.name: "imported"\nimport "sink.lclcfg" as logger.file.controller\n'
+        'import "sink.lclcfg" as logger.file.service\n',
+        encoding="utf-8",
+    )
+    async with configuration_frame(source, 123, logger_role=role) as frame:
+        name = f"logger.file.{excluded}"
+        assert not frame.has(name)
+        assert not frame.has(f"{name}.filename")
+        assert not frame.is_masked(f"{name}.filename")
+
+
+async def test_optional_introductions_are_reloaded_and_keep_required_errors(tmp_path: Path) -> None:
+    source = tmp_path / "service.lclcfg"
+    source.write_text('using? "local.lclcfg"\nimport? "part.lclcfg" as part\n', encoding="utf-8")
+    async with configuration_frame(source) as frame:
+        assert not frame.has("part")
+        assert await frame.get("server.port") == 8080
+    (tmp_path / "local.lclcfg").write_text("server.port: 9000\n", encoding="utf-8")
+    (tmp_path / "part.lclcfg").write_text("value: 42\n", encoding="utf-8")
+    async with configuration_frame(source) as frame:
+        assert await frame.get("server.port") == 9000
+        assert await frame.get("part.value") == 42
+    (tmp_path / "part.lclcfg").write_text('using "missing.lclcfg"\n', encoding="utf-8")
+    with pytest.raises(LclConfigError, match="missing.lclcfg") as failure:
+        async with configuration_frame(source):
+            pytest.fail("optional introduction swallowed a nested required-file error")
+    assert isinstance(failure.value, FileNotFoundError) or failure.value.__cause__ is not None
+
+
+async def test_required_defaults_fail_lazily_and_cli_supplies_effective_values(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "service.lclcfg"
+    source.write_text("business.required: NEED_OVERRIDE\n", encoding="utf-8")
+    async with configuration_frame(source) as frame:
+        assert await frame.get("server.port") == 8080
+        for name in ("app.name", "app.version", "app.target", "business.required"):
+            with pytest.raises(LclEvaluationError, match="needs a value"):
+                await frame.get(name)
+    with override_scope({"app.name": "supplied", "business.required": "LCL[42]"}):
+        async with configuration_frame(source) as frame:
+            assert await frame.get("app.name") == "supplied"
+            assert await frame.get("business.required") == 42

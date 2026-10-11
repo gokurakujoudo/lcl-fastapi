@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from lclang.runtime import Frame
+from lclang.lang import Frame
 
 from lcl_fastapi.background.context import BackgroundWorker
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import os
 import subprocess
 import sys
@@ -14,6 +15,11 @@ def main() -> None:
     if arguments not in ([], ["--collect-coverage"]):
         raise SystemExit("Usage: python -m scripts.quality [--collect-coverage]")
     Path("reports").mkdir(exist_ok=True)
+    # Native diagnostic trees use Unicode; match child output and report decoding on Windows.
+    os.environ["PYTHONIOENCODING"] = "utf-8"
+    for stream in (sys.stdout, sys.stderr):
+        if isinstance(stream, io.TextIOWrapper):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
     # Workers deliberately change cwd; retain every process's coverage in one report location.
     os.environ["COVERAGE_FILE"] = str(Path(".coverage").resolve())
     commands = [

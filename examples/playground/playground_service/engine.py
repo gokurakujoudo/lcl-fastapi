@@ -9,9 +9,10 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from fastapi import HTTPException
-from lclang import EvaluationLimits, Frame, LclError, Module, ModuleName, parse_expression
 from lclang.config import ConfigDefinition, parse_config
-from lclang.diagnostics import internal_verbose_scope
+from lclang.error import LclError
+from lclang.lang import EvaluationLimits, Frame, Module, ModuleName, parse_expression
+from lclang.logger import use_verbose
 
 from playground_service.inspection import Trace, dependencies, diagnostic, tree
 
@@ -82,15 +83,22 @@ class Engine:
         try:
             document = parse_config(source, source_name="session.lclcfg")
             definitions = {}
+            masked_names: set[str] = set()
             for declaration in document.declarations:
                 if not isinstance(declaration, ConfigDefinition):
-                    raise ValueError("using is not enabled in this in-memory playground")
+                    raise ValueError(
+                        "configuration introductions are not enabled in this playground"
+                    )
                 name = str(declaration.name)
                 if name in definitions:
                     raise ValueError(f"Duplicate definition: {name}")
                 definitions[name] = declaration.expression
+                if declaration.masked:
+                    masked_names.add(name)
             node = parse_expression(expression)
-            module = Module(ModuleName("playground"), definitions)
+            module = Module(
+                ModuleName("playground"), definitions, masked_names=frozenset(masked_names)
+            )
             report = {
                 "ast": {name: tree(value) for name, value in definitions.items()},
                 "expression_ast": tree(node),
@@ -116,9 +124,8 @@ class Engine:
         logger = logging.Logger("playground.trace", level=logging.DEBUG)
         logger.addHandler(trace)
         report: dict[str, Any] = {}
-        # This version-sensitive adapter is the only internal lclang integration.
-        # Native task-local diagnostics preserve branch skipping and cache hits.
-        with internal_verbose_scope(logger):
+        # Public task-local diagnostics preserve branch skipping and cache hits.
+        with use_verbose(logger):
             try:
                 value = await session.frame.evaluate(session.expression)
                 report["result"] = {"type": type(value).__name__, "repr": repr(value)[:8192]}

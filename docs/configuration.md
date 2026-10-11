@@ -36,6 +36,29 @@ implicitly for compatibility; placing an explicit using later can reset earlier
 definitions to universal defaults. Put it before application customizations.
 The framework-owned `lcl_fastapi_defaults` and `worker_pid` cannot be redefined.
 
+Native `import` keeps reusable definitions in an isolated alias namespace:
+
+```text
+# Independent shared definitions
+import f"{__dir__}/pricing.lclcfg" as pricing
+import? f"{__dir__}/optional.lclcfg" as optional
+using? f"{__dir__}/local.lclcfg"
+business.price: pricing.amount
+```
+
+An imported file resolves its own local references and does not inherit preceding
+definitions from the importing file. Empty imported files still reserve their
+alias namespace. Optional introductions skip only a directly missing file;
+syntax, permissions, nested required files, cycles and invalid targets retain
+their native errors. Existing relative targets remain supported.
+
+The bundled `app.name`, `app.version` and `app.target` declarations use
+`NEED_OVERRIDE`. These fields fail lazily when requested without a later file or
+CLI definition. Business configuration may use the same marker. `RUNTIME_OVERRIDE`
+also accepts a host value, including None, supplied through a local
+[`use_lcl_frame()` scope](application.md#scoped-lcl-frames). Ordinary definitions
+keep their native precedence over same-frame host values.
+
 Command-line values use native lclang syntax, for example `-o server.port
 "LCL[9000]"`, `-o docs.enabled "LCL[False]"`, or `-o business.region west`.
 They apply to settings, renderers, business `get_config`, and logger resolution.

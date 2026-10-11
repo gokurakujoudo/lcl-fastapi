@@ -7,7 +7,7 @@ from importlib.metadata import version
 from pathlib import Path
 
 from lclang.cli import CliConfig, CliEntrance
-from lclang.errors import LclError
+from lclang.error import LclError
 from lclang.logger import LoggerHandlerConfig
 
 from lcl_fastapi.cli.arguments import entrance_arguments, validate_arguments

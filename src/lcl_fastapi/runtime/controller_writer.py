@@ -4,7 +4,7 @@ import asyncio
 from contextlib import AsyncExitStack
 
 from lclang.logger import LoggerHandlerConfig, use_logger, use_logger_handler
-from lclang.logger.formatter import FILE_ONLY_ATTRIBUTE
+from lclang.logger.record_formatter import FILE_ONLY_ATTRIBUTE
 
 
 class ControllerWriter:

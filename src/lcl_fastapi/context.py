@@ -5,8 +5,7 @@ from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 
-from lclang.runtime import Frame, Module
-from lclang.types import ModuleName
+from lclang.lang import Frame, Module, ModuleName
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,8 +62,7 @@ async def use_lcl_frame(
     :param values: Local host bindings copied by the native derived Frame.
     :returns: Async context yielding the owned child Frame.
     :raises RuntimeError: If no active worker or request configuration exists.
-    :raises TypeError: If native derivation rejects the module or values.
-    :raises ValueError: If a local binding name is invalid.
+    :raises LclValidationError: If native derivation rejects definitions, values or names.
     :raises BaseException: Propagates scope failures after restoring the parent.
 
     Parent definitions retain their native parent-owned evaluation and cache.

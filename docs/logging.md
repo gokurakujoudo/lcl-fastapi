@@ -14,7 +14,7 @@ logger.file.service.rotation.mode: "size"
 logger.file.service.rotation.max_bytes: 10485760
 ```
 
-Version 0.4.0 requires `lclang>=1.0.15`. Log timestamps default to the
+Current source requires `lclang>=1.1.0`. Log timestamps default to the
 server's local time with microseconds and a numeric offset, such as
 `2026-10-08T15:30:00.123456+08:00`. Set `logger.timezone: "utc"` or pass
 `-o logger.timezone utc` to use timestamps ending in `Z`. These settings apply
@@ -91,12 +91,14 @@ after logger takeover to prevent duplicate access lines, and their prior flags
 are restored on exit. Query strings, credentials, cookies, and request bodies are
 not automatically logged.
 
-If the upstream Snowflake generator reports clock rollback (`RuntimeError`) or
-timestamp/sequence exhaustion (`OverflowError`), the framework returns HTTP 503
+If the upstream Snowflake generator reports an invalid epoch (`LclValidationError`),
+clock rollback (`LclStateError`) or timestamp/sequence exhaustion (`LclUtilityError`),
+the framework returns HTTP 503
 with `{"detail": "Request ID generation unavailable"}`. Business routing is not
 entered. This response has no generated request-ID header or request-state ID.
 The single access record explicitly contains `request_id=unavailable` and
-`id_generation_error` naming the exception type; it never borrows a prior request's
+`id_generation_error` naming the native exception type and `id_generation_code`
+containing its LCL error code; it never borrows a prior request's
 ID. Configuration and request-context bindings are restored even if sending the
 failure response is cancelled or fails. The framework does not retry, synthesize
 a fallback ID, or change the upstream clock/sequence algorithm. A later request
@@ -104,22 +106,24 @@ can succeed once the upstream generator can issue an ID again.
 
 ## Uncaught exception diagnostics
 
-The default HTTP error callback logs the original exception traceback, chained
-causes/contexts and ExceptionGroup members. Every Python frame includes its file,
-function, exact traceback line number and available source line. Each parameter
-appears on its own tab-indented line as `parameter: repr(value)`, including `*args`
-and `**kwargs`. Values are read from the traceback's argument slots at failure time;
-historical values overwritten or mutated earlier cannot be reconstructed.
+The default HTTP error callback submits the original exception and its traceback
+to the native logger. Reports retain causes, contexts and ordinary exception-group
+members. LCL failures include their error code, failed dependency path, source
+excerpt and correlation identifiers. Native diagnostics preserve declared masks.
+Masks protect named LCL diagnostic values; exception messages and application
+text follow their producers' policies.
 
-There is no additional masking or truncation: representation policy belongs to
-each object's `repr`. A failing repr, deleted parameter or unavailable source gets
-an explicit placeholder. The callback never collects its own current call stack,
-and does not read the HTTP body for logging. User arguments may themselves contain
-request or application data, so protect these detailed log files accordingly.
+`logger.traceback_style` accepts `"compact"` (default) or `"full"`. Compact reports
+retain application and external-library Python frames; full reports also include
+lclang frames. Select the same policy with `-o logger.traceback_style full`.
+Controller, API and background logs share the selected policy. Invalid values
+fail before service sinks open.
 
-Formatting runs away from the API event loop. Custom callback failures are logged
-before the original exception's default diagnostic. Logger or formatter failures
-produce a short best-effort summary without recursive callback invocation.
+The callback does not inspect function arguments or read the HTTP body. The native
+writer formats records away from the API event loop. Custom callback failures are
+logged before the original exception's default diagnostic. Producer logging
+failures receive a short best-effort stderr summary without recursive callbacks;
+native writer failures follow the upstream sink-isolation and cleanup policy.
 
 ## Rotation and permanent segments
 

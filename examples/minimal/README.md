@@ -13,18 +13,17 @@ been built in the repository's `dist` directory:
 
 ```powershell
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install ..\..\dist\lcl_fastapi-0.4.0-py3-none-any.whl
-.venv\Scripts\python.exe -m pip install .
+.venv\Scripts\python.exe -m pip install ../../dist/lcl_fastapi-0.4.0-py3-none-any.whl .
 .venv\Scripts\Activate.ps1
 ```
 
-The second installation builds and installs this downstream package. Neither
-installation is editable. Dependencies require package-index access or a local
+Installation builds this downstream package and selects the framework wheel in
+the same transaction. Dependencies require package-index access or a local
 wheel cache. The framework's development version is installed from its built
 wheel; these instructions do not assume it is published on PyPI.
 
 On Linux, create the environment with `python3.14 -m venv .venv`, use
-`.venv/bin/python` for both installations, change the wheel path separators to
+`.venv/bin/python` for installation, change the wheel path separators to
 `/`, and activate with `source .venv/bin/activate`. The recorded validation below
 was performed on Windows; Linux validation is separate.
 

@@ -4,10 +4,16 @@ import asyncio
 from collections.abc import AsyncIterator
 
 import pytest
-from lclang.ast import LclConstant
-from lclang.errors import LclClosedFrameError
-from lclang.runtime import Frame, Module
-from lclang.types import ModuleName
+from lclang.error import LclClosedFrameError, LclEvaluationError
+from lclang.lang import (
+    NEED_OVERRIDE,
+    RUNTIME_OVERRIDE,
+    Frame,
+    LclConstant,
+    Module,
+    ModuleName,
+    define_module,
+)
 
 from lcl_fastapi import get_config, use_lcl_frame
 from lcl_fastapi.context import CONFIG_FRAME
@@ -89,3 +95,18 @@ async def test_parent_definition_cache_is_native(runtime_frame: Frame) -> None:
         async with use_lcl_frame(values={"region": "child"}):
             assert await get_config("answer") is original
         assert await parent.get("answer") is original
+
+
+async def test_local_runtime_placeholders_accept_host_values_without_filling_required_values(
+    runtime_frame: Frame,
+) -> None:
+    module = define_module(
+        "request_inputs",
+        {"runtime": RUNTIME_OVERRIDE, "required": NEED_OVERRIDE, "derived": "runtime + 1"},
+    )
+    async with use_lcl_frame(module, values={"runtime": 41, "required": "host"}):
+        assert await get_config("derived") == 42
+        with pytest.raises(LclEvaluationError, match="required needs a value"):
+            await get_config("required")
+    async with use_lcl_frame(module, values={"runtime": None}):
+        assert await get_config("runtime") is None

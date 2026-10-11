@@ -28,7 +28,7 @@ class RequestLogger(Logger):
         :param msg: Message object or percent-style formatting template.
         :param args: Deferred message interpolation arguments.
         :param kwargs: Standard-library extra, exception, and caller options.
-        :raises RuntimeError: If no lclang logger runtime is active.
+        :raises LclStateError: If no lclang logger runtime is active.
         """
         context = get_request_context()
         if context is not None:
@@ -46,9 +46,8 @@ async def get_logger(prefix: str = "", emit_level: int = 0) -> RequestLogger:
     :param prefix: Logger name and human-readable message prefix.
     :param emit_level: Additional application wrapper frames to skip.
     :returns: Request-aware lclang logger wrapper.
-    :raises TypeError: If prefix is not text.
-    :raises ValueError: If emit_level is not a nonnegative integer.
-    :raises RuntimeError: If no worker logger scope is active.
+    :raises LclValidationError: If prefix or emit_level violates the native logger contract.
+    :raises LclStateError: If no worker logger scope is active.
     """
     logger = await use_logger(name=prefix or "lcl_fastapi", prefix=prefix, emit_level=emit_level)
     return RequestLogger(logger.name, logger.prefix, logger.emit_level)

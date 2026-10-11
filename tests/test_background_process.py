@@ -128,7 +128,7 @@ BackgroundJournal.flush = flush
             if reload:
                 deadline = time.monotonic() + 10
                 while not any(
-                    "hot-reload watcher ready" in path.read_text()
+                    "hot-reload watcher ready" in path.read_text(encoding="utf-8")
                     for path in (tmp_path / "logs").glob("*controller*.log")
                 ):
                     assert time.monotonic() < deadline, "filesystem watcher did not become ready"
@@ -149,10 +149,14 @@ BackgroundJournal.flush = flush
                     == 202
                 )
             assert process.wait(timeout=15) == 0
-            control = "".join(p.read_text() for p in (tmp_path / "logs").glob("*controller*.log"))
+            control = "".join(
+                p.read_text(encoding="utf-8") for p in (tmp_path / "logs").glob("*controller*.log")
+            )
             assert "background worker=job" in control
             if journal_failure:
-                logs = "".join(p.read_text() for p in (tmp_path / "logs").glob("*.log"))
+                logs = "".join(
+                    p.read_text(encoding="utf-8") for p in (tmp_path / "logs").glob("*.log")
+                )
                 assert "background journal publication failed" in logs
             else:
                 assert "background stopping" in control

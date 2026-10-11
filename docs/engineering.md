@@ -24,48 +24,48 @@ authentication subsystem, management service, configuration restart mechanism, o
 backend. The [development plan](development-plan.md) maps the accepted scope to
 reference pages and behavioral acceptance evidence.
 
-## lclang 1.0.15 integration assessment
+## lclang 1.1.0 integration
 
-Version 0.4.0 requires `lclang>=1.0.15`, without an upper bound. Review the upstream
-[1.0.11 through 1.0.15 changes](https://github.com/gokurakujoudo/lclang/compare/1.0.11...1.0.15)
-and [1.0.15 release notes](https://github.com/gokurakujoudo/lclang/releases/tag/1.0.15).
-The existing quality and installed-example jobs resolve the current stable
-version; separate Windows/Linux compatibility jobs run the complete tests with
-`lclang==1.0.15`. Passing checks establish evidence for those actual resolved
-versions, not every future release allowed by the requirement.
+Current source requires `lclang>=1.1.0`, without an upper bound. The upstream
+[1.1.0 release notes](https://github.com/gokurakujoudo/lclang/releases/tag/1.1.0)
+describe configuration composition, public verbose scopes and structured errors.
+Language APIs come from `lclang.lang`, errors from `lclang.error`, and Python
+helpers from `lclang.utils`. Separate Windows/Linux compatibility jobs run the
+complete tests with `lclang==1.1.0`; quality and installed-example jobs resolve the
+current stable version. Passing checks establish evidence for those resolved versions.
 
-The framework adopts native `logger.timezone`, defaulting to local timestamps
-with microseconds and a numeric offset. Explicit UTC remains available through
-LCL and CLI overrides. Role filtering and logger configuration transformations
-retain this setting; permanent segment naming and aligned rotation remain UTC.
-The short-lived CLI logger remains independent of service configuration.
+Configuration Modules compose with `Module.mixin()` before evaluation, in default,
+service-file and CLI order. Native masks, source locations and explicit import
+namespaces survive composition. Role filtering removes both definitions and
+namespace reservations for excluded file sinks. One owned Frame borrows the native
+standard-library parent and receives the framework's runtime values.
+`NEED_OVERRIDE` declares required application fields; `RUNTIME_OVERRIDE` supports
+host bindings in local `use_lcl_frame()` scopes.
 
-`utils.invoke`, added in 1.0.13, now resolves HTTP exception callbacks exactly
-once. The typed interface accepts a synchronous Response or an awaitable, while
-existing asynchronous callbacks continue to work. Invocation stays in the
-request task, with native cancellation and the existing diagnostic/500 fallback.
-Synchronous callbacks must remain nonblocking.
+The upstream logger formats original exception records on its writer thread.
+Its default compact reports retain application frames, native causes, LCL
+dependency trees and ordinary failure groups. `logger.traceback_style: "full"`
+also includes lclang's Python frames. The framework does not inspect argument
+locals or install process-wide exception hooks. HTTP callbacks still resolve
+once through `utils.invoke`, within the request task, with cancellation and a
+generic 500 fallback. Synchronous callbacks must remain nonblocking.
 
-`Config.to_frame(preset=...)`, added in 1.0.15, is a useful shortcut for directly
-running loaded configuration. The framework still composes CLI expression
-winners, sticky masks and controller/worker sink filtering into a Module before
-creating its Frame. The shortcut has no Module-filtering argument and presets
-are below configuration definitions, so it cannot directly replace this flow.
+Native logger timezone, traceback policy, rotation and sink settings survive
+controller/API/background transformations. The short-lived CLI logger remains
+independent of service logging. Snowflake allocation uses the upstream structured
+validation, state and utility errors; the HTTP boundary returns 503 and records
+their codes when allocation fails.
 
-The 1.0.12-1.0.14 workflow additions cover subtree skipping, typed defaults,
-dataclass mappings, scoped nested execution and multiline business events.
-They benefit downstream finite workflows. The service's native supervisors and
-owned resource scopes do not need a workflow migration. In particular, invoking
-synchronous background entries inside an active loop would break their explicit
-`BackgroundWorkerContext.run()` boundary. Full traceback diagnostics also retain
-their untruncated representation contract rather than adopting bounded field
-formatting. No performance improvement is claimed without measurements.
+The playground borrows its own standard-library logger through public
+`use_verbose()`. Its bounded string trace displays native diagnostic trees
+without evaluating subtrees again. Native trace, skipped-branch, cache, session
+and cleanup tests also execute the exact tutorial source. The controller's
+file-only record marker follows `lclang.logger.record_formatter` and remains
+covered by sink-isolation tests.
 
-1.0.15 removes standalone `evaluate` and `evaluate_sync`; this project uses
-`Frame.evaluate` and named Frame lookup already. The playground's sole internal
-adapter, `internal_verbose_scope`, remains version-sensitive and is revalidated
-by native trace, skipped-branch, cache, session and cleanup tests plus its exact
-executable tutorial. The open dependency range does not make that adapter public.
+Finite-workflow features remain available to downstream applications. Service
+supervision and `BackgroundWorkerContext.run()` retain their native ownership
+and event-loop boundaries. No performance improvement is claimed without measurements.
 
 ## Documentation website
 
@@ -97,6 +97,7 @@ The gate checks Git whitespace, Ruff, production policy, dependency direction,
 strict mypy, canonical documentation examples and links, behavioral tests,
 coverage, standalone syntax-highlighter behavior, and distribution contents.
 Generated evidence lives in `reports/`.
+Python diagnostic output and reports use UTF-8, including native trees on Windows.
 
 Production policy checks validate structure: code-bearing physical line counts,
 declaration names, documented parameters and return values, and value-class

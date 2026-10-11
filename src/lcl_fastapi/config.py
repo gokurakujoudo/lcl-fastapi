@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from lclang.runtime import Frame
+from lclang.lang import Frame
 
 from lcl_fastapi.sources import configuration_frame as configuration_frame
 

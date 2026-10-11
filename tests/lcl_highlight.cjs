@@ -9,6 +9,13 @@ for (const source of ["", "# Scope\nx: 12 // 5\n", 'name: f"Hello {user}"', "x: 
 assert.deepEqual(tokenize("# words\n12 // 5").filter(token => token.kind !== "space").map(token => token.kind), ["comment", "number", "operator", "number"]);
 assert.equal(tokenize('f"{user}"')[0].kind, "string");
 assert.equal(tokenize("True")[0].kind, "keyword");
+for (const keyword of ["import", "using", "FRAME_PROXY", "NEED_OVERRIDE", "RUNTIME_OVERRIDE"]) {
+  assert.equal(tokenize(keyword)[0].kind, "keyword");
+}
+for (const source of ['using? "local.lclcfg"', 'import? "part.lclcfg" as part']) {
+  assert.equal(tokenize(source).map(token => token.text).join(""), source);
+  assert.equal(tokenize(source)[0].kind, "keyword");
+}
 assert.equal(tokenize("名字")[0].kind, "name");
 assert(highlight("<img onerror='bad'>").includes("&lt;"));
 assert.throws(() => tokenize(null), TypeError);

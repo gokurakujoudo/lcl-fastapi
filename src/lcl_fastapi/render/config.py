@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Literal
 
-from lclang.runtime import Frame
+from lclang.lang import Frame
 
 from lcl_fastapi.render.nginx import NginxSettings, render_nginx
 from lcl_fastapi.render.systemd import SystemdSettings, render_systemd

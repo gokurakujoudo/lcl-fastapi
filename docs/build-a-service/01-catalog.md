@@ -27,7 +27,7 @@ In PowerShell on Windows:
 mkdir catalog-api
 cd catalog-api
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install lcl-fastapi==0.4.0
+.venv\Scripts\python.exe -m pip install path/to/lcl_fastapi-0.4.0-py3-none-any.whl
 ```
 
 In a Linux shell:
@@ -36,7 +36,7 @@ In a Linux shell:
 mkdir catalog-api
 cd catalog-api
 python3.14 -m venv .venv
-.venv/bin/python -m pip install lcl-fastapi==0.4.0
+.venv/bin/python -m pip install path/to/lcl_fastapi-0.4.0-py3-none-any.whl
 ```
 
 Keep all subsequent files and commands in this directory. The explicit executable

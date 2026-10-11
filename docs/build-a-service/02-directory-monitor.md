@@ -52,7 +52,7 @@ On Windows:
 mkdir directory-observatory
 cd directory-observatory
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install lcl-fastapi==0.4.0
+.venv\Scripts\python.exe -m pip install path/to/lcl_fastapi-0.4.0-py3-none-any.whl
 mkdir directory_service
 mkdir directory_service\static
 ```
@@ -63,7 +63,7 @@ On Linux:
 mkdir directory-observatory
 cd directory-observatory
 python3.14 -m venv .venv
-.venv/bin/python -m pip install lcl-fastapi==0.4.0
+.venv/bin/python -m pip install path/to/lcl_fastapi-0.4.0-py3-none-any.whl
 mkdir -p directory_service/static
 ```
 

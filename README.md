@@ -11,10 +11,15 @@
 [Changelog](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/CHANGELOG.md)
 
 `lcl-fastapi` is a small Python 3.14+ service framework combining FastAPI with
-`lclang>=1.0.15` configuration, logging, CLI infrastructure, and Snowflake IDs.
+`lclang>=1.1.0` configuration, logging, CLI infrastructure, and Snowflake IDs.
 Write business routes, a trusted `.lclcfg` file, and an optional business lifespan.
 The framework owns worker startup, request IDs, health sampling, local operations,
 and bundled offline Swagger UI.
+
+Current source composes native configuration Modules before evaluation, supports
+isolated configuration imports and lazy required values, and uses upstream
+compact/full exception reports. The playground captures native diagnostic trees
+through public `use_verbose()`. See the configuration and logging references.
 
 Version 0.4.0 adds synchronous HTTP exception callbacks, callbacks returning
 awaitables, and native local/UTC log timezone selection. Logs default to server
@@ -22,13 +27,14 @@ local time; `logger.timezone: "utc"` retains UTC timestamps. See the application
 and logging references for their contracts.
 
 Version 0.3.0 provides `use_lcl_frame()` for nested configuration scopes
-and `uncaught_exception_handler` for custom HTTP error responses with detailed
-default traceback logging, plus managed `background_workers` on dedicated threads
+and `uncaught_exception_handler` for custom HTTP error responses with
+default exception logging, plus managed `background_workers` on dedicated threads
 and event loops. Background registration forces one API worker. See the application
 reference and composed example.
 
-Install version 0.4.0 with `python -m pip install lcl-fastapi==0.4.0` in a
-Python 3.14 virtual environment. See the [release process](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/releasing.md)
+The lclang 1.1.0 integration is unreleased. Use a wheel built from current source
+in a Python 3.14 virtual environment; the published 0.4.0 wheel predates this
+integration. See the [release process](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/docs/releasing.md)
 for version notes, publication requirements, and artifact verification.
 
 ## Start a service

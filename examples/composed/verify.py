@@ -281,7 +281,7 @@ def main() -> None:
                     assert f"catalog shutdown pid={worker['pid']} items=0" in contents
                 assert all(request_id in contents for request_id in request_ids)
                 assert "catalog read" in contents and "/api/v1/catalog" in contents
-                assert "\tquantity: 7" in contents
+                assert "quantity=7" in contents and "Python traceback:" in contents
                 assert "uncaught_exception_handler failed:" in contents
                 assert "demonstration route failure" in contents
                 assert "inventory finite task completed items=2" in contents

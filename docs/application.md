@@ -104,6 +104,8 @@ definition. This is a configuration scope, not a deep copy or a sandbox.
 
 <!-- python-doc-exec -->
 ```python
+from lclang.lang import RUNTIME_OVERRIDE, define_module
+
 from lcl_fastapi import LclFastAPI, get_config, use_lcl_frame
 
 service = LclFastAPI()
@@ -112,7 +114,8 @@ service = LclFastAPI()
 @service.get("/scoped")
 async def scoped() -> dict[str, object]:
     original = await get_config("app.name")
-    async with use_lcl_frame(values={"app.name": "local"}) as frame:
+    module = define_module("request", {"app.name": RUNTIME_OVERRIDE})
+    async with use_lcl_frame(module, values={"app.name": "local"}) as frame:
         assert await frame.get("app.name") == "local"
         async with use_lcl_frame(values={"app.name": "nested"}):
             assert await get_config("app.name") == "nested"
@@ -163,7 +166,8 @@ handler remains authoritative. Explicitly combining both generic interfaces rais
 construction. The selected generic handler remains authoritative even when
 `debug=True`; debug traceback responses never bypass this contract.
 
-The default callback logs the original traceback and returns HTTP 500 with
+The default callback logs the original exception through the native diagnostic
+formatter and returns HTTP 500 with
 `{"detail": "Internal Server Error"}`. A custom callback can return any Response.
 If it raises or returns another type, the framework first logs its failure, then
 uses the default callback to log the original exception and return 500. The default

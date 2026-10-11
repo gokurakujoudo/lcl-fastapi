@@ -6,6 +6,7 @@ import threading
 from pathlib import Path
 
 import pytest
+from lclang.error import LclLoggerError
 from lclang.logger import resolve_logger_config, use_logger, use_logger_handler
 
 from lcl_fastapi.config import load_settings
@@ -126,8 +127,9 @@ def test_writer_initialization_failure_releases_runtime_and_closed_writer_reject
             file={"controller": {"directory": str(destination), "filename": "controller.log"}},
         )
     )
-    with pytest.raises(FileExistsError):
+    with pytest.raises(LclLoggerError) as failure:
         writer.open()
+    assert isinstance(failure.value.__cause__, FileExistsError)
     assert writer.runner is None
     writer.close()
     with pytest.raises(RuntimeError, match="not active"):

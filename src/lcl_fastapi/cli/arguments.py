@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from lclang.cli import CliParams
-from lclang.cli.parser import parse_cli_params, split_argv
+from lclang.cli.option_parser import parse_cli_params, split_argv
 
 
 def validate_arguments(arguments: Sequence[str]) -> CliParams | None:
@@ -39,7 +39,7 @@ def entrance_arguments(
     :param config_path: Downstream entrance default overridden by explicit CLI selection.
     :returns: Native entrance argv transporting the service path as ordinary data.
     """
-    from lclang.cli.parser import help_requested, split_argv
+    from lclang.cli.option_parser import help_requested, split_argv
 
     if params is None or help_requested(split_argv(arguments).tokens):
         return arguments
