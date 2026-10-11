@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import cast
 
 from fastapi import FastAPI
+from lclang.logger import use_verbose
 
 from lcl_fastapi.background.config import WorkerPolicy
 from lcl_fastapi.background.context import BackgroundWorker, BackgroundWorkerContext
@@ -132,11 +133,13 @@ class WorkerThread:
         frame = await stack.enter_async_context(configuration_frame(self.path, os.getpid()))
         token = CONFIG_FRAME.set(frame)
         stack.callback(CONFIG_FRAME.reset, token)
+        logger = await get_logger(self.name)
+        stack.enter_context(use_verbose(logger, enabled=cast(bool, await frame.get("__verbose__"))))
         return BackgroundWorkerContext(
             self.name,
             self.app,
             self.state,
-            await get_logger(self.name),
+            logger,
             self.stop_event,
             runner,
             self.service_loop,

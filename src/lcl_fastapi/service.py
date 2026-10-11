@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from lclang.logger import resolve_logger_config, use_logger_handler
+from lclang.logger import resolve_logger_config, use_logger_handler, use_verbose
+from lclang.logger.frame_logger_config import verbose_config
 from lclang.utils import SnowflakeGenerator
 from starlette.background import BackgroundTask
 from starlette.middleware.errors import ServerErrorMiddleware
@@ -219,18 +220,22 @@ class LclFastAPI(FastAPI):
             logger_config = background_log_config(
                 logger_config, policies, settings.app_name, os.getpid()
             )
+            if settings.verbose:
+                logger_config = verbose_config(logger_config)
             logger_config = resolve_log_directories(logger_config, config_path.parent)
             logger_runtime = await stack.enter_async_context(use_logger_handler(logger_config))
             stack.enter_context(background_log_routing(logger_runtime, bool(policies)))
             stack.enter_context(suppress_server_access_logs())
             runtime = stack.enter_context(worker_runtime(settings))
             logger = await get_logger("lcl_fastapi")
+            stack.enter_context(use_verbose(logger, enabled=settings.verbose))
             self.worker_identity = runtime
             self.worker_requests = RequestRuntime(
                 frame,
                 SnowflakeGenerator(worker_id=runtime.worker_id),
                 settings.id_header.lower().encode("ascii"),
                 logger,
+                settings.verbose,
             )
 
             def publish(observed_at: float) -> None:

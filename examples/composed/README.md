@@ -2,8 +2,9 @@
 
 This independent downstream package combines a business Router, LCL expressions,
 a worker-owned catalog resource, and request-associated logging. It uses only the
-documented `lcl_fastapi` and FastAPI APIs. Install the built framework wheel and
-this package into the example's own `.venv`; no framework source path is needed.
+documented `lcl_fastapi` and FastAPI APIs. Install this package and its PyPI
+framework dependency into the example's own `.venv`; no framework source path
+is needed.
 
 Use CPython 3.14 on Windows or Linux. The server listens on `127.0.0.1:18082`
 with one effective API worker and two background threads: native Uvicorn on Windows
@@ -24,7 +25,7 @@ From this directory, use these PowerShell commands on Windows:
 
 ```powershell
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install ..\..\dist\lcl_fastapi-0.4.0-py3-none-any.whl .
+.venv\Scripts\python.exe -m pip install .
 .venv\Scripts\lcl-fastapi.exe serve -o config service.lclcfg
 ```
 
@@ -32,15 +33,13 @@ On Linux:
 
 ```sh
 python3.14 -m venv .venv
-.venv/bin/python -m pip install ../../dist/lcl_fastapi-0.4.0-py3-none-any.whl .
+.venv/bin/python -m pip install .
 .venv/bin/lcl-fastapi serve -o config service.lclcfg
 ```
 
-Use a wheel built from current source for the unreleased lclang 1.1.0 integration.
-The application is installed as `lcl-fastapi-composed-example`, importing
-`catalog_service`. When copying this project elsewhere, replace the wheel path
-with its actual location. Dependencies require package-index access or an
-operator-prepared wheelhouse during installation.
+The application installs `lcl-fastapi==0.5.0` from PyPI and is installed as
+`lcl-fastapi-composed-example`, importing `catalog_service`. Dependencies require
+package-index access or an operator-prepared wheelhouse during installation.
 
 Open the local endpoints:
 

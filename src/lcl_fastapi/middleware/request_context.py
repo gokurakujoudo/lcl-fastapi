@@ -7,6 +7,7 @@ from time import perf_counter_ns
 
 from lclang.error import LclStateError, LclUtilityError, LclValidationError
 from lclang.lang import Frame
+from lclang.logger import use_verbose
 from lclang.utils import SnowflakeGenerator
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -23,12 +24,14 @@ class RequestRuntime:
     :param generator: Worker-long upstream Snowflake generator.
     :param header: Lowercase ASCII request-ID response header name.
     :param logger: Worker access logger without cached request identity.
+    :param verbose: Whether to enable native diagnostics for each HTTP request.
     """
 
     frame: Frame
     generator: SnowflakeGenerator
     header: bytes
     logger: RequestLogger
+    verbose: bool = False
 
 
 class RequestContextMiddleware:
@@ -102,7 +105,8 @@ class RequestContextMiddleware:
             context = RequestContext(request_id, scope["method"], scope["path"], started_ns)
             REQUEST_CONTEXT.set(context)
             scope["state"]["request_id"] = request_id
-            await self.app(scope, receive, send_response)
+            with use_verbose(runtime.logger, enabled=runtime.verbose):
+                await self.app(scope, receive, send_response)
         finally:
             try:
                 runtime.logger.info(

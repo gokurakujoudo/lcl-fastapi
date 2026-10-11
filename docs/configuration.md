@@ -34,7 +34,16 @@ Application filesystem settings remain anchored to the root service file, even
 when their definitions came from another file. The defaults are also loaded
 implicitly for compatibility; placing an explicit using later can reset earlier
 definitions to universal defaults. Put it before application customizations.
-The framework-owned `lcl_fastapi_defaults` and `worker_pid` cannot be redefined.
+The framework-owned `lcl_fastapi_defaults`, `worker_pid` and `__verbose__` cannot
+be redefined, including by an import namespace. `__verbose__` is the Boolean
+selected by lclang.cli's native `--verbose` option, defaulting to False. It is
+available in downstream expressions, `get_config()` and local derived Frames.
+It survives native worker spawning, crash replacement and hot reload.
+
+```text
+business.trace_enabled: __verbose__
+business.poll_seconds: 1 if __verbose__ else 30
+```
 
 Native `import` keeps reusable definitions in an isolated alias namespace:
 

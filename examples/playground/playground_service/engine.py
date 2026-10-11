@@ -29,8 +29,9 @@ class Session:
 class Engine:
     """Serialize session operations; Frames never leave the evaluation thread."""
 
-    def __init__(self, maximum: int, ttl: float) -> None:
+    def __init__(self, maximum: int, ttl: float, *, verbose: bool = True) -> None:
         self.maximum, self.ttl = maximum, ttl
+        self.verbose = verbose
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="lcl-playground")
         self.runner: asyncio.Runner | None = None
         self.sessions: dict[str, Session] = {}
@@ -125,7 +126,7 @@ class Engine:
         logger.addHandler(trace)
         report: dict[str, Any] = {}
         # Public task-local diagnostics preserve branch skipping and cache hits.
-        with use_verbose(logger):
+        with use_verbose(logger, enabled=self.verbose):
             try:
                 value = await session.frame.evaluate(session.expression)
                 report["result"] = {"type": type(value).__name__, "repr": repr(value)[:8192]}

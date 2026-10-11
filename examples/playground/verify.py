@@ -66,7 +66,7 @@ def main() -> None:
 
         with (root / "console.log").open("w+", encoding="utf-8") as output:
             process = subprocess.Popen(
-                [str(CLI), "serve", "-o", "config", str(config)],
+                [str(CLI), "serve", "-o", "config", str(config), "--verbose"],
                 cwd=root,
                 stdout=output,
                 stderr=subprocess.STDOUT,

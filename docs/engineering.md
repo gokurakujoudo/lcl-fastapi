@@ -57,7 +57,10 @@ validation, state and utility errors; the HTTP boundary returns 503 and records
 their codes when allocation fails.
 
 The playground borrows its own standard-library logger through public
-`use_verbose()`. Its bounded string trace displays native diagnostic trees
+`use_verbose(logger, enabled=...)`. The native CLI `--verbose` flag and protected
+`__verbose__` binding survive the deferred serve handoff and private worker
+transport. API and background scopes select their own request-aware destinations.
+Its bounded string trace displays native diagnostic trees
 without evaluating subtrees again. Native trace, skipped-branch, cache, session
 and cleanup tests also execute the exact tutorial source. The controller's
 file-only record marker follows `lclang.logger.record_formatter` and remains
@@ -125,7 +128,7 @@ contain the wheel hash, platform, commands, output, and failure diagnostics.
 
 The build metadata declares Python >=3.14. The initial evidence matrix is
 CPython 3.14 on Windows and Linux; future interpreters are not yet verified.
-Version `0.4.0` is maintained in pyproject.toml. Later releases use PEP 440
+Version `0.5.0` is maintained in pyproject.toml. Later releases use PEP 440
 versions with compatibility-aware increments and exact version tags without a
 `v` prefix, following the root release policy.
 

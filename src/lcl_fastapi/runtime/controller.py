@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import cast
 
 from lclang.logger import LoggerHandlerConfig, resolve_logger_config
 
@@ -32,7 +33,10 @@ async def controller_config(path: Path) -> LoggerHandlerConfig:
     :raises ValueError: If controller logging is invalid.
     """
     async with configuration_frame(path, logger_role="controller") as frame:
-        return resolve_log_directories(await resolve_logger_config(frame), path.parent)
+        return resolve_log_directories(
+            await resolve_logger_config(frame, verbose=cast(bool, await frame.get("__verbose__"))),
+            path.parent,
+        )
 
 
 @dataclass

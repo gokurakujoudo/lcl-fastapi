@@ -1,6 +1,6 @@
 # LCL Workbench
 
-An independent lcl-fastapi 0.4.0 application with a packaged static browser UI.
+An independent lcl-fastapi 0.5.0 application with a packaged static browser UI.
 Its [standalone JavaScript highlighter](playground_service/static/lcl-highlight.js)
 and [stylesheet](playground_service/static/lcl-highlight.css) can be copied into
 other projects under the included MIT license. They require no framework or CDN.
@@ -18,12 +18,12 @@ From this directory on Windows:
 
 ```powershell
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install ../../dist/lcl_fastapi-0.4.0-py3-none-any.whl .
-.venv\Scripts\lcl-fastapi.exe serve -o config service.lclcfg
+.venv\Scripts\python.exe -m pip install .
+.venv\Scripts\lcl-fastapi.exe serve -o config service.lclcfg --verbose
 ```
 
-On Linux, use `python3.14 -m venv .venv`, `.venv/bin/python -m pip install ../../dist/lcl_fastapi-0.4.0-py3-none-any.whl .`, then
-`.venv/bin/lcl-fastapi serve -o config service.lclcfg`.
+On Linux, use `python3.14 -m venv .venv`, `.venv/bin/python -m pip install .`, then
+`.venv/bin/lcl-fastapi serve -o config service.lclcfg --verbose`.
 
 Stop the manual service before running `.venv\Scripts\python.exe verify.py`
 (Linux: `.venv/bin/python verify.py`). It runs this exact installed source using

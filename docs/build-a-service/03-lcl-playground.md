@@ -57,7 +57,7 @@ On Windows:
 mkdir lcl-workbench
 cd lcl-workbench
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install path/to/lcl_fastapi-0.4.0-py3-none-any.whl
+.venv\Scripts\python.exe -m pip install lcl-fastapi==0.5.0
 mkdir playground_service
 mkdir playground_service\static
 ```
@@ -68,7 +68,7 @@ On Linux:
 mkdir lcl-workbench
 cd lcl-workbench
 python3.14 -m venv .venv
-.venv/bin/python -m pip install path/to/lcl_fastapi-0.4.0-py3-none-any.whl
+.venv/bin/python -m pip install lcl-fastapi==0.5.0
 mkdir -p playground_service/static
 ```
 
@@ -98,7 +98,7 @@ build-backend = "hatchling.build"
 name = "lcl-fastapi-playground-example"
 version = "1.0.0"
 requires-python = ">=3.14"
-dependencies = ["lcl-fastapi==0.4.0"]
+dependencies = ["lcl-fastapi==0.5.0"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["playground_service"]
@@ -268,8 +268,9 @@ class Session:
 class Engine:
     """Serialize session operations; Frames never leave the evaluation thread."""
 
-    def __init__(self, maximum: int, ttl: float) -> None:
+    def __init__(self, maximum: int, ttl: float, *, verbose: bool = True) -> None:
         self.maximum, self.ttl = maximum, ttl
+        self.verbose = verbose
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="lcl-playground")
         self.runner: asyncio.Runner | None = None
         self.sessions: dict[str, Session] = {}
@@ -409,7 +410,7 @@ Append the remaining `Engine` methods:
         logger.addHandler(trace)
         report: dict[str, Any] = {}
         # Public task-local diagnostics preserve branch skipping and cache hits.
-        with use_verbose(logger):
+        with use_verbose(logger, enabled=self.verbose):
             try:
                 value = await session.frame.evaluate(session.expression)
                 report["result"] = {"type": type(value).__name__, "repr": repr(value)[:8192]}
@@ -436,7 +437,10 @@ Named definitions remain cached until parse replacement, deletion, expiry or
 shutdown closes the Frame. `close()` queues cleanup on the evaluator loop before
 closing its Runner and joining the thread.
 
-Public `lclang.logger.use_verbose()` borrows the trace logger for this task.
+Public `lclang.logger.use_verbose(logger, enabled=self.verbose)` borrows the trace
+logger for this task. The service reads the native CLI `__verbose__` binding;
+start it with `--verbose` to include evaluation replay, or omit the flag to keep
+evaluation results without trace events.
 `LclExceptionFormatter` displays DEBUG trace records as VERBOSE and renders the
 executed dependency tree. The scope restores its previous destination without
 changing logger ownership or thresholds. The trace remains a bounded string list.
@@ -513,7 +517,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     ttl = float(str(await get_config("business.sessions.idle_seconds")))
     if not 1 <= maximum <= 100 or not 1 <= ttl <= 86400:
         raise ValueError("Invalid session count or idle duration")
-    engine = Engine(maximum, ttl)
+    engine = Engine(maximum, ttl, verbose=await get_config("__verbose__") is True)
     app.state.engine = engine
     try:
         yield
@@ -561,7 +565,7 @@ them, create one Engine, store it on `app.state`, and yield. Routes borrow it fr
 Business cleanup finishes before framework/logger teardown. Resource creation at
 module import would bypass this ownership and could run during startup probes.
 
-Start `lcl-fastapi serve -o config service.lclcfg`, then call:
+Start `lcl-fastapi serve -o config service.lclcfg --verbose`, then call:
 
 ```sh
 curl -i -X POST http://127.0.0.1:18086/api/sessions
@@ -1029,7 +1033,7 @@ def main() -> None:
 
         with (root / "console.log").open("w+", encoding="utf-8") as output:
             process = subprocess.Popen(
-                [str(CLI), "serve", "-o", "config", str(config)],
+                [str(CLI), "serve", "-o", "config", str(config), "--verbose"],
                 cwd=root,
                 stdout=output,
                 stderr=subprocess.STDOUT,

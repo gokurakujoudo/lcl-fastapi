@@ -16,10 +16,8 @@ open either browser-based example independently.
 
 ## Before you start
 
-Use CPython 3.14 on Windows or Linux and a framework wheel built from current
-source with lclang >=1.1.0. The published 0.4.0 wheel predates this unreleased
-integration; obtain the source-built wheel before following a chapter. Run one service at a
-time; the framework supports one service per machine. All examples bind to
+Use CPython 3.14 on Windows or Linux and install `lcl-fastapi==0.5.0` from
+PyPI. This version requires lclang >=1.1.0. Run one service at a time; the framework supports one service per machine. All examples bind to
 loopback, use local resources, and need no external account. Installation requires
 package-index access or an operator-prepared wheelhouse.
 

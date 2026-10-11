@@ -17,11 +17,10 @@ Follow [Build a service: catalog, directory monitor and LCL playground](build-a-
 from an empty directory to a validated API with logs, HTTP checks, and deployment
 configuration.
 
-Install a wheel built from current source in a Python 3.14 virtual environment.
-The lclang 1.1.0 integration is unreleased:
+Install from PyPI in a Python 3.14 virtual environment:
 
 ```console
-python -m pip install path/to/lcl_fastapi-0.4.0-py3-none-any.whl
+python -m pip install lcl-fastapi==0.5.0
 ```
 
 Follow the [quick start](https://github.com/gokurakujoudo/lcl-fastapi#start-a-service)

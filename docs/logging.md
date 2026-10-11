@@ -1,5 +1,32 @@
 # Controller and request logging
 
+For executable examples and captured logs from the main process, API handler,
+Worker, hot reload and exception boundaries, see [logging practices](logging-practices.md).
+
+## Native verbose control
+
+Start with `lcl-fastapi serve -c service.lclcfg --verbose` to enable native LCL
+diagnostics. The same `--verbose` flag controls the short-lived lclang CLI scope
+and the deferred service's downstream scopes. The Boolean `__verbose__` binding
+is available to `.lclcfg` expressions and `get_config("__verbose__")`; it is
+framework-owned and cannot be redefined. Omitting the flag selects False.
+
+Enabled service sinks admit DEBUG records while preserving source filters,
+timezone, exception style, and disabled sinks. Business lifespan, API requests
+and background Worker evaluation use public
+`use_verbose(logger, enabled=...)`. Requests retain their IDs on diagnostic
+records; Workers use their own file routing. Spawned and replacement workers
+receive the original flag. The playground passes it to its bounded trace capture.
+
+A local `with use_verbose(logger, enabled=False):` silences tracing until scope
+exit, including child tasks created inside that scope. In a synchronous Worker,
+put that scope inside the coroutine passed to `context.run()` so it runs in the
+Worker Runner's context. The caller owns child tasks and must finish them before
+the logger closes. Turning off tracing preserves ordinary records and exception
+diagnostics. `logger.traceback_style` remains an independent compact/full policy.
+
+## Sinks and timestamps
+
 Configure one shared directory and two filename expressions using the native
 `lclang.logger` schema:
 

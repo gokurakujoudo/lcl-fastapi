@@ -44,9 +44,12 @@ async def configuration_frame(
     :param logger_role: Restrict file sinks to the controller or worker role when selected.
     :returns: Context manager owning one independent Frame above native standard imports.
     :raises LclError: If loading, composition, expansion, or evaluation fails.
-    :raises ValueError: If configuration replaces framework-owned bindings.
+    :raises ValueError: If configuration replaces framework-owned bindings or transport is invalid.
     """
     raw, masks = normalize_masked_mapping(current_overrides())
+    verbose = raw.pop("__verbose__", False)
+    if not isinstance(verbose, bool):
+        raise ValueError("internal __verbose__ transport must be Boolean")
     reserved = {"worker_pid", "lcl_fastapi_defaults"}
     if raw.keys() & reserved:
         raise ValueError("worker_pid and lcl_fastapi_defaults are provided by the framework")
@@ -54,7 +57,10 @@ async def configuration_frame(
         key: override_expression(value) if isinstance(value, str) else LclConstant(value=value)
         for key, value in raw.items()
     }
-    values: dict[str, object] = {"lcl_fastapi_defaults": str(DEFAULT_CONFIG)}
+    values: dict[str, object] = {
+        "lcl_fastapi_defaults": str(DEFAULT_CONFIG),
+        "__verbose__": verbose,
+    }
     if worker_pid is not None:
         values["worker_pid"] = worker_pid
     defaults = await load_config(DEFAULT_CONFIG)

@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     ttl = float(str(await get_config("business.sessions.idle_seconds")))
     if not 1 <= maximum <= 100 or not 1 <= ttl <= 86400:
         raise ValueError("Invalid session count or idle duration")
-    engine = Engine(maximum, ttl)
+    engine = Engine(maximum, ttl, verbose=await get_config("__verbose__") is True)
     app.state.engine = engine
     try:
         yield

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.5.0 - 2026-10-11
+
+- Carry the native CLI `--verbose` flag and its `__verbose__` binding into downstream
+  configuration, business lifespan, HTTP handlers and background workers.
+  Enabled service sinks admit DEBUG records; local `use_verbose(enabled=False)`
+  scopes suppress tracing.
 - Require lclang >=1.1.0 and compose configuration with native Module mixins,
   retaining import namespaces, masks and effective CLI-dependent definitions.
   Declare required application fields with lazy NEED_OVERRIDE values.

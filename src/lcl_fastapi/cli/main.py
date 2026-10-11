@@ -45,6 +45,8 @@ def main(
                 if key != "config"
             }
         )
+        if params is not None:
+            overrides["__verbose__"] = params.verbose
         entrance = CliEntrance(
             command_group(pending),
             version=version_text or version("lcl-fastapi"),
