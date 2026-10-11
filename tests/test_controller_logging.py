@@ -70,6 +70,9 @@ def test_controller_lifecycle_rotation_and_worker_file_separation(
         assert event in control
     assert not list((tmp_path / "logs").glob("worker*"))
     assert len(list((tmp_path / "logs").glob("control*"))) == 2
+    assert "thread=MainThread" not in control
+    assert "lcl_fastapi.controller |" not in control
+    assert "write_events" not in control and "write_records" not in control
 
     async def business_log() -> None:
         async with configuration_frame(source, os.getpid(), logger_role="worker") as frame:

@@ -4,6 +4,12 @@
 
 ## 0.5.0 - 2026-10-11
 
+- Hide installed FastAPI/Starlette Python frames in service exception reports,
+  preserving native diagnostics, business frames, causes and groups.
+- Emit paired multiline REST invocation trees with request IDs and connection
+  context; completion includes status and duration. Use concise controller
+  event headers without thread, logger or helper call-site columns.
+
 - Carry the native CLI `--verbose` flag and its `__verbose__` binding into downstream
   configuration, business lifespan, HTTP handlers and background workers.
   Enabled service sinks admit DEBUG records; local `use_verbose(enabled=False)`

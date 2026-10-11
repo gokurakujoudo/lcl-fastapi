@@ -22,6 +22,8 @@ compact/full exception reports. The playground captures native diagnostic trees
 through public `use_verbose(logger, enabled=...)`. Downstream services can enable
 LCL diagnostics with the native CLI `--verbose` flag and read its `__verbose__`
 binding in configuration. See the configuration and logging references.
+HTTP calls produce paired context trees, and service exception reports omit
+FastAPI/Starlette frames. Controller events use concise time/level/PID headers.
 [Logging practices with real output](https://gokurakujoudo.github.io/lcl-fastapi/logging-practices/)
 show a complete service with main-process, API, Worker, reload and error records.
 

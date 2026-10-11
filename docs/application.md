@@ -173,7 +173,7 @@ If it raises or returns another type, the framework first logs its failure, then
 uses the default callback to log the original exception and return 500. The default
 callback catches its own diagnostic failures, records a short summary without
 recursion, and still attempts the generic response. Cancellation and process-exit
-signals propagate. Request IDs and the single access record remain intact.
+signals propagate. Request IDs and the paired invocation records remain intact.
 
 The exported `default_uncaught_exception_handler` lets a custom callback delegate
 selected errors explicitly. See the composed example's default/custom/callback

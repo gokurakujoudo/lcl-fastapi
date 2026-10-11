@@ -45,8 +45,13 @@ host bindings in local `use_lcl_frame()` scopes.
 The upstream logger formats original exception records on its writer thread.
 Its default compact reports retain application frames, native causes, LCL
 dependency trees and ordinary failure groups. `logger.traceback_style: "full"`
-also includes lclang's Python frames. The framework does not inspect argument
-locals or install process-wide exception hooks. HTTP callbacks still resolve
+also includes lclang's Python frames. Service formatters remove installed
+FastAPI/Starlette frame leaves from
+detached native exception trees and retain original exception objects. The owned
+native sinks receive those formatters before business dispatch. Controller event
+headers are concise; HTTP start/completion records use native context trees.
+The framework does not inspect argument locals or install process-wide exception
+hooks. HTTP callbacks still resolve
 once through `utils.invoke`, within the request task, with cancellation and a
 generic 500 fallback. Synchronous callbacks must remain nonblocking.
 

@@ -6,6 +6,8 @@ from contextlib import AsyncExitStack
 from lclang.logger import LoggerHandlerConfig, use_logger, use_logger_handler
 from lclang.logger.record_formatter import FILE_ONLY_ATTRIBUTE
 
+from lcl_fastapi.diagnostics import install_service_formatters
+
 
 class ControllerWriter:
     """Keep a persistent sink between forks, with synchronous master-loop access.
@@ -29,7 +31,10 @@ class ControllerWriter:
         """
         self.runner = asyncio.Runner()
         try:
-            self.runner.run(self.stack.enter_async_context(use_logger_handler(self.config)))
+            runtime = self.runner.run(
+                self.stack.enter_async_context(use_logger_handler(self.config))
+            )
+            install_service_formatters(runtime, self.config)
         except BaseException:
             self.close()
             raise

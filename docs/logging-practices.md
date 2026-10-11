@@ -259,6 +259,13 @@ for marker in ("business startup", "business teardown", "hello revision=222", "V
                "demonstration HTTP failure", "status_code=500"):
     assert marker in api
 assert "request_id=" in api and "request_id=" not in worker
+assert api.count("REST API started") == api.count("REST API completed")
+assert api.count("REST API started") >= 4
+assert "/fastapi/" not in api.replace("\\", "/")
+assert "/starlette/" not in api.replace("\\", "/")
+for line in controller.splitlines():
+    if any(f" | {event}" in line for event in ("service ", "worker ", "background ", "hot-reload ")):
+        assert "thread=" not in line and "write_events" not in line and "write_records" not in line
 assert "service stopped" not in api
 assert not Path("run/runtime.json").exists()
 print("PASS native startup, handler, Worker, reload, caught and uncaught logs")
@@ -271,6 +278,11 @@ change on each run.
 
 ## Captured output
 
+Service tracebacks hide FastAPI/Starlette frames while preserving business
+frames and native cause/group diagnostics. Each REST call has a start and a
+completion tree with its ID, path and connection context. Completion adds status
+and duration. Controller event headers retain time, severity and process ID.
+
 The excerpts below come from one Windows/Uvicorn run of the files above with
 lclang 1.1.0. They retain the actual timestamps, identifiers, source locations
 and diagnostic text. Only unrelated records and repeated poll requests are
@@ -279,52 +291,79 @@ process IDs and paths.
 
 <!-- captured-output -->
 
+### REST invocation boundaries
+
+The start and completion records share one server-generated invocation ID. Their native context trees carry the method/path, worker PID and connection metadata; the completion adds HTTP status and elapsed milliseconds.
+
+```text
+2026-10-11T13:18:45.107094Z | INFO     | pid=11028 thread=MainThread | lcl_fastapi.api.lcl_fastapi | request_logging.py:52 | log_request_event | lcl_fastapi request_id=367662308186390528 REST API started
+├─ method=GET path=/hello
+│  └─ request_id=367662308186390528
+└─ context
+   ├─ worker_pid=11028
+   ├─ client=('127.0.0.1', 6340)
+   └─ scheme=http
+2026-10-11T13:18:45.108936Z | INFO     | pid=11028 thread=MainThread | lcl_fastapi.api.lcl_fastapi | request_logging.py:52 | log_request_event | lcl_fastapi request_id=367662308186390528 REST API completed
+├─ method=GET path=/hello status_code=200 duration_ms=1.877
+│  └─ request_id=367662308186390528
+└─ context
+   ├─ worker_pid=11028
+   ├─ client=('127.0.0.1', 6340)
+   └─ scheme=http
+```
+
 ### Main process and hot reload
 
 Controller events retain the main PID while worker IDs change. The failed job is observed by the controller; its traceback stays in the job file.
 
 ```text
-2026-10-11T12:50:05.678171Z | INFO     | pid=19688 thread=MainThread | lcl_fastapi.controller | controller_writer.py:89 | write_events | service started service_pid=19688 workers=1
-2026-10-11T12:50:06.456456Z | INFO     | pid=19688 thread=MainThread | lcl_fastapi.controller | controller_writer.py:89 | write_events | hot-reload watcher ready
-2026-10-11T12:50:06.971212Z | ERROR    | pid=19688 thread=MainThread | lcl_fastapi.controller | controller_writer.py:78 | write_records | background worker=job attempt=1 status=failed exception=RuntimeError
-2026-10-11T12:50:06.973926Z | INFO     | pid=19688 thread=MainThread | lcl_fastapi.controller | controller_writer.py:89 | write_events | worker up worker_pid=33924
-2026-10-11T12:50:07.800953Z | INFO     | pid=19688 thread=MainThread | lcl_fastapi.controller | controller_writer.py:89 | write_events | hot-reload retiring worker_pid=33924
-2026-10-11T12:50:08.318533Z | INFO     | pid=19688 thread=MainThread | lcl_fastapi.controller | controller_writer.py:89 | write_events | worker down worker_pid=33924
-2026-10-11T12:50:09.654392Z | ERROR    | pid=19688 thread=MainThread | lcl_fastapi.controller | controller_writer.py:78 | write_records | background worker=job attempt=1 status=failed exception=RuntimeError
-2026-10-11T12:50:09.657828Z | INFO     | pid=19688 thread=MainThread | lcl_fastapi.controller | controller_writer.py:89 | write_events | worker up worker_pid=6232
-2026-10-11T12:50:10.049953Z | INFO     | pid=19688 thread=MainThread | lcl_fastapi.controller | controller_writer.py:89 | write_events | worker down worker_pid=6232
-2026-10-11T12:50:10.050149Z | INFO     | pid=19688 thread=MainThread | lcl_fastapi.controller | controller_writer.py:89 | write_events | service stopped
+2026-10-11T13:18:44.216187Z | INFO     | pid=30696 | service started service_pid=30696 workers=1
+2026-10-11T13:18:45.039250Z | INFO     | pid=30696 | hot-reload watcher ready
+2026-10-11T13:18:45.564815Z | ERROR    | pid=30696 | background worker=job attempt=1 status=failed exception=RuntimeError
+2026-10-11T13:18:45.568327Z | INFO     | pid=30696 | worker up worker_pid=11028
+2026-10-11T13:18:46.348372Z | INFO     | pid=30696 | hot-reload retiring worker_pid=11028
+2026-10-11T13:18:46.868703Z | INFO     | pid=30696 | worker down worker_pid=11028
+2026-10-11T13:18:48.154036Z | ERROR    | pid=30696 | background worker=job attempt=1 status=failed exception=RuntimeError
+2026-10-11T13:18:48.157143Z | INFO     | pid=30696 | worker up worker_pid=27212
+2026-10-11T13:18:48.623549Z | INFO     | pid=30696 | worker down worker_pid=27212
+2026-10-11T13:18:48.623758Z | INFO     | pid=30696 | service stopped
 ```
 
 ### API startup, handler and teardown
 
-The greeting is evaluated once and later reads use its native cache. The reload replaces the API process after business teardown. Request IDs occur on handler and access records.
+The greeting is evaluated once and later reads use its native cache. The reload replaces the API process after business teardown. Request IDs occur on handler and invocation records.
 
 ```text
-2026-10-11T12:50:06.396790Z | INFO     | pid=33924 thread=MainThread | lcl_fastapi.api.business | app.py:16 | lifespan | business business startup revision=1
-2026-10-11T12:50:06.502355Z | VERBOSE  | pid=33924 thread=MainThread | lcl_fastapi request_id=367655099830370304 Evaluated business.greeting: (str) 'hello' (evaluation E2)
-2026-10-11T12:50:06.502467Z | VERBOSE  | pid=33924 thread=MainThread | lcl_fastapi request_id=367655099830370304 Evaluation tree for business.greeting (evaluation E2)
+2026-10-11T13:18:44.938594Z | INFO     | pid=11028 thread=MainThread | lcl_fastapi.api.business | app.py:16 | lifespan | business business startup revision=1
+2026-10-11T13:18:45.107744Z | VERBOSE  | pid=11028 thread=MainThread | lcl_fastapi request_id=367662308186390528 Evaluated business.greeting: (str) 'hello' (evaluation E2)
+2026-10-11T13:18:45.107980Z | VERBOSE  | pid=11028 thread=MainThread | lcl_fastapi request_id=367662308186390528 Evaluation tree for business.greeting (evaluation E2)
   Result: (str) 'hello'
-business.greeting: 'hello' ("D:\SRC\AI\lcl-fastapi\reports\logging-native-verbose\service.lclcfg":19:20)
-2026-10-11T12:50:06.502502Z | INFO     | pid=33924 thread=MainThread | lcl_fastapi.api.business | app.py:36 | hello | business request_id=367655099830370304 hello revision=1
-2026-10-11T12:50:06.503391Z | INFO     | pid=33924 thread=MainThread | lcl_fastapi.api.lcl_fastapi | request_context.py:112 | __call__ | lcl_fastapi request_id=367655099830370304 method=GET path=/hello status_code=200 duration_ms=1.481 worker_pid=33924
-2026-10-11T12:50:08.009295Z | INFO     | pid=33924 thread=MainThread | lcl_fastapi.api.business | app.py:20 | lifespan | business business teardown revision=1
-2026-10-11T12:50:09.049629Z | INFO     | pid=6232 thread=MainThread | lcl_fastapi.api.business | app.py:16 | lifespan | business business startup revision=222
-2026-10-11T12:50:09.112040Z | INFO     | pid=6232 thread=MainThread | lcl_fastapi.api.business | app.py:36 | hello | business request_id=367655110777503744 hello revision=222
-2026-10-11T12:50:09.994133Z | INFO     | pid=6232 thread=MainThread | lcl_fastapi.api.business | app.py:20 | lifespan | business business teardown revision=222
+business.greeting: 'hello' ("D:\SRC\AI\lcl-fastapi\reports\logging-focused-events\service.lclcfg":19:20)
+2026-10-11T13:18:45.108041Z | INFO     | pid=11028 thread=MainThread | lcl_fastapi.api.business | app.py:36 | hello | business request_id=367662308186390528 hello revision=1
+2026-10-11T13:18:45.108936Z | INFO     | pid=11028 thread=MainThread | lcl_fastapi.api.lcl_fastapi | request_logging.py:52 | log_request_event | lcl_fastapi request_id=367662308186390528 REST API completed
+├─ method=GET path=/hello status_code=200 duration_ms=1.877
+│  └─ request_id=367662308186390528
+└─ context
+   ├─ worker_pid=11028
+   ├─ client=('127.0.0.1', 6340)
+   └─ scheme=http
+2026-10-11T13:18:46.574515Z | INFO     | pid=11028 thread=MainThread | lcl_fastapi.api.business | app.py:20 | lifespan | business business teardown revision=1
+2026-10-11T13:18:47.587965Z | INFO     | pid=27212 thread=MainThread | lcl_fastapi.api.business | app.py:16 | lifespan | business business startup revision=222
+2026-10-11T13:18:47.651626Z | INFO     | pid=27212 thread=MainThread | lcl_fastapi.api.business | app.py:36 | hello | business request_id=367662318852505600 hello revision=222
+2026-10-11T13:18:48.569345Z | INFO     | pid=27212 thread=MainThread | lcl_fastapi.api.business | app.py:20 | lifespan | business business teardown revision=222
 ```
 
 ### Explicit except
 
-The handler suppresses verbose tracing for the expected failing calculation and logs the original LCL exception once. Its access record reports the recovered 200 response.
+The handler suppresses verbose tracing for the expected failing calculation and logs the original LCL exception once. Its completion record reports the recovered 200 response.
 
 ```text
-2026-10-11T12:50:06.735164Z | ERROR    | pid=33924 thread=MainThread | lcl_fastapi.api.business | app.py:51 | handled | business request_id=367655100807643136 handled calculation failure
+2026-10-11T13:18:45.315950Z | ERROR    | pid=11028 thread=MainThread | lcl_fastapi.api.business | app.py:51 | handled | business request_id=367662309058805760 handled calculation failure
 Error in evaluating business.failure [LCL131421: division by zero]
 ├─ Cause
 │  └─ ZeroDivisionError: division by zero
-└─ business.failure: 1 / 0 ("D:\SRC\AI\lcl-fastapi\reports\logging-native-verbose\service.lclcfg":22:19)
-   └─ Source: "D:\SRC\AI\lcl-fastapi\reports\logging-native-verbose\service.lclcfg":22:19
+└─ business.failure: 1 / 0 ("D:\SRC\AI\lcl-fastapi\reports\logging-focused-events\service.lclcfg":22:19)
+   └─ Source: "D:\SRC\AI\lcl-fastapi\reports\logging-focused-events\service.lclcfg":22:19
       business.failure: 1 / 0
                         ^^^^^
 Python traceback:
@@ -332,63 +371,39 @@ LclEvaluationError [LCL131421: division by zero]
 ├─ Direct cause
 │  └─ ZeroDivisionError: division by zero
 └─ Traceback (most recent call last)
-   ├─ File "D:\SRC\AI\lcl-fastapi\reports\logging-native-verbose\app.py", line 49, in handled
+   ├─ File "D:\SRC\AI\lcl-fastapi\reports\logging-focused-events\app.py", line 49, in handled
    │      await get_config("business.failure")
    └─ File "D:\SRC\AI\lcl-fastapi\src\lcl_fastapi\context.py", line 52, in get_config
           return await frame.get(key)
                  ^^^^^^^^^^^^^^^^^^^^
-2026-10-11T12:50:06.735371Z | INFO     | pid=33924 thread=MainThread | lcl_fastapi.api.lcl_fastapi | request_context.py:112 | __call__ | lcl_fastapi request_id=367655100807643136 method=GET path=/handled status_code=200 duration_ms=0.706 worker_pid=33924
+2026-10-11T13:18:45.316155Z | INFO     | pid=11028 thread=MainThread | lcl_fastapi.api.lcl_fastapi | request_logging.py:52 | log_request_event | lcl_fastapi request_id=367662309058805760 REST API completed
+├─ method=GET path=/handled status_code=200 duration_ms=0.807
+│  └─ request_id=367662309058805760
+└─ context
+   ├─ worker_pid=11028
+   ├─ client=('127.0.0.1', 6345)
+   └─ scheme=http
 ```
 
 ### Unhandled HTTP error
 
-The default callback logs the original exception within the request scope. The response remains a generic 500. The native ASGI server may also report the exception that FastAPI re-raises after sending that response.
+The default callback logs the original exception within the request scope. The report retains the business frame; the response remains a generic 500. The native ASGI server may also report the exception that FastAPI re-raises after sending that response.
 
 ```text
-2026-10-11T12:50:06.740396Z | ERROR    | pid=33924 thread=MainThread | lcl_fastapi.api.lcl_fastapi | errors.py:59 | report_error | lcl_fastapi request_id=367655100832808960 uncaught HTTP exception
+2026-10-11T13:18:45.320657Z | ERROR    | pid=11028 thread=MainThread | lcl_fastapi.api.lcl_fastapi | errors.py:59 | report_error | lcl_fastapi request_id=367662309079777280 uncaught HTTP exception
 Error in handling failure [LCL022890: demonstration HTTP failure]: RuntimeError: demonstration HTTP failure
 Python traceback:
 RuntimeError: demonstration HTTP failure
 └─ Traceback (most recent call last)
-   ├─ File "D:\SRC\AI\lcl-fastapi\venv\Lib\site-packages\starlette\middleware\errors.py", line 164, in __call__
-   │      await self.app(scope, receive, _send)
-   ├─ File "D:\SRC\AI\lcl-fastapi\venv\Lib\site-packages\starlette\middleware\exceptions.py", line 63, in __call__
-   │      await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
-   ├─ File "D:\SRC\AI\lcl-fastapi\venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
-   │      raise exc
-   ├─ File "D:\SRC\AI\lcl-fastapi\venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
-   │      await app(scope, receive, sender)
-   ├─ File "D:\SRC\AI\lcl-fastapi\venv\Lib\site-packages\fastapi\middleware\asyncexitstack.py", line 18, in __call__
-   │      await self.app(scope, receive, send)
-   ├─ File "D:\SRC\AI\lcl-fastapi\venv\Lib\site-packages\starlette\routing.py", line 670, in __call__
-   │      await self.middleware_stack(scope, receive, send)
-   ├─ File "D:\SRC\AI\lcl-fastapi\venv\Lib\site-packages\fastapi\routing.py", line 2734, in app
-   │      await route.handle(scope, receive, send)
-   ├─ File "D:\SRC\AI\lcl-fastapi\venv\Lib\site-packages\fastapi\routing.py", line 1281, in handle
-   │      await super().handle(scope, receive, send)
-   ├─ File "D:\SRC\AI\lcl-fastapi\venv\Lib\site-packages\starlette\routing.py", line 280, in handle
-   │      await self.app(scope, receive, send)
-   ├─ File "D:\SRC\AI\lcl-fastapi\venv\Lib\site-packages\fastapi\routing.py", line 158, in app
-   │      await wrap_app_handling_exceptions(app, request)(scope, receive, send)
-   ├─ File "D:\SRC\AI\lcl-fastapi\venv\Lib\site-packages\starlette\_exception_handler.py", line 53, in wrapped_app
-   │      raise exc
-   ├─ File "D:\SRC\AI\lcl-fastapi\venv\Lib\site-packages\starlette\_exception_handler.py", line 42, in wrapped_app
-   │      await app(scope, receive, sender)
-   ├─ File "D:\SRC\AI\lcl-fastapi\venv\Lib\site-packages\fastapi\routing.py", line 144, in app
-   │      response = await f(request)
-   │                 ^^^^^^^^^^^^^^^^
-   ├─ File "D:\SRC\AI\lcl-fastapi\venv\Lib\site-packages\fastapi\routing.py", line 706, in app
-   │      raw_response = await run_endpoint_function(
-   │                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   │      ...<3 lines>...
-   │      )
-   │      ^
-   ├─ File "D:\SRC\AI\lcl-fastapi\venv\Lib\site-packages\fastapi\routing.py", line 352, in run_endpoint_function
-   │      return await dependant.call(**values)
-   │             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   └─ File "D:\SRC\AI\lcl-fastapi\reports\logging-native-verbose\app.py", line 57, in unhandled
+   └─ File "D:\SRC\AI\lcl-fastapi\reports\logging-focused-events\app.py", line 57, in unhandled
           raise RuntimeError("demonstration HTTP failure")
-2026-10-11T12:50:06.740549Z | INFO     | pid=33924 thread=MainThread | lcl_fastapi.api.lcl_fastapi | request_context.py:112 | __call__ | lcl_fastapi request_id=367655100832808960 method=GET path=/unhandled status_code=500 duration_ms=0.327 worker_pid=33924
+2026-10-11T13:18:45.320812Z | INFO     | pid=11028 thread=MainThread | lcl_fastapi.api.lcl_fastapi | request_logging.py:52 | log_request_event | lcl_fastapi request_id=367662309079777280 REST API completed
+├─ method=GET path=/unhandled status_code=500 duration_ms=0.458
+│  └─ request_id=367662309079777280
+└─ context
+   ├─ worker_pid=11028
+   ├─ client=('127.0.0.1', 6346)
+   └─ scheme=http
 ```
 
 ### Worker diagnostics and unhandled error
@@ -396,12 +411,12 @@ RuntimeError: demonstration HTTP failure
 These records share the API PID but run on lcl-background-job without an HTTP request ID. The framework reports the escaped entry error, and auto_restart: False leaves that job failed until the API process is replaced.
 
 ```text
-2026-10-11T12:50:06.413898Z | VERBOSE  | pid=33924 thread=lcl-background-job | job Evaluated business.worker_note: (str) 'inventory' (evaluation E1)
-2026-10-11T12:50:06.414151Z | VERBOSE  | pid=33924 thread=lcl-background-job | job Evaluation tree for business.worker_note (evaluation E1)
+2026-10-11T13:18:44.957411Z | VERBOSE  | pid=11028 thread=lcl-background-job | job Evaluated business.worker_note: (str) 'inventory' (evaluation E1)
+2026-10-11T13:18:44.957652Z | VERBOSE  | pid=11028 thread=lcl-background-job | job Evaluation tree for business.worker_note (evaluation E1)
   Result: (str) 'inventory'
-business.worker_note: 'inventory' ("D:\SRC\AI\lcl-fastapi\reports\logging-native-verbose\service.lclcfg":21:23)
-2026-10-11T12:50:06.414211Z | INFO     | pid=33924 thread=lcl-background-job | lcl_fastapi.background.job.job | app.py:25 | job | job job starting note=inventory
-2026-10-11T12:50:06.414274Z | ERROR    | pid=33924 thread=lcl-background-job | lcl_fastapi.background.job.job | thread.py:176 | run | job background worker entry failed
+business.worker_note: 'inventory' ("D:\SRC\AI\lcl-fastapi\reports\logging-focused-events\service.lclcfg":21:23)
+2026-10-11T13:18:44.957717Z | INFO     | pid=11028 thread=lcl-background-job | lcl_fastapi.background.job.job | app.py:25 | job | job job starting note=inventory
+2026-10-11T13:18:44.957918Z | ERROR    | pid=11028 thread=lcl-background-job | lcl_fastapi.background.job.job | thread.py:176 | run | job background worker entry failed
 Error in handling failure [LCL022890: demonstration Worker failure]: RuntimeError: demonstration Worker failure
 Python traceback:
 RuntimeError: demonstration Worker failure
@@ -417,6 +432,6 @@ RuntimeError: demonstration Worker failure
    │             ~~~~~~~~~~~~~^^
    ├─ File "D:\SRC\AI\lcl-fastapi\src\lcl_fastapi\background\thread.py", line 118, in await_entry
    │      await operation
-   └─ File "D:\SRC\AI\lcl-fastapi\reports\logging-native-verbose\app.py", line 26, in job
+   └─ File "D:\SRC\AI\lcl-fastapi\reports\logging-focused-events\app.py", line 26, in job
           raise RuntimeError("demonstration Worker failure")
 ```

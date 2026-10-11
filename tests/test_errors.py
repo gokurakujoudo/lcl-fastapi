@@ -27,6 +27,7 @@ from lcl_fastapi import (
 )
 from lcl_fastapi.errors import handle_uncaught_exception, report_error
 from lcl_fastapi.logging import RequestLogger
+from lcl_fastapi.overrides import override_scope
 
 
 @pytest.mark.parametrize("debug", [False, True])
@@ -66,6 +67,8 @@ def test_default_route_failure_has_id_and_native_traceback(
     assert "\toptions:" not in logs
     assert logs.count("method=GET path=/broken status_code=500") == 1
     assert "in default_uncaught_exception_handler" not in logs
+    portable = logs.replace("\\", "/")
+    assert "/fastapi/" not in portable and "/starlette/" not in portable
 
 
 @pytest.mark.parametrize("failure", [None, "raise", "invalid"])
@@ -126,7 +129,7 @@ def test_custom_callback_context_and_fallback_order(
     if failure is not None:
         assert logs.index("uncaught_exception_handler failed:") < logs.index("original error")
         assert response.json() == {"detail": "Internal Server Error"}
-    assert logs.count("method=GET path=/broken") == 1
+    assert logs.count("method=GET path=/broken") == 2
 
 
 def test_specific_handlers_validation_and_dependencies(
@@ -253,8 +256,9 @@ def test_logging_failure_is_nonrecursive(
 
 
 @pytest.mark.parametrize("style", ["compact", "full"])
+@pytest.mark.parametrize("verbose", [False, True])
 def test_lcl_failure_uses_native_tree_masks_and_traceback_policy(
-    configuration: Path, observed_runtime: ObservedRuntime, style: str
+    configuration: Path, observed_runtime: ObservedRuntime, style: str, verbose: bool
 ) -> None:
     with configuration.open("a", encoding="utf-8") as source:
         source.write(
@@ -268,7 +272,10 @@ def test_lcl_failure_uses_native_tree_masks_and_traceback_policy(
     async def native() -> object:
         return await get_config("business.failure")
 
-    with TestClient(app, raise_server_exceptions=False) as client:
+    with (
+        override_scope({"__verbose__": verbose}),
+        TestClient(app, raise_server_exceptions=False) as client,
+    ):
         response = client.get("/native")
         assert response.status_code == 500
         assert response.json() == {"detail": "Internal Server Error"}
@@ -279,6 +286,7 @@ def test_lcl_failure_uses_native_tree_masks_and_traceback_policy(
     assert "do-not-display-this" not in logs
     assert f"request_id={request_id}" in logs
     assert ("binding_evaluation.py" in logs) == (style == "full")
+    assert ("VERBOSE" in logs) is verbose
 
 
 @pytest.mark.parametrize("grouped", [False, True])

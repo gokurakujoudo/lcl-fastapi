@@ -1,6 +1,5 @@
 """Wrap the complete ASGI error stack with request identity and access logs."""
 
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from time import perf_counter_ns
@@ -14,6 +13,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from lcl_fastapi.context import CONFIG_FRAME, REQUEST_CONTEXT, RequestContext
 from lcl_fastapi.logging import RequestLogger
+from lcl_fastapi.middleware.request_logging import log_request_event
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,7 +51,7 @@ class RequestContextMiddleware:
         self.runtime = runtime
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        """Propagate response headers and emit exactly one final access record.
+        """Propagate response headers and emit paired invocation records.
 
         :param scope: ASGI connection scope.
         :param receive: Incoming ASGI messages.
@@ -97,6 +97,7 @@ class RequestContextMiddleware:
                     f"request_id=unavailable id_generation_error={type(error).__name__} "
                     f"id_generation_code={error.code} "
                 )
+                log_request_event(runtime.logger, scope, started_ns)
                 await JSONResponse(
                     {"detail": "Request ID generation unavailable"},
                     status_code=503,
@@ -105,18 +106,17 @@ class RequestContextMiddleware:
             context = RequestContext(request_id, scope["method"], scope["path"], started_ns)
             REQUEST_CONTEXT.set(context)
             scope["state"]["request_id"] = request_id
+            log_request_event(runtime.logger, scope, started_ns)
             with use_verbose(runtime.logger, enabled=runtime.verbose):
                 await self.app(scope, receive, send_response)
         finally:
             try:
-                runtime.logger.info(
-                    "%smethod=%s path=%s status_code=%s duration_ms=%.3f worker_pid=%s",
-                    failure_detail,
-                    scope["method"],
-                    scope["path"],
-                    status_code,
-                    (perf_counter_ns() - started_ns) / 1_000_000,
-                    os.getpid(),
+                log_request_event(
+                    runtime.logger,
+                    scope,
+                    started_ns,
+                    status_code=status_code,
+                    failure_detail=failure_detail,
                 )
             finally:
                 CONFIG_FRAME.reset(frame_token)
