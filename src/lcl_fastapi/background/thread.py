@@ -190,7 +190,7 @@ class WorkerThread:
                                 level = logging.WARNING
                                 context.logger.exception(
                                     "background worker entry failed",
-                                    extra={"lcl_framework_lifecycle": True},
+                                    compact=True,
                                 )
                                 self.transition(
                                     "failed",

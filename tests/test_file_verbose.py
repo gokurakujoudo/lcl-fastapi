@@ -77,7 +77,7 @@ async def test_http_control_validates_authorization_types_and_file_diagnostics(
     assert "business.enabled" in logs and "business.disabled" not in logs
     assert "business.muted" not in logs
     assert "value ready\n    value: 42" in logs
-    assert "handler=test_file_verbose." in logs
+    assert "test_file_verbose.py:" in logs
 
 
 @pytest.mark.parametrize("initial", [False, True])
@@ -161,7 +161,7 @@ async def test_stream_and_child_task_retain_entry_policy_during_a_switch(
             assert response.text == "data: started\n\ndata: completed\n\n"
     logs = content(configuration)
     assert "business.stream" in logs
-    assert logs.count("REST API started") == logs.count("REST API completed") == 1
+    assert logs.count("REST API Started") == logs.count("REST API Completed") == 1
 
 
 async def test_http_control_reports_storage_failure_without_accepting_change(

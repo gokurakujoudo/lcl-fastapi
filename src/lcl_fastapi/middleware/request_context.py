@@ -97,8 +97,7 @@ class RequestContextMiddleware:
             except (LclValidationError, LclStateError, LclUtilityError) as error:
                 status_code = 503
                 failure_detail = (
-                    f"request_id=unavailable id_generation_error={type(error).__name__} "
-                    f"id_generation_code={error.code} "
+                    f"id_generation_error={type(error).__name__} id_generation_code={error.code} "
                 )
                 log_request_event(runtime.logger, scope, started_ns)
                 await JSONResponse(

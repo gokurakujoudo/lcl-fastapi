@@ -9,8 +9,10 @@ from pathlib import Path
 from typing import Any, cast
 
 from lclang.logger import Logger, LoggerHandlerConfig, LoggerRuntime, use_logger
+from lclang.logger.config_validation import boolean
 
-from lcl_fastapi.log_context import log_metadata
+from lcl_fastapi.context import get_request_context
+from lcl_fastapi.log_context import REQUEST_SCOPE, log_metadata
 from lcl_fastapi.log_events import event_message
 
 
@@ -22,21 +24,37 @@ class RequestLogger(Logger):
     :param emit_level: Number of additional business wrapper frames to skip.
     """
 
-    def log(self, level: int, msg: object, *args: object, **kwargs: Any) -> None:
+    @property
+    def name(self) -> str:
+        """Read current request identity without registering a per-request backend.
+
+        :returns: Current request ID, unavailable during allocation failure, or stable source.
+        """
+        context = get_request_context()
+        if context is not None:
+            return context.request_id
+        return "unavailable" if REQUEST_SCOPE.get() is not None else self.backend.name
+
+    def log(
+        self, level: int, msg: object, *args: object, compact: bool = False, **kwargs: Any
+    ) -> None:
         """Attach request identity before the record reaches the writer thread.
 
         :param level: Standard-library numeric severity.
         :param msg: Message object or percent-style formatting template.
         :param args: Deferred message interpolation arguments.
+        :param compact: Native per-record layout selection, defaulting to full location.
         :param kwargs: Standard-library extra, exception, and caller options.
         :raises LclStateError: If no lclang logger runtime is active.
+        :raises LclValidationError: If compact is not Boolean.
         """
         extra = dict(kwargs.pop("extra", None) or {})
         extra.update(log_metadata())
+        extra["lcl_source_name"] = self.backend.name
         extra["lcl_business_record"] = True
         kwargs["extra"] = extra
         kwargs["stacklevel"] = kwargs.pop("stacklevel", 1) + 1
-        super().log(level, msg, *args, **kwargs)
+        super().log(level, msg, *args, compact=compact, **kwargs)
 
     def log_event(
         self,
@@ -46,6 +64,7 @@ class RequestLogger(Logger):
         record: object | None = None,
         fields: Iterable[str] = (),
         masked_fields: Iterable[str] = (),
+        compact: bool = False,
         **values: object,
     ) -> None:
         """Emit one explicit business event with native bounded field rendering.
@@ -55,16 +74,19 @@ class RequestLogger(Logger):
         :param record: Optional dataclass instance containing selected direct fields.
         :param fields: Field names in their requested display order.
         :param masked_fields: Names redacted before reading or formatting.
+        :param compact: Native compact layout selection for this event only.
         :param values: Additional explicitly selected values in keyword order.
         :raises TypeError: If an enabled event has an invalid title or record type.
+        :raises LclValidationError: If compact is not Boolean.
         :raises ValueError: If enabled selections are unknown, repeated or conflicting.
         :raises LclStateError: If no native logger runtime is active.
         :raises Exception: If an unmasked selected getter fails.
         """
+        boolean(compact, "compact")
         if not self.isEnabledFor(level):
             return
         message = event_message(event, record, fields, masked_fields, values)
-        self.log(level, "%s", message, stacklevel=2, extra={"lcl_business_event": event})
+        self.log(level, "%s", message, compact=compact, stacklevel=2)
 
 
 async def get_logger(prefix: str = "", emit_level: int = 0) -> RequestLogger:

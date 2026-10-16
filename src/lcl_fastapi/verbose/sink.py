@@ -26,13 +26,13 @@ class DiagnosticFileSink(FileSink):
         :param record: Queue-owned record with a producer-captured file policy.
         :returns: Whether this existing file receives the intact record.
         """
+        probe = copy.copy(record)
+        probe.name = getattr(record, "lcl_source_name", record.name)
         if hasattr(record, "lcl_file_verbose"):
             if not record.lcl_file_verbose:
                 return False
-            probe = copy.copy(record)
             probe.levelno = max(record.levelno, self.config.level)
-            return self.original.accepts(probe)
-        return self.original.accepts(record)
+        return self.original.accepts(probe)
 
     def write(self, record: logging.LogRecord) -> None:
         """Delegate intact record formatting and rotation to the original owner.

@@ -67,24 +67,30 @@ diagnostics. `logger.traceback_style` remains an independent compact/full policy
 
 ## Sinks and timestamps
 
-Controller-owned lifecycle events use `timestamp | level | pid | message`.
-They omit thread, logger name, source filename and helper function fields.
-Business records keep their call site; native server lifecycle records omit
-framework call sites. All layouts preserve the configured timezone and respect
-an explicit `logger.format`.
+Framework lifecycle and informational records use the native `compact=True`
+flag. The default compact header contains timestamp, level and `thread_name(pid)`;
+full business records also include logger name and the qualified caller location.
+Business calls default to `compact=False` and can select either layout per record.
+An explicit `logger.format` remains authoritative. Native display labels include
+WARN, CRIT, UNSET and TRACE without changing numeric severities or filtering.
 
-Every HTTP invocation produces one multiline `REST API started` record before
-business dispatch and one `REST API completed` record after response/error
-handling. Each contains a native text tree with the API method/path, generated
-request ID, worker PID and connection metadata. Completion adds the observed
-status and elapsed milliseconds. Paths exclude queries; bodies and headers
-are not logged. Allocation failures retain `request_id=unavailable` and a 503,
-with native error type/code in the single completion record. No ID is invented.
+Each HTTP invocation emits one single-line start and one single-line completion:
 
-Service exception reports hide Python frames inside the installed FastAPI and
-Starlette packages in both compact and full modes. Business frames, causes,
-notes, groups and LCL diagnostic trees remain. Full mode additionally retains
-lclang Python frames. Filtering changes the rendered tree and never rewrites
+```text
+369400111685435392 | REST API Started: HTTP GET /orders/42 from 127.0.0.1:65311
+369400111685435392 | REST API Completed(200): HTTP GET /orders/42 from 127.0.0.1:65311 [duration_ms=0.420]
+```
+
+These are message payloads; the header supplies the PID. Paths exclude queries,
+control characters are escaped, IPv6 clients use `[address]:port`, and absent
+clients appear as `unknown`. Headers and bodies are not read for logging.
+Allocation failures retain a 503 and an `unavailable | ` prefix, with native error
+type/code appended to the completion record. No request ID is invented.
+
+Default compact Python tracebacks hide installed lclang, lcl_fastapi, FastAPI and
+Starlette helper frames. `logger.traceback_style: "full"` retains lcl_fastapi and
+lclang frames; FastAPI/Starlette filtering applies in both modes. Business frames,
+causes, notes, groups and LCL diagnostic trees remain. Rendering never changes
 the original exception or traceback.
 
 Configure one shared directory and two filename expressions using the native
@@ -101,7 +107,7 @@ logger.file.service.rotation.mode: "size"
 logger.file.service.rotation.max_bytes: 10485760
 ```
 
-Current source requires `lclang>=1.1.0`. Log timestamps default to the
+Current source requires `lclang>=1.1.2`. Log timestamps default to the
 server's local time with microseconds and a numeric offset, such as
 `2026-10-08T15:30:00.123456+08:00`. Set `logger.timezone: "utc"` or pass
 `-o logger.timezone utc` to use timestamps ending in `Z`. These settings apply
@@ -143,24 +149,24 @@ segments, rotation suffixes, writes, and flush. There is no `logger.log_dir` or
 `logger.filename` compatibility alias.
 
 Use `await get_logger(prefix="", emit_level=0)` inside an active lifespan or
-request. The prefix names the underlying logger and prefixes its messages.
-The returned wrapper reads request identity each time a message is emitted,
-before the record reaches lclang's writer thread. A logger reused between
-requests does not retain the ID of the request that created it.
+request. The prefix selects a stable source for levels, file filters and optional message
+prefixes. Inside a request, `logger.name` and queued record names are the current
+request ID. Outside requests they retain the stable source name. A reused logger
+reads identity on each emission; no per-request names enter the logger registry.
+`lcl_source_name` retains the routing source, including Worker routing namespaces.
 
-Unreleased source snapshots `[METHOD /actual/path]`, request ID and the selected
-handler's module-qualified Python name when available. Before route selection,
-and for unmatched requests, the handler name is absent. Managed Worker records
-identify the registration, attempt and entry callable. These are detached scalar
-record fields; the queue does not retain requests or configuration Frames.
-Default business headers retain the application's file, line and function and
-omit the logger name. HTTP invocation trees use lifecycle headers without
-framework helper locations. Explicit `logger.format` columns remain authoritative.
+Compact request messages, including native TRACE records, receive a standard
+`request_id | ` prefix. Full business messages use the name column instead.
+Request method, actual path and the selected handler's module-qualified identity
+remain scalar record extras (`request_method`, `request_path`, `api_handler`).
+They are not repeated in every business message. Worker records retain their
+registration, attempt and entry identity. Execution metadata adds no requests or
+configuration Frames to queued records.
 
 ### Explicit business events in unreleased source
 
 `RequestLogger.log_event(event, *, level=logging.INFO, record=None, fields=(),
-masked_fields=(), **values)` emits one record. The bounded, escaped title is
+masked_fields=(), compact=False, **values)` emits one record. The bounded, escaped title is
 followed by four-space-indented `field: value` lines with aligned colons. Only
 selected direct dataclass fields are read, followed by keyword values in order.
 Names in `masked_fields` are replaced before reading a field or invoking repr.
@@ -200,6 +206,7 @@ async def demonstrate_event() -> None:
         )
         async with use_logger_handler(config):
             logger = await get_logger("orders")
+            logger.info("short operational notice", compact=True)
             logger.log_event(
                 "order accepted", record=Order(42, "private"),
                 fields=("order_id", "token"), masked_fields=("token",), quantity=3,
@@ -230,25 +237,20 @@ async def work() -> dict[str, str]:
 ```
 
 `RequestContext` contains `request_id`, `method`, `path`, and monotonic
-`started_ns`. Outside a request, `get_request_context()` returns `None`. During
-requests, the ID is attached both to the log record's `request_id` extra and to
-the message so the default lclang formatter displays it. `emit_level` skips that
-many additional business wrapper frames; the normal file/function/line point to
-the business call site rather than the framework wrapper.
+`started_ns`. Outside a request, `get_request_context()` returns `None`. The ID is
+also attached to request state and the configured response header. `emit_level`
+skips additional business wrapper frames while preserving native caller attribution.
 
-The framework records paired multiline invocation trees for each HTTP request, including failures,
-with method, path, status code, duration in milliseconds, worker PID, and Request
-ID. Uvicorn and Gunicorn access loggers are disabled inside the worker scope
-after logger takeover to prevent duplicate access records, and their prior flags
-are restored on exit. Query strings, credentials, cookies, and request bodies are
-not automatically logged.
+Uvicorn and Gunicorn access loggers are disabled during the worker scope to avoid
+duplicate access records; prior flags are restored on exit. Completion retains
+the status already sent, including when a stream fails after its headers.
 
 If the upstream Snowflake generator reports an invalid epoch (`LclValidationError`),
 clock rollback (`LclStateError`) or timestamp/sequence exhaustion (`LclUtilityError`),
 the framework returns HTTP 503
 with `{"detail": "Request ID generation unavailable"}`. Business routing is not
 entered. This response has no generated request-ID header or request-state ID.
-The completion record explicitly contains `request_id=unavailable` and
+The completion record uses the `unavailable | ` prefix and
 `id_generation_error` naming the native exception type and `id_generation_code`
 containing its LCL error code; it never borrows a prior request's
 ID. Configuration and request-context bindings are restored even if sending the
@@ -258,7 +260,9 @@ can succeed once the upstream generator can issue an ID again.
 
 ## Uncaught exception diagnostics
 
-The default HTTP error callback submits the original exception and its traceback
+The default HTTP error callback emits a compact record whose message starts with
+`request_id | Uncaught Exception in HTTP METHOD /actual/path from client:`, followed
+by a newline and the native error tree. It submits the original exception and its traceback
 to the native logger. Reports retain causes, contexts and ordinary exception-group
 members. LCL failures include their error code, failed dependency path, source
 excerpt and correlation identifiers. Native diagnostics preserve declared masks.
@@ -270,7 +274,7 @@ text follow their producers' policies.
 
 `logger.traceback_style` accepts `"compact"` (default) or `"full"`. Both hide
 installed FastAPI/Starlette frames. Compact reports retain business and other
-external-library frames; full reports also include lclang frames.
+external-library frames; full reports also include lclang and lcl_fastapi frames.
 Select the same policy with `-o logger.traceback_style full`.
 Controller, API and background logs share the selected policy. Invalid values
 fail before service sinks open.
@@ -387,34 +391,10 @@ service stopped
 
 Transitions appear when observed, so their order relative to heartbeats varies.
 Failure exits can include `service failed`. Controller records describe service
-operations and have no HTTP request ID. A worker's catalog log contains:
-
-```text
-log file: "/opt/catalog-api/logs/catalog-api.28146.20260912T100000.123456Z.000001.log"
-catalog catalog ready
-catalog [GET /api/v1/products] request_id=123456789 handler=catalog.api.list_products | list products
-lcl_fastapi [GET /api/v1/products] request_id=123456789 | REST API started
-├─ method=GET path=/api/v1/products
-│  └─ request_id=123456789
-└─ context
-   ├─ worker_pid=28146
-   ├─ client=('127.0.0.1', 50000)
-   └─ scheme=http
-lcl_fastapi [GET /api/v1/products] request_id=123456789 handler=catalog.api.list_products | REST API completed
-├─ method=GET path=/api/v1/products status_code=200 duration_ms=0.420
-│  └─ request_id=123456789
-└─ context
-   ├─ worker_pid=28146
-   ├─ client=('127.0.0.1', 50000)
-   └─ scheme=http
-continued in: "/opt/catalog-api/logs/catalog-api.28146.20260912T100010.123456Z.000002.log"
-```
-
-The business prefix is `catalog`; the matching response header is
-`X-Request-ID: 123456789`. Search that ID to correlate the business and access
-records. Startup `catalog ready` and teardown `catalog closed` run outside a
-request and therefore have no request ID. Teardown may be in a later segment.
-The default formatter includes the business call site for business messages.
+operations and have no HTTP request ID. API records use the single-line messages
+shown above. Full business records retain their call sites and request-ID names;
+compact business records retain the ID through their message prefix. Search the
+ID from the matching response header to correlate the complete invocation.
 
 ## Request IDs
 

@@ -32,6 +32,22 @@ def callable_path(endpoint: object) -> str:
     return f"{module}.{name}" if isinstance(module, str) and isinstance(name, str) else ""
 
 
+def http_request_description(scope: Scope) -> str:
+    """Render one safe HTTP invocation label without headers or query parameters.
+
+    :param scope: Producer-owned ASGI scope with optional client address.
+    :returns: Single-line method, actual path and client endpoint.
+    """
+    client = scope.get("client")
+    address = "unknown"
+    if client is not None:
+        host, port = client
+        address = f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+    path = safe_repr(scope.get("path", "unknown"), renderer=str, max_length=None)
+    address = safe_repr(address, renderer=str, max_length=None)
+    return f"HTTP {scope.get('method', 'UNKNOWN')} {path} from {address}"
+
+
 def log_metadata() -> dict[str, Any]:
     """Capture primitive execution metadata while the producer still owns its context.
 
@@ -39,18 +55,17 @@ def log_metadata() -> dict[str, Any]:
     """
     values: dict[str, Any] = {}
     context = get_request_context()
-    if context is not None:
+    scope = REQUEST_SCOPE.get()
+    request_scope = {} if scope is None else scope
+    if context is not None or scope is not None:
         values.update(
-            request_id=context.request_id, request_method=context.method, request_path=context.path
+            request_id="unavailable" if context is None else context.request_id,
+            request_method=request_scope["method"] if context is None else context.method,
+            request_path=request_scope["path"] if context is None else context.path,
         )
-        scope = REQUEST_SCOPE.get()
         handler = callable_path(None if scope is None else scope.get("endpoint"))
-        identity = f"[{context.method} {safe_repr(context.path, renderer=str, max_length=None)}]"
-        identity += f" request_id={context.request_id}"
         if handler:
             values["api_handler"] = handler
-            identity += f" handler={handler}"
-        values["lcl_execution_identity"] = identity
     worker = WORKER_LOG_CONTEXT.get()
     if worker is not None:
         name, attempt, handler = worker

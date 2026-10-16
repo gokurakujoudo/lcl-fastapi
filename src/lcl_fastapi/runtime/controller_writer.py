@@ -98,7 +98,7 @@ async def write_records(events: list[tuple[int, str]], cli_verbose: bool = False
     logger = await use_logger(name="lcl_fastapi.controller")
     with use_service_verbose(logger, cli_verbose):
         for level, message in events:
-            logger.log(level, message, extra={FILE_ONLY_ATTRIBUTE: True})
+            logger.log(level, message, compact=True, extra={FILE_ONLY_ATTRIBUTE: True})
 
 
 async def write_events(events: list[str], cli_verbose: bool = False) -> None:
@@ -111,4 +111,4 @@ async def write_events(events: list[str], cli_verbose: bool = False) -> None:
     logger = await use_logger(name="lcl_fastapi.controller")
     with use_service_verbose(logger, cli_verbose):
         for event in events:
-            logger.info(event, extra={FILE_ONLY_ATTRIBUTE: True})
+            logger.info(event, compact=True, extra={FILE_ONLY_ATTRIBUTE: True})

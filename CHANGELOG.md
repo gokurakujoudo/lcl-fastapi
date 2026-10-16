@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Require lclang >=1.1.2 and use its native per-record compact layouts for framework
+  messages while letting business code select compact or full caller information.
+- Emit single-line HTTP start/completion records and compact exception titles.
+  Use request-ID record names, compact message prefixes and stable source filters.
+- Hide lcl_fastapi Python frames in default compact tracebacks; retain them in full mode.
+
 - Add service-wide runtime file diagnostics with strict configuration defaults,
   typed async controls and token-authenticated HTTP GET/PUT operations. Pin each
   new request, Worker attempt and controller batch while preserving console policy.

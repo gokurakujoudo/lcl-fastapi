@@ -50,10 +50,13 @@ class DiagnosticFilter(logging.Filter):
         if not verbose and record.levelno < self.level:
             return False
         selected = copy.copy(record)
+        selected.lcl_source_name = getattr(record, "lcl_source_name", record.name)
         if not getattr(selected, "lcl_business_record", False):
             selected.__dict__.update(log_metadata())
             if record.name in DEFAULT_TAKEOVER_LOGGERS:
-                selected.lcl_framework_lifecycle = True
+                selected.lclang_compact = True
+        if hasattr(selected, "request_id"):
+            selected.name = selected.request_id
         if verbose:
             enabled = FILE_VERBOSE_CONTEXT.get()
             file_enabled = self.cli_verbose if enabled is None else enabled
@@ -103,7 +106,7 @@ def use_service_verbose(
             file_enabled = cli_verbose
     handler = current_runtime().handler
     token = FILE_VERBOSE_CONTEXT.set(file_enabled)
-    diagnostic = logging.Logger(logger.name, logging.DEBUG)
+    diagnostic = logging.Logger(logger.backend.name, logging.DEBUG)
     diagnostic.propagate = False
     diagnostic.addHandler(handler)
     try:

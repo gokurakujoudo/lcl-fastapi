@@ -80,14 +80,13 @@ async def test_verbose_file_cli_and_each_worker_scope(
             path.read_text(encoding="utf-8") for path in (tmp_path / "logs").glob("*.log")
         )
         assert "api complete" in content and "worker complete" in content
-        assert ("VERBOSE" in content) is enabled
+        assert ("TRACE" in content) is enabled
         for name in ("business.api", "business.lifespan", "business.worker"):
             assert (name in content) is enabled
         assert "business.muted" not in content and "business.cancelled" not in content
         if enabled:
             assert any(
-                "VERBOSE" in line and f"request_id={request_id}" in line
-                for line in content.splitlines()
+                "TRACE" in line and f"{request_id} |" in line for line in content.splitlines()
             )
 
 

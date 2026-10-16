@@ -238,7 +238,7 @@ class LclFastAPI(FastAPI):
                 FileVerboseControl, runtime.directory, str(runtime.service["service_id"]), "api"
             )
             stack.enter_context(use_file_control(file_control))
-            logger = await get_logger("lcl_fastapi")
+            logger = await get_logger()
             stack.enter_context(use_service_verbose(logger, settings.verbose))
             self.worker_identity = runtime
             self.worker_requests = RequestRuntime(
@@ -258,7 +258,7 @@ class LclFastAPI(FastAPI):
                     runtime.background_workers = self.background_manager.snapshot()
                 warning = file_control.refresh_warning()
                 if warning:
-                    logger.warning("%s", warning)
+                    logger.warning("%s", warning, compact=True)
                 runtime.publish(active_log_paths(logger_runtime), observed_at)
 
             self.health_sampler = HealthSampler(

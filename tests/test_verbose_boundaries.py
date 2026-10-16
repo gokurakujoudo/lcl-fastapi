@@ -99,7 +99,7 @@ async def test_reported_exception_suppresses_one_runtime_duplicate_only(
         )
         logger.error("unrelated runtime report", exc_info=ValueError("different failure"))
     logs = await asyncio.to_thread(read_logs, configuration.parent / "logs")
-    assert logs.count("uncaught HTTP exception") == 1
+    assert logs.count("Uncaught Exception in HTTP") == 1
     assert "duplicate runtime report" not in logs
     assert "subsequent runtime report" in logs and "unrelated runtime report" in logs
     runtime_header = next(line for line in logs.splitlines() if "subsequent runtime report" in line)

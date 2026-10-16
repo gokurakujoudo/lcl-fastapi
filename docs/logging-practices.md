@@ -168,6 +168,9 @@ from urllib.request import urlopen
 import psutil
 
 
+request_ids = set()
+
+
 def logs(pattern: str = "*.log") -> str:
     return "\n".join(
         path.read_text(encoding="utf-8") for path in sorted(Path("logs").glob(pattern))
@@ -193,6 +196,7 @@ def request(path: str, status: int = 200) -> dict:
     with response:
         assert response.code == status
         assert response.headers["X-Request-ID"].isdecimal()
+        request_ids.add(response.headers["X-Request-ID"])
         return json.load(response)
 
 
@@ -254,13 +258,14 @@ for marker in ("service started", "background worker=job", "hot-reload retiring"
     assert marker in controller
 for marker in ("job starting", "background worker entry failed", "demonstration Worker failure"):
     assert marker in worker and marker not in api
-for marker in ("business startup", "business teardown", "hello revision=222", "VERBOSE",
+for marker in ("business startup", "business teardown", "hello revision=222", "TRACE",
                "handled calculation failure", "business.failure", "ZeroDivisionError",
-               "demonstration HTTP failure", "status_code=500"):
+               "demonstration HTTP failure", "REST API Completed(500)"):
     assert marker in api
-assert "request_id=" in api and "request_id=" not in worker
-assert api.count("REST API started") == api.count("REST API completed")
-assert api.count("REST API started") >= 4
+assert all(f"{identifier} |" in api for identifier in request_ids)
+assert all(identifier not in worker for identifier in request_ids)
+assert api.count("REST API Started") == api.count("REST API Completed")
+assert api.count("REST API Started") >= 4
 assert "/fastapi/" not in api.replace("\\", "/")
 assert "/starlette/" not in api.replace("\\", "/")
 for line in controller.splitlines():
@@ -278,10 +283,10 @@ change on each run.
 
 ## Captured output
 
-Service tracebacks hide FastAPI/Starlette frames while preserving business
-frames and native cause/group diagnostics. Each REST call has a start and a
-completion tree with its ID, path and connection context. Completion adds status
-and duration. Controller event headers retain time, severity and process ID.
+Current source uses native compact messages and single-line HTTP start/completion
+records. Default Python tracebacks also hide lcl_fastapi helper frames. The
+historical capture below predates these unreleased changes: it retains the
+original multi-line trees and headers from lclang 1.1.0.
 
 The excerpts below come from one Windows/Uvicorn run of the files above with
 lclang 1.1.0. They retain the actual timestamps, identifiers, source locations
