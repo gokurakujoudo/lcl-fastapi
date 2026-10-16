@@ -25,6 +25,8 @@ from lcl_fastapi.runtime import common
 from lcl_fastapi.runtime.controller import controller_logging
 from lcl_fastapi.runtime.state import process_identity
 from lcl_fastapi.sources import configuration_frame
+from lcl_fastapi.verbose.storage import write_target
+from lcl_fastapi.verbose.types import FileVerboseState
 
 CONFIG = """app.name: "test-service"
 app.version: "1"
@@ -112,6 +114,7 @@ def test_timezone_reaches_each_service_role(
 
     def serve(path: Path) -> None:
         settings = asyncio.run(load_settings(path))
+        write_target(settings.state_dir, "test", FileVerboseState(settings.verbose, 0))
         with controller_logging(path, settings, process_identity() | {"service_id": "test"}):
             pass
         asyncio.run(worker(path))

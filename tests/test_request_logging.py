@@ -36,7 +36,13 @@ async def test_request_start_and_end_are_paired_around_business_records(
     )
     for reply, path, status in ((response, "/probe", 200), (missing, "/missing", 404)):
         identifier = reply.headers["X-Request-ID"]
-        assert logs.count(f"request_id={identifier} REST API") == 2
+        assert (
+            sum(
+                f"request_id={identifier}" in line and "REST API " in line
+                for line in logs.splitlines()
+            )
+            == 2
+        )
         assert f"method=GET path={path} status_code={status}" in logs
     assert "├─" in logs and "worker_pid=" in logs and "client=" in logs
     assert "duration_ms=" in logs

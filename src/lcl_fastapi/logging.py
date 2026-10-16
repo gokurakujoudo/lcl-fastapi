@@ -2,7 +2,7 @@
 
 import logging
 import os
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
@@ -10,7 +10,8 @@ from typing import Any, cast
 
 from lclang.logger import Logger, LoggerHandlerConfig, LoggerRuntime, use_logger
 
-from lcl_fastapi.context import get_request_context
+from lcl_fastapi.log_context import log_metadata
+from lcl_fastapi.log_events import event_message
 
 
 class RequestLogger(Logger):
@@ -30,14 +31,40 @@ class RequestLogger(Logger):
         :param kwargs: Standard-library extra, exception, and caller options.
         :raises LclStateError: If no lclang logger runtime is active.
         """
-        context = get_request_context()
-        if context is not None:
-            extra = dict(kwargs.pop("extra", None) or {})
-            extra["request_id"] = context.request_id
-            kwargs["extra"] = extra
-            msg = f"request_id={context.request_id} {msg}"
+        extra = dict(kwargs.pop("extra", None) or {})
+        extra.update(log_metadata())
+        extra["lcl_business_record"] = True
+        kwargs["extra"] = extra
         kwargs["stacklevel"] = kwargs.pop("stacklevel", 1) + 1
         super().log(level, msg, *args, **kwargs)
+
+    def log_event(
+        self,
+        event: str,
+        *,
+        level: int = logging.INFO,
+        record: object | None = None,
+        fields: Iterable[str] = (),
+        masked_fields: Iterable[str] = (),
+        **values: object,
+    ) -> None:
+        """Emit one explicit business event with native bounded field rendering.
+
+        :param event: Single-line escaped business event title.
+        :param level: Numeric severity, defaulting to INFO.
+        :param record: Optional dataclass instance containing selected direct fields.
+        :param fields: Field names in their requested display order.
+        :param masked_fields: Names redacted before reading or formatting.
+        :param values: Additional explicitly selected values in keyword order.
+        :raises TypeError: If an enabled event has an invalid title or record type.
+        :raises ValueError: If enabled selections are unknown, repeated or conflicting.
+        :raises LclStateError: If no native logger runtime is active.
+        :raises Exception: If an unmasked selected getter fails.
+        """
+        if not self.isEnabledFor(level):
+            return
+        message = event_message(event, record, fields, masked_fields, values)
+        self.log(level, "%s", message, stacklevel=2, extra={"lcl_business_event": event})
 
 
 async def get_logger(prefix: str = "", emit_level: int = 0) -> RequestLogger:

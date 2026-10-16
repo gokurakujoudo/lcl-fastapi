@@ -37,7 +37,7 @@ python3.14 -m venv .venv
 .venv/bin/lcl-fastapi serve -o config service.lclcfg
 ```
 
-The application installs `lcl-fastapi==0.5.0` from PyPI and is installed as
+The application installs `lcl-fastapi>=0.5.0` from PyPI and is installed as
 `lcl-fastapi-composed-example`, importing `catalog_service`. Dependencies require
 package-index access or an operator-prepared wheelhouse during installation.
 

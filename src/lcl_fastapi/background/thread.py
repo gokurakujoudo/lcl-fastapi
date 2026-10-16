@@ -7,21 +7,23 @@ import os
 import threading
 from collections.abc import Awaitable, Callable, Mapping
 from concurrent.futures import Future
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, ExitStack
 from contextvars import Context, copy_context
 from pathlib import Path
 from typing import cast
 
 from fastapi import FastAPI
-from lclang.logger import use_verbose
 
+from lcl_fastapi.background.attempt import worker_attempt
 from lcl_fastapi.background.config import WorkerPolicy
 from lcl_fastapi.background.context import BackgroundWorker, BackgroundWorkerContext
 from lcl_fastapi.background.logging import BACKGROUND_NAME
-from lcl_fastapi.context import CONFIG_FRAME, use_lcl_frame
+from lcl_fastapi.context import CONFIG_FRAME
+from lcl_fastapi.log_context import FILE_VERBOSE_CONTEXT, WORKER_LOG_CONTEXT, callable_path
 from lcl_fastapi.logging import get_logger
 from lcl_fastapi.overrides import current_overrides, override_scope
 from lcl_fastapi.sources import configuration_frame
+from lcl_fastapi.verbose.policy import use_service_verbose
 
 # Seconds between all completed attempts; prevents tight loops for returning callables.
 RESTART_DELAY = 1.0
@@ -60,6 +62,7 @@ class WorkerThread:
         :param emit: Thread-safe lifecycle event collector.
         """
         self.name, self.executable, self.policy = name, executable, policy
+        self.verbose = False
         self.app, self.state, self.path, self.emit = app, state, path, emit
         self.service_loop, self.service_context = asyncio.get_running_loop(), copy_context()
         self.overrides = current_overrides()
@@ -134,7 +137,7 @@ class WorkerThread:
         token = CONFIG_FRAME.set(frame)
         stack.callback(CONFIG_FRAME.reset, token)
         logger = await get_logger(self.name)
-        stack.enter_context(use_verbose(logger, enabled=cast(bool, await frame.get("__verbose__"))))
+        self.verbose = cast(bool, await frame.get("__verbose__"))
         return BackgroundWorkerContext(
             self.name,
             self.app,
@@ -162,29 +165,44 @@ class WorkerThread:
                         attempt += 1
                         level = logging.INFO
                         self.transition("running", attempt, level, "started")
-                        scope = use_lcl_frame()
-                        runner.run(scope.__aenter__())
-                        try:
-                            result = self.executable(context)
-                            if inspect.isawaitable(result):
-                                runner.run(self.await_entry(result))
-                            self.transition("completed", attempt, logging.INFO, "normal exit")
-                        except asyncio.CancelledError:
-                            self.transition("stopped", attempt, logging.INFO, "cancelled")
-                        except Exception as error:
-                            level = logging.WARNING
-                            context.logger.exception("background worker entry failed")
-                            self.transition(
-                                "failed",
-                                attempt,
-                                logging.ERROR,
-                                f"exception={type(error).__name__}",
+                        identity = (self.name, attempt, callable_path(self.executable))
+                        with ExitStack() as execution:
+                            log_token = WORKER_LOG_CONTEXT.set(identity)
+                            execution.callback(WORKER_LOG_CONTEXT.reset, log_token)
+                            execution.enter_context(
+                                use_service_verbose(context.logger, self.verbose)
                             )
-                        finally:
+                            scope = worker_attempt(
+                                context,
+                                identity,
+                                self.verbose,
+                                cast(bool, FILE_VERBOSE_CONTEXT.get()),
+                            )
+                            runner.run(scope.__aenter__())
                             try:
-                                context.bridge.close_attempt()
+                                result = self.executable(context)
+                                if inspect.isawaitable(result):
+                                    runner.run(self.await_entry(result))
+                                self.transition("completed", attempt, logging.INFO, "normal exit")
+                            except asyncio.CancelledError:
+                                self.transition("stopped", attempt, logging.INFO, "cancelled")
+                            except Exception as error:
+                                level = logging.WARNING
+                                context.logger.exception(
+                                    "background worker entry failed",
+                                    extra={"lcl_framework_lifecycle": True},
+                                )
+                                self.transition(
+                                    "failed",
+                                    attempt,
+                                    logging.ERROR,
+                                    f"exception={type(error).__name__}",
+                                )
                             finally:
-                                runner.run(scope.__aexit__(None, None, None))
+                                try:
+                                    context.bridge.close_attempt()
+                                finally:
+                                    runner.run(scope.__aexit__(None, None, None))
                         if not self.policy.auto_restart or self.stop_event.wait(RESTART_DELAY):
                             break
                         self.transition("restarting", attempt, level, "restarting after exit")

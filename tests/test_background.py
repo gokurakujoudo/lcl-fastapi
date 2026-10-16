@@ -23,6 +23,7 @@ from lcl_fastapi import (
     get_config,
     get_logger,
     get_request_context,
+    set_file_verbose,
     use_lcl_frame,
 )
 from lcl_fastapi.background.config import worker_policies, worker_registry
@@ -217,6 +218,50 @@ async def test_restart_policy_and_controller_event_levels(
         assert any(
             level == logging.ERROR and "exception=ValueError" in text for level, text in events
         )
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+async def test_file_policy_is_pinned_until_the_next_worker_attempt(
+    configuration: Path, background_runtime: ObservedRuntime, asynchronous: bool
+) -> None:
+    with configuration.open("a", encoding="utf-8") as file:
+        file.write("business.old_attempt: 6 * 7\nbusiness.new_attempt: 20 + 2\n")
+    entered, release, second = threading.Event(), threading.Event(), threading.Event()
+    attempts = 0
+
+    async def execute(context: BackgroundWorkerContext) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            entered.set()
+            assert await asyncio.to_thread(release.wait, 5)
+            assert await context.get_config("business.old_attempt") == 42
+            context.logger.info("old attempt completed")
+        else:
+            assert await context.get_config("business.new_attempt") == 22
+            context.logger.info("new attempt completed")
+            second.set()
+            assert await asyncio.to_thread(context.stop_event.wait, 5)
+
+    def synchronous(context: BackgroundWorkerContext) -> None:
+        context.run(execute(context))
+
+    app = LclFastAPI(
+        config_path=configuration,
+        background_workers={"job": execute if asynchronous else synchronous},
+    )
+    async with app.router.lifespan_context(app):
+        await wait_event(entered)
+        assert (await set_file_verbose(True)).enabled
+        release.set()
+        await wait_event(second)
+    logs = "".join(
+        path.read_text(encoding="utf-8")
+        for path in (configuration.parent / "logs").glob("*.job.*.log")
+    )
+    assert "business.old_attempt" not in logs and "business.new_attempt" in logs
+    assert "old attempt completed" in logs and "new attempt completed" in logs
+    assert "[Worker job] attempt=2" in logs
 
 
 async def test_disabled_and_no_restart_are_observable(

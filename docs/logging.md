@@ -5,6 +5,46 @@ Worker, hot reload and exception boundaries, see [logging practices](logging-pra
 
 ## Native verbose control
 
+### Unreleased source: runtime file diagnostics
+
+`logging.file_verbose` is a strict Boolean with a default of False. The native
+CLI `--verbose` flag also enables its initial value. Runtime file controls affect
+native execution diagnostics and framework detail records; ordinary business
+DEBUG records continue to follow the configured logging levels. Console
+diagnostics retain the launch-time CLI policy.
+
+`await set_file_verbose(enabled)` submits a service-wide target and returns its
+immutable `FileVerboseState` (`enabled`, `revision`). Repeating the current value
+does not advance the revision. `await get_file_verbose()` returns a
+`FileVerboseStatus` with that target and immutable process observations: role,
+PID, observed value, revision and Unix observation time. Both functions require
+an active service logging scope and work from API and managed Worker threads.
+
+HTTP clients can GET or PUT `/_lcl/logging/verbose`; PUT accepts an object with
+one strict Boolean `enabled` and returns 202 with the accepted target. Both
+operations require the current `X-LCL-Control-Token`, return 403 for invalid
+credentials, and remain absent from OpenAPI. Generated Nginx configuration
+blocks this path. Business routes retain the existing exact-method/path override
+rule. Storage failures return 503 without claiming a successful change.
+
+Processes observe changes through the existing sampling cycle. A request pins
+the observed value at entry; a managed Worker pins it for each attempt, and
+controller observations pin it for each batch. Child tasks inherit the pin.
+Already running requests, streams and long-lived Worker attempts retain their
+previous policy. A process observation confirms receipt of a target, not a
+change to an execution already in progress. Queued records retain their policy.
+Local `use_verbose(..., enabled=False)` still suppresses diagnostics.
+Cancelling a Python update waits for its submitted atomic operation to finish,
+then propagates cancellation. Query the target after an interrupted call; the
+write may have committed. This keeps updates inside the service's cleanup scope.
+
+The control state belongs to one service start. Replacement workers and hot
+reload inherit it; a complete restart reads the configuration and CLI initial
+value again. A failed refresh retains the last valid in-memory state; a new
+process must obtain valid state before starting. This control does not reload
+configuration or change exception reporting, rotation, disabled sinks, or source
+filters.
+
 Start with `lcl-fastapi serve -c service.lclcfg --verbose` to enable native LCL
 diagnostics. The same `--verbose` flag controls the short-lived lclang CLI scope
 and the deferred service's downstream scopes. The Boolean `__verbose__` binding
@@ -29,7 +69,9 @@ diagnostics. `logger.traceback_style` remains an independent compact/full policy
 
 Controller-owned lifecycle events use `timestamp | level | pid | message`.
 They omit thread, logger name, source filename and helper function fields.
-Other records retain the configured native format and timezone.
+Business records keep their call site; native server lifecycle records omit
+framework call sites. All layouts preserve the configured timezone and respect
+an explicit `logger.format`.
 
 Every HTTP invocation produces one multiline `REST API started` record before
 business dispatch and one `REST API completed` record after response/error
@@ -106,6 +148,71 @@ The returned wrapper reads request identity each time a message is emitted,
 before the record reaches lclang's writer thread. A logger reused between
 requests does not retain the ID of the request that created it.
 
+Unreleased source snapshots `[METHOD /actual/path]`, request ID and the selected
+handler's module-qualified Python name when available. Before route selection,
+and for unmatched requests, the handler name is absent. Managed Worker records
+identify the registration, attempt and entry callable. These are detached scalar
+record fields; the queue does not retain requests or configuration Frames.
+Default business headers retain the application's file, line and function and
+omit the logger name. HTTP invocation trees use lifecycle headers without
+framework helper locations. Explicit `logger.format` columns remain authoritative.
+
+### Explicit business events in unreleased source
+
+`RequestLogger.log_event(event, *, level=logging.INFO, record=None, fields=(),
+masked_fields=(), **values)` emits one record. The bounded, escaped title is
+followed by four-space-indented `field: value` lines with aligned colons. Only
+selected direct dataclass fields are read, followed by keyword values in order.
+Names in `masked_fields` are replaced before reading a field or invoking repr.
+Disabled levels return before inspecting the record. Ordinary message objects
+and percent-style arguments remain deferred until the native writer formats them.
+
+A wrong title or record type raises `TypeError`. Unknown, duplicate or conflicting
+selected fields or masks raise `ValueError`; unmasked getters can propagate their own
+errors. No whole-record expansion or automatic request body logging occurs.
+Use the same API as `context.logger.log_event(...)` inside a managed Worker.
+
+This isolated example uses the active native writer. The service adds its
+request identity and role layouts when it owns that writer:
+
+<!-- python-doc-exec -->
+```python
+import asyncio
+from dataclasses import dataclass
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from lclang.logger import LoggerHandlerConfig, use_logger_handler
+from lcl_fastapi import get_logger
+
+
+@dataclass
+class Order:
+    order_id: int
+    token: str
+
+
+async def demonstrate_event() -> None:
+    with TemporaryDirectory() as directory:
+        config = LoggerHandlerConfig(
+            console={"enabled": False},
+            file={"example": {"directory": directory}},
+        )
+        async with use_logger_handler(config):
+            logger = await get_logger("orders")
+            logger.log_event(
+                "order accepted", record=Order(42, "private"),
+                fields=("order_id", "token"), masked_fields=("token",), quantity=3,
+            )
+        text = "\n".join(path.read_text() for path in Path(directory).glob("*.log"))
+        assert "order accepted" in text and "order_id: 42" in text
+        assert "token   : *masked*" in text and "private" not in text
+        assert "quantity: 3" in text
+
+
+asyncio.run(demonstrate_event())
+```
+
 <!-- python-doc-exec -->
 ```python
 from lcl_fastapi import LclFastAPI, get_logger, get_request_context
@@ -155,6 +262,9 @@ The default HTTP error callback submits the original exception and its traceback
 to the native logger. Reports retain causes, contexts and ordinary exception-group
 members. LCL failures include their error code, failed dependency path, source
 excerpt and correlation identifiers. Native diagnostics preserve declared masks.
+After successful default reporting, the escaping ASGI boundary confirms that
+same exception for one-time suppression of the runtime's duplicate error record.
+Unrelated runtime errors and failures not reported by the framework still pass.
 Masks protect named LCL diagnostic values; exception messages and application
 text follow their producers' policies.
 
@@ -282,15 +392,15 @@ operations and have no HTTP request ID. A worker's catalog log contains:
 ```text
 log file: "/opt/catalog-api/logs/catalog-api.28146.20260912T100000.123456Z.000001.log"
 catalog catalog ready
-catalog request_id=123456789 list products
-lcl_fastapi request_id=123456789 REST API started
+catalog [GET /api/v1/products] request_id=123456789 handler=catalog.api.list_products | list products
+lcl_fastapi [GET /api/v1/products] request_id=123456789 | REST API started
 ├─ method=GET path=/api/v1/products
 │  └─ request_id=123456789
 └─ context
    ├─ worker_pid=28146
    ├─ client=('127.0.0.1', 50000)
    └─ scheme=http
-lcl_fastapi request_id=123456789 REST API completed
+lcl_fastapi [GET /api/v1/products] request_id=123456789 handler=catalog.api.list_products | REST API completed
 ├─ method=GET path=/api/v1/products status_code=200 duration_ms=0.420
 │  └─ request_id=123456789
 └─ context

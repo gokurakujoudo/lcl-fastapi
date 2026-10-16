@@ -6,14 +6,15 @@ from time import perf_counter_ns
 
 from lclang.error import LclStateError, LclUtilityError, LclValidationError
 from lclang.lang import Frame
-from lclang.logger import use_verbose
 from lclang.utils import SnowflakeGenerator
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from lcl_fastapi.context import CONFIG_FRAME, REQUEST_CONTEXT, RequestContext
+from lcl_fastapi.log_context import REPORTED_HTTP_FAILURE, REQUEST_SCOPE
 from lcl_fastapi.logging import RequestLogger
 from lcl_fastapi.middleware.request_logging import log_request_event
+from lcl_fastapi.verbose.policy import use_service_verbose
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,9 +63,11 @@ class RequestContextMiddleware:
             await self.app(scope, receive, send)
             return
         runtime = self.runtime()
+        REPORTED_HTTP_FAILURE.set(None)
         started_ns = perf_counter_ns()
         context_token = REQUEST_CONTEXT.set(None)
         frame_token = CONFIG_FRAME.set(runtime.frame)
+        scope_token = REQUEST_SCOPE.set(scope)
         scope.setdefault("state", {}).pop("request_id", None)
         status_code = 500
         failure_detail = ""
@@ -107,8 +110,14 @@ class RequestContextMiddleware:
             REQUEST_CONTEXT.set(context)
             scope["state"]["request_id"] = request_id
             log_request_event(runtime.logger, scope, started_ns)
-            with use_verbose(runtime.logger, enabled=runtime.verbose):
+            with use_service_verbose(runtime.logger, runtime.verbose):
                 await self.app(scope, receive, send_response)
+        except BaseException as error:
+            current = REQUEST_CONTEXT.get()
+            expected = (None if current is None else current.request_id, id(error))
+            reported = REPORTED_HTTP_FAILURE.get() == expected
+            REPORTED_HTTP_FAILURE.set(id(error) if reported else None)
+            raise
         finally:
             try:
                 log_request_event(
@@ -121,3 +130,4 @@ class RequestContextMiddleware:
             finally:
                 CONFIG_FRAME.reset(frame_token)
                 REQUEST_CONTEXT.reset(context_token)
+                REQUEST_SCOPE.reset(scope_token)

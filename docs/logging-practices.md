@@ -16,7 +16,7 @@ API process; hot reload replaces that whole process and starts a new Worker.
 Use a Python 3.14 virtual environment on Windows or Linux. Install from PyPI:
 
 ```console
-python -m pip install lcl-fastapi==0.5.0
+python -m pip install "lcl-fastapi>=0.5.0"
 ```
 
 Save these files in an empty directory. Run one service at a time on the machine.

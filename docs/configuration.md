@@ -34,7 +34,8 @@ Application filesystem settings remain anchored to the root service file, even
 when their definitions came from another file. The defaults are also loaded
 implicitly for compatibility; placing an explicit using later can reset earlier
 definitions to universal defaults. Put it before application customizations.
-The framework-owned `lcl_fastapi_defaults`, `worker_pid` and `__verbose__` cannot
+The framework-owned `lcl_fastapi_defaults`, `worker_pid`, `__verbose__` and
+`DEFAULT_TAKEOVER_LOGGERS` cannot
 be redefined, including by an import namespace. `__verbose__` is the Boolean
 selected by lclang.cli's native `--verbose` option, defaulting to False. It is
 available in downstream expressions, `get_config()` and local derived Frames.
@@ -111,6 +112,29 @@ option instead of setting those variables themselves.
 | `snowflake.worker_id_base` | `0`; first allowed ID in the range 0–1023. |
 | `snowflake.worker_id_count` | `64`; at least the worker count, with base + count at most 1024. |
 | `logger.timezone` | `"local"`; native log timestamps with microseconds and a numeric offset. `"utc"` selects a `Z` suffix. Filenames and rotation remain UTC-based. |
+| `logging.file_verbose` | `False`, strictly Boolean; initial file diagnostics policy. CLI `--verbose` also enables the initial value. Runtime controls then set the file policy independently. |
+| `logger.takeover_loggers` | `DEFAULT_TAKEOVER_LOGGERS`; native replacement of named loggers' borrowed handlers and levels, restored on exit. |
+
+### Extending logger takeover
+
+The framework mixes the protected `DEFAULT_TAKEOVER_LOGGERS` binding into every
+service configuration. It contains `fastapi`, `uvicorn`, `uvicorn.error`,
+`uvicorn.access`, `gunicorn`, `gunicorn.error`, and `gunicorn.access`, in that
+order. The same immutable tuple is available from the Python package root.
+Extend the defaults without copying them:
+
+```text
+logger.takeover_loggers: [*DEFAULT_TAKEOVER_LOGGERS, "business.integration"]
+```
+
+A list without expansion replaces the defaults; `[]` selects no named takeover
+targets. The native root handler scope still applies. Redefining the constant
+in a service file or CLI override is rejected. The separate short-lived CLI
+logger retains its own configuration.
+
+The runtime file switch does not change `__verbose__`: that binding continues to
+describe the launch-time native CLI flag. See [runtime file diagnostics](logging.md#unreleased-source-runtime-file-diagnostics)
+for execution boundaries, console independence and synchronization.
 
 There is no `api.prefix`. Configure prefixes on business Routers.
 

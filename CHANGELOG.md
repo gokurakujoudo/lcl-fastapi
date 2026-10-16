@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Add service-wide runtime file diagnostics with strict configuration defaults,
+  typed async controls and token-authenticated HTTP GET/PUT operations. Pin each
+  new request, Worker attempt and controller batch while preserving console policy.
+- Expose protected `DEFAULT_TAKEOVER_LOGGERS` in Python and LCL configuration for
+  extending native logger takeover without copying the framework defaults.
+- Add explicit masked `RequestLogger.log_event` records, API handler and Worker
+  attribution, business call-site headers and deferred ordinary message formatting.
+- Suppress the ASGI runtime's duplicate report after the framework successfully
+  reports the same escaping HTTP exception; preserve unrelated runtime errors.
+
 ## 0.5.0 - 2026-10-11
 
 - Hide installed FastAPI/Starlette Python frames in service exception reports,

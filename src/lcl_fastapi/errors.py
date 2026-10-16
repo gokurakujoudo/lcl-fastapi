@@ -10,6 +10,7 @@ from lclang.lang import Frame
 from lclang.utils import invoke, safe_repr
 from starlette.responses import JSONResponse, Response
 
+from lcl_fastapi.log_context import REPORTED_HTTP_FAILURE
 from lcl_fastapi.logging import RequestLogger
 
 
@@ -56,7 +57,12 @@ def report_error(message: str, context: UncaughtExceptionContext, error: Excepti
     :param error: Original exception whose traceback is retained for native formatting.
     """
     try:
-        context.logger.error(message, exc_info=(type(error), error, error.__traceback__))
+        context.logger.error(
+            message,
+            exc_info=(type(error), error, error.__traceback__),
+            extra={"lcl_http_lifecycle": True},
+        )
+        REPORTED_HTTP_FAILURE.set((context.request_id, id(error)))
     except Exception as logging_error:
         try:
             if sys.__stderr__ is not None:

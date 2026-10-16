@@ -49,4 +49,4 @@ def log_request_event(
             ),
         ),
     )
-    logger.info("%s", "\n".join(render_text_tree(tree)))
+    logger.info("%s", "\n".join(render_text_tree(tree)), extra={"lcl_http_lifecycle": True})

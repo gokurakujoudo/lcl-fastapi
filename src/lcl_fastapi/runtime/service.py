@@ -10,6 +10,8 @@ from pathlib import Path
 from lcl_fastapi.config import Settings
 from lcl_fastapi.runtime.access import private_file
 from lcl_fastapi.runtime.state import atomic_write, file_lock, is_live, process_identity, read_state
+from lcl_fastapi.verbose.storage import CONTROL_FILENAME, OBSERVATION_DIRECTORY, write_target
+from lcl_fastapi.verbose.types import FileVerboseState
 
 
 @contextmanager
@@ -51,6 +53,11 @@ def service_runtime(settings: Settings) -> Iterator[dict[str, object]]:
             private_file(token_path)
             token_path.write_text(secrets.token_urlsafe(32), encoding="ascii")
             atomic_write(runtime_path, identity)
+            write_target(
+                directory,
+                str(identity["service_id"]),
+                FileVerboseState(settings.file_verbose or settings.verbose, 0),
+            )
             settings.pid_file.parent.mkdir(parents=True, exist_ok=True)
             settings.pid_file.write_text(str(identity["pid"]), encoding="ascii")
             yield identity
@@ -61,6 +68,10 @@ def service_runtime(settings: Settings) -> Iterator[dict[str, object]]:
                     runtime_path.unlink(missing_ok=True)
                     (directory / "shutdown.json").unlink(missing_ok=True)
                     (directory / "reload.json").unlink(missing_ok=True)
+                    (directory / CONTROL_FILENAME).unlink(missing_ok=True)
+                    for observation in (directory / OBSERVATION_DIRECTORY).glob("*.json"):
+                        if read_state(observation).get("service_id") == identity["service_id"]:
+                            observation.unlink(missing_ok=True)
                     settings.pid_file.unlink(missing_ok=True)
                 token_path.unlink(missing_ok=True)
 

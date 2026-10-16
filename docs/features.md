@@ -4,6 +4,11 @@ The current implementation provides the following capabilities. The verification
 column identifies the acceptance evidence that must remain green; it does not
 claim a successful release or validation on an operating system without a run.
 
+Unreleased source adds explicit masked business events, request/Worker identity
+snapshots, extensible logger takeover defaults and runtime file diagnostics.
+The file control is service-wide and applies at new execution boundaries;
+process observations describe receipt of a target rather than running work.
+
 Version 0.5.0 integrates lclang 1.1.0 configuration composition, configurable
 verbose scopes and native exception reports. Version 0.4.0 added synchronous HTTP exception
 callbacks and native local/UTC log timezone selection.

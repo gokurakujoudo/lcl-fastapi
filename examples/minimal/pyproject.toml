@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.27,<2"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
@@ -7,7 +7,7 @@ name = "lcl-fastapi-minimal-example"
 version = "1.0.0"
 description = "An independently installed minimal lcl-fastapi service"
 requires-python = ">=3.14"
-dependencies = ["lcl-fastapi==0.5.0"]
+dependencies = ["lcl-fastapi>=0.5.0"]
 
 [project.scripts]
 minimal-service = "minimal_service.cli:main"

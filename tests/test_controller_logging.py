@@ -15,6 +15,8 @@ from lcl_fastapi.runtime import controller
 from lcl_fastapi.runtime.controller import controller_event, controller_logging, controller_tick
 from lcl_fastapi.runtime.state import atomic_write, process_identity
 from lcl_fastapi.sources import configuration_frame
+from lcl_fastapi.verbose.storage import write_target
+from lcl_fastapi.verbose.types import FileVerboseState
 
 CONFIG = """app.name: "logging"
 app.version: "1"
@@ -37,6 +39,7 @@ def test_controller_lifecycle_rotation_and_worker_file_separation(
     source = tmp_path / "service.lclcfg"
     source.write_text(CONFIG, encoding="utf-8")
     settings = asyncio.run(load_settings(source))
+    write_target(settings.state_dir, "test", FileVerboseState(False, 0))
     identity = process_identity() | {"service_id": "test"}
     worker = identity | {"log_files": ["first.log"]}
     worker_path = settings.worker_state_dir / "worker.json"
@@ -91,6 +94,7 @@ def test_controller_failure_flushes_and_restores_scope(tmp_path: Path) -> None:
     source = tmp_path / "service.lclcfg"
     source.write_text(CONFIG, encoding="utf-8")
     settings = asyncio.run(load_settings(source))
+    write_target(settings.state_dir, "test", FileVerboseState(False, 0))
     with pytest.raises(RuntimeError, match="native failed"):
         with controller_logging(source, settings, process_identity() | {"service_id": "test"}):
             raise RuntimeError("native failed")
@@ -101,6 +105,47 @@ def test_controller_failure_flushes_and_restores_scope(tmp_path: Path) -> None:
     assert "outside scope" not in contents(tmp_path / "logs", "control*")
 
 
+def test_controller_retains_last_policy_and_reports_a_read_failure_once(tmp_path: Path) -> None:
+    source = tmp_path / "service.lclcfg"
+    source.write_text(CONFIG, encoding="utf-8")
+    settings = asyncio.run(load_settings(source))
+    write_target(settings.state_dir, "test", FileVerboseState(True, 3))
+    with controller_logging(source, settings, process_identity() | {"service_id": "test"}):
+        active = controller.CONTROLLER.get()
+        assert active is not None and active.writer.control is not None
+        (settings.state_dir / "logging-control.json").write_text("invalid", encoding="utf-8")
+        active.tick(force=True)
+        active.tick(force=True)
+        assert active.writer.control.snapshot() == FileVerboseState(True, 3)
+    logs = contents(tmp_path / "logs", "control*")
+    assert logs.count("file verbose refresh failed") == 1
+    assert "service stopped" in logs
+
+
+def test_standalone_controller_observations_do_not_require_a_service_control(
+    tmp_path: Path,
+) -> None:
+    from lclang.logger import LoggerHandlerConfig
+
+    from lcl_fastapi.runtime.controller import ControllerLog
+    from lcl_fastapi.runtime.controller_writer import ControllerWriter
+
+    source = tmp_path / "service.lclcfg"
+    source.write_text(CONFIG, encoding="utf-8")
+    settings = asyncio.run(load_settings(source))
+    writer = ControllerWriter(
+        LoggerHandlerConfig(
+            console={"enabled": False}, file={"controller": {"directory": tmp_path / "logs"}}
+        )
+    )
+    writer.open()
+    try:
+        ControllerLog(writer, settings, process_identity() | {"service_id": "test"}).tick()
+    finally:
+        writer.close()
+    assert "heartbeat" in contents(tmp_path / "logs", "*.log")
+
+
 @pytest.mark.parametrize("code", [None, 0, 1])
 def test_native_exit_status_is_recorded_without_mislabeling_success(
     tmp_path: Path,
@@ -109,6 +154,7 @@ def test_native_exit_status_is_recorded_without_mislabeling_success(
     source = tmp_path / "service.lclcfg"
     source.write_text(CONFIG, encoding="utf-8")
     settings = asyncio.run(load_settings(source))
+    write_target(settings.state_dir, "test", FileVerboseState(False, 0))
     with pytest.raises(SystemExit):
         with controller_logging(source, settings, process_identity() | {"service_id": "test"}):
             raise SystemExit(code)
@@ -151,6 +197,7 @@ def test_reopen_failure_preserves_cause_and_releases_controller(
     source = tmp_path / "service.lclcfg"
     source.write_text(CONFIG, encoding="utf-8")
     settings = asyncio.run(load_settings(source))
+    write_target(settings.state_dir, "test", FileVerboseState(False, 0))
 
     def fail() -> None:
         raise OSError("cannot reopen controller sink")
@@ -174,6 +221,7 @@ def test_child_copy_does_not_reopen_or_close_parent_controller_resources(
     source = tmp_path / "service.lclcfg"
     source.write_text(CONFIG, encoding="utf-8")
     settings = asyncio.run(load_settings(source))
+    write_target(settings.state_dir, "test", FileVerboseState(False, 0))
     parent_pid = os.getpid()
     with controller_logging(source, settings, process_identity() | {"service_id": "test"}):
         active = controller.CONTROLLER.get()

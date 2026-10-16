@@ -57,7 +57,7 @@ On Windows:
 mkdir lcl-workbench
 cd lcl-workbench
 py -3.14 -m venv .venv
-.venv\Scripts\python.exe -m pip install lcl-fastapi==0.5.0
+.venv\Scripts\python.exe -m pip install "lcl-fastapi>=0.5.0"
 mkdir playground_service
 mkdir playground_service\static
 ```
@@ -68,7 +68,7 @@ On Linux:
 mkdir lcl-workbench
 cd lcl-workbench
 python3.14 -m venv .venv
-.venv/bin/python -m pip install lcl-fastapi==0.5.0
+.venv/bin/python -m pip install "lcl-fastapi>=0.5.0"
 mkdir -p playground_service/static
 ```
 
@@ -91,14 +91,14 @@ Create `pyproject.toml` so the application and its static files can be installed
 <!-- tutorial-file: pyproject.toml -->
 ```toml
 [build-system]
-requires = ["hatchling>=1.27,<2"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
 name = "lcl-fastapi-playground-example"
 version = "1.0.0"
 requires-python = ">=3.14"
-dependencies = ["lcl-fastapi==0.5.0"]
+dependencies = ["lcl-fastapi>=0.5.0"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["playground_service"]
