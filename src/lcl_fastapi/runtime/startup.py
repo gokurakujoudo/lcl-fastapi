@@ -29,6 +29,7 @@ async def startup_settings(path: Path, hot_reload: bool) -> Settings:
                 "%s enabled: server.workers=%s has been forced to 1",
                 "hot_reload" if hot_reload else "background_workers",
                 settings.workers,
+                compact=True,
             )
         return replace(settings, workers=1)
     return settings

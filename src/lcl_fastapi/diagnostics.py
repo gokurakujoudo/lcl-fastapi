@@ -13,7 +13,7 @@ from lclang.error import LclError
 from lclang.error.diagnostic_rendering import render_failure
 from lclang.error.failure_traceback import build_traceback_tree, contains_traceback_frames
 from lclang.logger import LoggerHandlerConfig, LoggerRuntime
-from lclang.logger.record_formatter import FILE_ONLY_ATTRIBUTE, RecordFormatter
+from lclang.logger.record_formatter import PREFIX_ATTRIBUTE, RecordFormatter
 from lclang.utils.text_tree import TextTree, render_text_tree
 
 # Native StackSummary frame labels start with these installed-package locations.
@@ -21,24 +21,29 @@ from lclang.utils.text_tree import TextTree, render_text_tree
 FRAMEWORK_FRAME_PREFIXES = tuple(
     f'File "{Path(cast(str, package.__file__)).parent}{os.sep}' for package in (fastapi, starlette)
 )
-# Native traceback node label; removing empty nodes avoids a misleading empty stack.
+# Native traceback node label; omit empty stack nodes after filtering.
 TRACEBACK_LABEL = "Traceback (most recent call last)"
-# Controller events have no business call site; retain native event time, level and PID.
-CONTROLLER_EVENT_FORMAT = "%(asctime)s | %(levelname)-8s | pid=%(process)d | %(message)s"
+# Installed service package path; compact tracebacks hide its helper frames.
+SERVICE_FRAME_PREFIX = f'File "{Path(__file__).parent}{os.sep}'
 
 
-def service_trace_tree(tree: TextTree) -> TextTree:
+def service_trace_tree(tree: TextTree, hide_service: bool = True) -> TextTree:
     """Filter native frame leaves while retaining exception relationships and diagnostics.
 
     :param tree: Detached native Python exception tree, never a live traceback.
+    :param hide_service: Whether to hide this package as well as server framework frames.
     :returns: Equivalent tree without FastAPI/Starlette frames or empty stack nodes.
     """
     label, children = tree
     if label == TRACEBACK_LABEL:
         return label, tuple(
-            child for child in children if not child[0].startswith(FRAMEWORK_FRAME_PREFIXES)
+            child
+            for child in children
+            if not child[0].startswith(
+                FRAMEWORK_FRAME_PREFIXES + ((SERVICE_FRAME_PREFIX,) if hide_service else ())
+            )
         )
-    selected = (service_trace_tree(child) for child in children)
+    selected = (service_trace_tree(child, hide_service) for child in children)
     return label, tuple(child for child in selected if child[0] != TRACEBACK_LABEL or child[1])
 
 
@@ -57,7 +62,10 @@ class ServiceFormatter(RecordFormatter):
         :param tb: Traceback supplied by the original logging record.
         :returns: Python evidence with its heading, or empty text without selected frames.
         """
-        tree = service_trace_tree(build_traceback_tree(error, tb, self.traceback_style, set()))
+        tree = service_trace_tree(
+            build_traceback_tree(error, tb, self.traceback_style, set()),
+            self.traceback_style == "compact",
+        )
         if not contains_traceback_frames(tree):
             return ""
         return "Python traceback:\n" + "\n".join(render_text_tree(tree))
@@ -87,15 +95,21 @@ class ServiceFormatter(RecordFormatter):
         :param record: Borrowed original producer record, including native verbose metadata.
         :returns: Configured message and protected native diagnostic text.
         """
-        if record.name == "lcl_fastapi.controller" and getattr(record, FILE_ONLY_ATTRIBUTE, False):
-            return RecordFormatter(
-                CONTROLLER_EVENT_FORMAT,
-                timezone=self.timezone,
-                traceback_style=self.traceback_style,
-            ).format(record)
-        if not record.exc_info or record.exc_info[1] is None:
-            return super().format(record)
         detached = copy.copy(record)
+        request_id = getattr(record, "request_id", None)
+        if request_id and (
+            getattr(record, "lclang_compact", False) or getattr(record, "lclang_verbose", False)
+        ):
+            prefix = getattr(record, PREFIX_ATTRIBUTE, "")
+            setattr(
+                detached, PREFIX_ATTRIBUTE, f"{request_id} |" + (f" {prefix}" if prefix else "")
+            )
+        identity = getattr(record, "lcl_execution_identity", "")
+        if identity:
+            detached.msg = f"{identity} | {record.getMessage()}"
+            detached.args = ()
+        if not record.exc_info or record.exc_info[1] is None:
+            return super().format(detached)
         detached.exc_info, detached.exc_text = None, None
         formatted = super().format(detached)
         report = (

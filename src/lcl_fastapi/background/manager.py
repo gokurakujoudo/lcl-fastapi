@@ -7,6 +7,7 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from fastapi import FastAPI
+from lclang.logger.record_formatter import COMPACT_ATTRIBUTE
 
 from lcl_fastapi.background.config import WorkerPolicy
 from lcl_fastapi.background.context import BackgroundWorker
@@ -90,7 +91,9 @@ class BackgroundManager:
             for worker in self.workers.values():
                 worker.stop()
             try:
-                logging.getLogger("lcl_fastapi").exception("background journal publication failed")
+                logging.getLogger("lcl_fastapi").exception(
+                    "background journal publication failed", extra={COMPACT_ATTRIBUTE: True}
+                )
             finally:
                 if self.failure_callback is not None and self.retirement is None:
                     self.failure_callback()

@@ -11,12 +11,92 @@ The main process writes controller events, the API process writes service record
 and the `job` Worker writes its own file. A Worker is a managed thread inside the
 API process; hot reload replaces that whole process and starts a new Worker.
 
+The request-ID layouts, `compact`, `log_event()` and runtime file controls in
+this guide describe unreleased source with lclang >=1.1.2. The historical output
+at the end is separately labeled with its original version.
+
+## Choose a logger
+
+Start with `logger = await get_logger()` in an API handler. The framework supplies
+the current request ID as `logger.name` and as the queued record name. There is
+no need to pass a request ID or a module name to obtain correlation.
+
+Use a fixed argument such as `get_logger("orders")` when you want to filter a
+business source or add the `orders` message prefix. That argument selects a
+stable source as well as a prefix; the displayed request name remains the ID.
+Outside a request, the wrapper's name is the stable source. A reused wrapper
+reads the current request on every call. Passing IDs or paths as the argument
+would create registered source loggers for those values, so keep it fixed.
+See the [source and routing contract](logging.md#request-aware-loggers).
+
+The application below uses the default logger in handlers and a named `business`
+logger for startup and teardown, where no HTTP request ID exists. Managed Workers
+use `context.logger` to retain their registration, attempt and dedicated file.
+
+## Choose layout and diagnostic policy
+
+| Choice | What it controls | Suggested use |
+| --- | --- | --- |
+| `compact=False` on a business call | Retains logger name and business caller columns; this is the default. | Business decisions and records where the emitting file, line and function help investigation. |
+| `compact=True` on a business call | Omits name/caller columns; an HTTP request ID remains in the message prefix. | Short progress notices whose location adds no useful context. |
+| `logging.file_verbose: False` | Initial native file-diagnostic policy, independent of ordinary business DEBUG admission. | Normal operation; enable temporarily through the runtime control when investigating. |
+| CLI `--verbose` | Enables initial file diagnostics and console diagnostics; console retains this launch policy. | Local investigation or an intentionally diagnostic service start. |
+| `logger.traceback_style: "compact"` | Filters framework helper frames from exception reports. | Routine error reports; select `"full"` when investigating lclang or lcl_fastapi frames. |
+
+Compact layout does not change a record's severity or turn diagnostics on or off.
+The file verbose API does not remove caller columns from business records.
+Exception reports remain enabled with verbose off. An explicit `logger.format`
+controls the output columns, so use the native defaults to obtain the two layouts
+shown in the [record structure reference](logging.md#record-structure-in-unreleased-source).
+
+For a running service, use the token-authenticated
+`GET /_lcl/logging/verbose` and `PUT /_lcl/logging/verbose` controls, or the async
+Python APIs `get_file_verbose()` and `set_file_verbose(enabled)`. PUT accepts
+`{"enabled": true}` or `{"enabled": false}` and returns 202; the Python setter
+requires `True` or `False`. Turning file
+diagnostics on leaves console policy unchanged. New requests and Worker attempts
+pin the observed policy; existing requests, SSE streams and long-running attempts
+keep their earlier value. Check the target revision and process observations,
+then issue a new request. An observation confirms receipt, not a change to work
+already running. See [runtime file diagnostics](logging.md#unreleased-source-runtime-file-diagnostics).
+
+## Select business fields and report errors at their boundary
+
+Use `log_event()` for one event with several explicit fields. Put the most useful
+fields first; the writer preserves that order and aligns their colons. With a
+dataclass, select direct fields through `fields` and name secrets in
+`masked_fields` before the logger reads or renders them. The same mask option
+applies to keyword values. Do not pass whole request objects, headers or bodies
+for automatic expansion. A disabled event level skips field reading and
+rendering. Python still evaluates arguments before a call, so guard expensive
+application calculations with `logger.isEnabledFor(logging.DEBUG)`. Use
+percent-style arguments for ordinary messages to retain delayed interpolation.
+
+The `/hello` handler below emits a full record, a multiline event with a masked
+field, and a compact notice. Its unmasked data is explicit. The `/handled` route
+logs the original caught exception while its `except` block is active and returns
+a recovered result. `/unhandled` lets the exception reach the framework's final
+reporting boundary. Logging an exception and then re-raising it through that
+boundary produces two business reports, so let the owner of the final outcome
+report it. `use_verbose(..., enabled=False)` suppresses the expected calculation's
+execution diagnostics while preserving its final error tree and traceback.
+
 ## Install and create the service
 
-Use a Python 3.14 virtual environment on Windows or Linux. Install from PyPI:
+Use a Python 3.14 virtual environment on Windows or Linux. For these unreleased
+capabilities, build a wheel from the current framework checkout:
 
 ```console
-python -m pip install lcl-fastapi==0.5.0
+python -m pip install "build>=1.2"
+python -m build --wheel
+```
+
+In a separate example environment, install that wheel, replacing the path below
+with its absolute location. Its unchanged version is 0.5.0; the published PyPI
+0.5.0 wheel does not contain these source additions.
+
+```console
+python -m pip install /absolute/path/to/lcl_fastapi-0.5.0-py3-none-any.whl
 ```
 
 Save these files in an empty directory. Run one service at a time on the machine.
@@ -44,7 +124,9 @@ from lclang.error import LclError
 from lclang.logger import use_verbose
 
 import revision
-from lcl_fastapi import BackgroundWorkerContext, LclFastAPI, get_config, get_logger
+from lcl_fastapi import (
+    BackgroundWorkerContext, LclFastAPI, get_config, get_logger, get_request_context,
+)
 
 
 @asynccontextmanager
@@ -68,9 +150,16 @@ service = LclFastAPI(lifespan=lifespan, background_workers={"job": job})
 
 @service.get("/hello")
 async def hello() -> dict[str, object]:
-    logger = await get_logger("business")
+    logger = await get_logger()
+    context = get_request_context()
+    assert context is not None and logger.name == context.request_id
     greeting = await get_config("business.greeting")
     logger.info("hello revision=%s", revision.VALUE)
+    logger.log_event(
+        "greeting prepared", revision=revision.VALUE, greeting=greeting,
+        token="demo-secret", masked_fields=("token",),
+    )
+    logger.info("greeting ready", compact=True)
     return {
         "greeting": greeting, "revision": revision.VALUE, "pid": os.getpid(),
         "verbose": await get_config("business.trace_enabled"),
@@ -79,7 +168,7 @@ async def hello() -> dict[str, object]:
 
 @service.get("/handled")
 async def handled() -> dict[str, bool]:
-    logger = await get_logger("business")
+    logger = await get_logger()
     # The final exception report is enough for this expected failure.
     with use_verbose(logger, enabled=False):
         try:
@@ -138,7 +227,8 @@ route returns a generic JSON 500. Both responses and their access logs carry the
 server-generated request ID. Use `lcl-fastapi logs -c service.lclcfg` to locate
 currently observed files; it reports paths without reading their content.
 
-Omit `--verbose` to disable tracing, or use `use_verbose(logger, enabled=False)`
+Omit `--verbose` with the default `logging.file_verbose: False` to start without
+tracing, or use `use_verbose(logger, enabled=False)`
 inside a business scope. Use `-o logger.traceback_style full` for full reports.
 Disabling verbose keeps business/access records and exception reports enabled. It does
 not remove the diagnostic trees attached to LCL exceptions.
@@ -168,6 +258,9 @@ from urllib.request import urlopen
 import psutil
 
 
+request_ids = set()
+
+
 def logs(pattern: str = "*.log") -> str:
     return "\n".join(
         path.read_text(encoding="utf-8") for path in sorted(Path("logs").glob(pattern))
@@ -193,6 +286,7 @@ def request(path: str, status: int = 200) -> dict:
     with response:
         assert response.code == status
         assert response.headers["X-Request-ID"].isdecimal()
+        request_ids.add(response.headers["X-Request-ID"])
         return json.load(response)
 
 
@@ -254,13 +348,21 @@ for marker in ("service started", "background worker=job", "hot-reload retiring"
     assert marker in controller
 for marker in ("job starting", "background worker entry failed", "demonstration Worker failure"):
     assert marker in worker and marker not in api
-for marker in ("business startup", "business teardown", "hello revision=222", "VERBOSE",
+for marker in ("business startup", "business teardown", "hello revision=222", "TRACE",
+               "greeting prepared", "revision: 222", "token   : *masked*", "greeting ready",
                "handled calculation failure", "business.failure", "ZeroDivisionError",
-               "demonstration HTTP failure", "status_code=500"):
+               "demonstration HTTP failure", "REST API Completed(500)"):
     assert marker in api
-assert "request_id=" in api and "request_id=" not in worker
-assert api.count("REST API started") == api.count("REST API completed")
-assert api.count("REST API started") >= 4
+assert all(f"{identifier} |" in api for identifier in request_ids)
+assert all(identifier not in worker for identifier in request_ids)
+assert api.count("REST API Started") == api.count("REST API Completed")
+assert api.count("REST API Started") >= 4
+assert "demo-secret" not in api
+for line in api.splitlines():
+    if "hello revision=" in line:
+        assert "app.py:" in line
+    if "greeting ready" in line:
+        assert "app.py:" not in line
 assert "/fastapi/" not in api.replace("\\", "/")
 assert "/starlette/" not in api.replace("\\", "/")
 for line in controller.splitlines():
@@ -276,15 +378,62 @@ Windows and Linux in a separate temporary directory. The assertions check
 behavior, routing and cleanup; timestamps, process IDs and file segment names
 change on each run.
 
+## Read the current output
+
+These illustrative records use the native defaults with UTC timestamps. The
+first ID identifies a successful request, and the second identifies an unhandled
+500. Timestamps, IDs, durations, paths and ports vary in a real run.
+
+```text
+2026-10-16T09:49:22.320868Z | INFO  | MainThread(28244) | 369421555366625280 | REST API Started: HTTP GET /hello from 127.0.0.1:54585
+2026-10-16T09:49:22.322290Z | INFO  | MainThread(28244) | 369421555366625280 | app.py:40:hello | hello revision=1
+2026-10-16T09:49:22.322464Z | INFO  | MainThread(28244) | 369421555366625280 | app.py:41:hello | greeting prepared
+    revision: 1
+    greeting: 'hello'
+    token   : *masked*
+2026-10-16T09:49:22.325330Z | INFO  | MainThread(28244) | 369421555366625280 | greeting ready
+2026-10-16T09:49:22.326019Z | INFO  | MainThread(28244) | 369421555366625280 | REST API Completed(200): HTTP GET /hello from 127.0.0.1:54585 [duration_ms=5.210]
+2026-10-16T09:49:22.327605Z | INFO  | MainThread(28244) | 369421555395985408 | REST API Started: HTTP GET /unhandled from 127.0.0.1:54585
+2026-10-16T09:49:22.330626Z | ERROR | MainThread(28244) | 369421555395985408 | Uncaught Exception in HTTP GET /unhandled from 127.0.0.1:54585:
+Error in handling failure [LCL022890: demonstration HTTP failure]: RuntimeError: demonstration HTTP failure
+Python traceback:
+RuntimeError: demonstration HTTP failure
+└─ Traceback (most recent call last)
+   └─ File "/opt/logging-demo/app.py", line 66, in unhandled
+          raise RuntimeError("demonstration HTTP failure")
+2026-10-16T09:49:22.330982Z | INFO  | MainThread(28244) | 369421555395985408 | REST API Completed(500): HTTP GET /unhandled from 127.0.0.1:54585 [duration_ms=3.417]
+```
+
+The full `hello` records show the business caller; the compact notice keeps the
+same ID without a caller column. The indented event fields form one record.
+The exception title, error text and traceback also form one record. Locate record
+headers by the response's `X-Request-ID`, then read their continuation lines to
+follow the complete invocation across both layouts. A line-only text filter can
+omit the fields and diagnostic trees below a matching header.
+The framework suppresses the server's duplicate report after its final report
+succeeds.
+
+With verbose enabled for the execution, native evaluation records appear between
+the surrounding business records. For example:
+
+```text
+2026-10-16T09:49:22.323565Z | TRACE | MainThread(28244) | 369421555366625280 | Evaluated business.greeting: (str) 'hello' (evaluation E1)
+```
+
+Disabling verbose removes those execution records; it retains the start,
+business, completion and final exception records shown above. A custom format
+may arrange the columns differently.
+
 ## Captured output
 
-Service tracebacks hide FastAPI/Starlette frames while preserving business
-frames and native cause/group diagnostics. Each REST call has a start and a
-completion tree with its ID, path and connection context. Completion adds status
-and duration. Controller event headers retain time, severity and process ID.
+Current source uses native compact messages and single-line HTTP start/completion
+records. Default Python tracebacks also hide lcl_fastapi helper frames. The
+historical capture below predates these unreleased changes: it retains the
+original multi-line trees and headers from lclang 1.1.0.
 
-The excerpts below come from one Windows/Uvicorn run of the files above with
-lclang 1.1.0. They retain the actual timestamps, identifiers, source locations
+The excerpts below come from one Windows/Uvicorn run of an earlier revision of
+this guide with lclang 1.1.0, before the default-logger and structured-event examples.
+They retain the actual timestamps, identifiers, source locations
 and diagnostic text. Only unrelated records and repeated poll requests are
 omitted. Linux uses Gunicorn's native process lifecycle and records different
 process IDs and paths.

@@ -69,6 +69,21 @@ def observed_runtime(monkeypatch: pytest.MonkeyPatch) -> ObservedRuntime:
     @contextmanager
     def worker_scope(settings: Settings) -> Iterator[WorkerRuntime]:
         assert settings.app_name == "test-service"
+        from lcl_fastapi.runtime.state import process_identity
+        from lcl_fastapi.verbose.storage import write_target
+        from lcl_fastapi.verbose.types import FileVerboseState
+
+        if not hasattr(runtime, "directory"):
+            runtime.directory = settings.state_dir
+        if not hasattr(runtime, "identity"):
+            runtime.identity = process_identity()
+        if not hasattr(runtime, "service"):
+            runtime.service = {"service_id": "test-start", "configured_workers": 1}
+        write_target(
+            runtime.directory,
+            str(runtime.service["service_id"]),
+            FileVerboseState(settings.file_verbose or settings.verbose, 0),
+        )
         yield cast(WorkerRuntime, runtime)
 
     monkeypatch.setattr(service_module, "worker_runtime", worker_scope)
@@ -175,8 +190,8 @@ def test_lifespan_configuration_request_ids_and_logs(
         path.read_text(encoding="utf-8") for path in configuration.parent.rglob("*.log")
     )
     assert "business teardown flushed" in logs
-    assert f"request_id={first.headers['X-Request-ID']}" in logs
-    assert "method=GET path=/broken status_code=500" in logs
+    assert f"{first.headers['X-Request-ID']} |" in logs
+    assert "REST API Completed(500): HTTP GET /broken" in logs
 
 
 def test_business_routes_override_builtins(
@@ -431,7 +446,7 @@ async def test_expected_generator_failure_returns_503_without_borrowing_context(
     logs = "\n".join(
         path.read_text(encoding="utf-8") for path in configuration.parent.rglob("*.log")
     )
-    failures = [line for line in logs.splitlines() if "status_code=503" in line]
+    failures = [line for line in logs.splitlines() if "REST API Completed(503):" in line]
     assert len(failures) == 1
     error_name, error_code = {
         "rollback": (
@@ -447,6 +462,6 @@ async def test_expected_generator_failure_returns_503_without_borrowing_context(
     }[failure]
     assert f"id_generation_error={error_name}" in failures[0]
     assert f"id_generation_code={error_code}" in failures[0]
-    assert "request_id=unavailable" in failures[0]
+    assert "unavailable |" in failures[0]
     assert "previous-request" not in logs
     assert observed_runtime.observations

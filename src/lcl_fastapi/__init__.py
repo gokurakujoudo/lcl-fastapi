@@ -7,11 +7,26 @@ from lcl_fastapi.errors import (
     UncaughtExceptionHandler,
     default_uncaught_exception_handler,
 )
-from lcl_fastapi.logging import get_logger
+from lcl_fastapi.logging import RequestLogger, get_logger
+from lcl_fastapi.logging_defaults import DEFAULT_TAKEOVER_LOGGERS
 from lcl_fastapi.service import LclFastAPI
+from lcl_fastapi.verbose import (
+    FileVerboseProcess,
+    FileVerboseState,
+    FileVerboseStatus,
+    get_file_verbose,
+    set_file_verbose,
+)
 
 # Unitless public names define the first-version import contract.
 __all__ = [
+    "DEFAULT_TAKEOVER_LOGGERS",
+    "RequestLogger",
+    "FileVerboseProcess",
+    "FileVerboseState",
+    "FileVerboseStatus",
+    "get_file_verbose",
+    "set_file_verbose",
     "LclFastAPI",
     "BackgroundWorker",
     "BackgroundWorkerContext",

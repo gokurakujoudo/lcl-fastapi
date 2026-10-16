@@ -115,7 +115,7 @@ class HealthSampler:
             )
         warning = "\n".join(unavailable)
         if warning and warning != self.last_warning:
-            self.logger.warning("health metrics unavailable: %s", warning)
+            self.logger.warning("health metrics unavailable: %s", warning, compact=True)
         self.last_warning = warning
         publication = asyncio.create_task(asyncio.to_thread(self.publish, time()))
         cancellation: asyncio.CancelledError | None = None
@@ -131,7 +131,9 @@ class HealthSampler:
         except Exception:
             if cancellation is None:
                 raise
-            self.logger.exception("worker state publication failed during cancellation")
+            self.logger.exception(
+                "worker state publication failed during cancellation", compact=True
+            )
         if cancellation is not None:
             raise cancellation
 
@@ -145,7 +147,7 @@ class HealthSampler:
             try:
                 await self.refresh()
             except OSError as error:
-                self.logger.warning("worker state publication failed: %s", error)
+                self.logger.warning("worker state publication failed: %s", error, compact=True)
 
     async def start(self) -> None:
         """Take the first observation and start exactly one background task.

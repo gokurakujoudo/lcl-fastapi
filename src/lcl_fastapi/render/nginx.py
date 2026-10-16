@@ -59,6 +59,7 @@ def render_nginx(settings: NginxSettings) -> str:
         f"    ssl_certificate_key {key};",
         "",
         "    location = /_lcl/shutdown { return 404; }",
+        "    location = /_lcl/logging/verbose { return 404; }",
     ]
     lines.extend(
         [

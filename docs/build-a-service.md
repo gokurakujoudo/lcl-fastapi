@@ -16,7 +16,7 @@ open either browser-based example independently.
 
 ## Before you start
 
-Use CPython 3.14 on Windows or Linux and install `lcl-fastapi==0.5.0` from
+Use CPython 3.14 on Windows or Linux and install `lcl-fastapi>=0.5.0` from
 PyPI. This version requires lclang >=1.1.0. Run one service at a time; the framework supports one service per machine. All examples bind to
 loopback, use local resources, and need no external account. Installation requires
 package-index access or an operator-prepared wheelhouse.

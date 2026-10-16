@@ -56,16 +56,16 @@ def test_default_route_failure_has_id_and_native_traceback(
         request_id = response.headers["X-Request-ID"]
     logs = "".join(p.read_text(encoding="utf-8") for p in configuration.parent.glob("logs/*.log"))
     for text in (
-        "uncaught HTTP exception",
+        "Uncaught Exception in HTTP",
         "catalog failure",
         "Python traceback:",
         'raise ValueError("catalog failure")',
-        f"request_id={request_id}",
+        f"{request_id} |",
     ):
         assert text in logs
     assert "\tquantity: 3" not in logs
     assert "\toptions:" not in logs
-    assert logs.count("method=GET path=/broken status_code=500") == 1
+    assert logs.count("REST API Completed(500): HTTP GET /broken") == 1
     assert "in default_uncaught_exception_handler" not in logs
     portable = logs.replace("\\", "/")
     assert "/fastapi/" not in portable and "/starlette/" not in portable
@@ -129,7 +129,9 @@ def test_custom_callback_context_and_fallback_order(
     if failure is not None:
         assert logs.index("uncaught_exception_handler failed:") < logs.index("original error")
         assert response.json() == {"detail": "Internal Server Error"}
-    assert logs.count("method=GET path=/broken") == 2
+    assert (
+        sum("REST API " in line and "HTTP GET /broken " in line for line in logs.splitlines()) == 2
+    )
 
 
 def test_specific_handlers_validation_and_dependencies(
@@ -284,9 +286,9 @@ def test_lcl_failure_uses_native_tree_masks_and_traceback_policy(
     assert "business.failure" in logs and "LCL" in logs and "Python traceback:" in logs
     assert "service.lclcfg" in logs and "*masked*" in logs
     assert "do-not-display-this" not in logs
-    assert f"request_id={request_id}" in logs
+    assert f"{request_id} |" in logs
     assert ("binding_evaluation.py" in logs) == (style == "full")
-    assert ("VERBOSE" in logs) is verbose
+    assert ("TRACE" in logs) is verbose
 
 
 @pytest.mark.parametrize("grouped", [False, True])

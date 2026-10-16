@@ -217,6 +217,20 @@ def test_service_scope_preserves_another_start_identity(tmp_path: Path) -> None:
     assert read_state(settings.state_dir / "runtime.json") == {"service_id": "replacement"}
 
 
+def test_complete_service_exit_removes_own_logging_state_only(tmp_path: Path) -> None:
+    source = tmp_path / "service.lclcfg"
+    source.write_text(CONFIG, encoding="utf-8")
+    settings = asyncio.run(load_settings(source))
+    observations = settings.state_dir / "logging-observations"
+    with service_runtime(settings) as identity:
+        atomic_write(observations / "own.json", {"service_id": identity["service_id"]})
+        atomic_write(observations / "foreign.json", {"service_id": "another-start"})
+        assert (settings.state_dir / "logging-control.json").exists()
+    assert not (settings.state_dir / "logging-control.json").exists()
+    assert not (observations / "own.json").exists()
+    assert read_state(observations / "foreign.json") == {"service_id": "another-start"}
+
+
 def test_inherited_service_scope_preserves_master_files(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

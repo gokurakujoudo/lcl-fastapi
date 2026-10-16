@@ -11,6 +11,7 @@ from lclang.config import load_config
 from lclang.lang import LCL_IMPORTS, Frame, LclConstant, Module, ModuleName
 from lclang.utils import normalize_masked_mapping
 
+from lcl_fastapi.logging_defaults import DEFAULT_TAKEOVER_LOGGERS
 from lcl_fastapi.overrides import current_overrides
 
 # Installed package resource; the reserved binding makes native dynamic using portable.
@@ -50,9 +51,9 @@ async def configuration_frame(
     verbose = raw.pop("__verbose__", False)
     if not isinstance(verbose, bool):
         raise ValueError("internal __verbose__ transport must be Boolean")
-    reserved = {"worker_pid", "lcl_fastapi_defaults"}
+    reserved = {"worker_pid", "lcl_fastapi_defaults", "DEFAULT_TAKEOVER_LOGGERS"}
     if raw.keys() & reserved:
-        raise ValueError("worker_pid and lcl_fastapi_defaults are provided by the framework")
+        raise ValueError(f"{', '.join(sorted(reserved))} are provided by the framework")
     expressions = {
         key: override_expression(value) if isinstance(value, str) else LclConstant(value=value)
         for key, value in raw.items()
@@ -60,14 +61,25 @@ async def configuration_frame(
     values: dict[str, object] = {
         "lcl_fastapi_defaults": str(DEFAULT_CONFIG),
         "__verbose__": verbose,
+        "DEFAULT_TAKEOVER_LOGGERS": DEFAULT_TAKEOVER_LOGGERS,
     }
     if worker_pid is not None:
         values["worker_pid"] = worker_pid
     defaults = await load_config(DEFAULT_CONFIG)
     loaded = await load_config(config_path, overrides=expressions | values)
     if (loaded.definitions.keys() | loaded.namespace_names) & reserved:
-        raise ValueError("worker_pid and lcl_fastapi_defaults are provided by the framework")
-    module = defaults.to_module().mixin(loaded.to_module(), name="service_configuration")
+        raise ValueError(f"{', '.join(sorted(reserved))} are provided by the framework")
+    constants = Module(
+        ModuleName("framework_constants"),
+        {
+            "DEFAULT_TAKEOVER_LOGGERS": LclConstant(value=DEFAULT_TAKEOVER_LOGGERS),
+        },
+    )
+    module = (
+        defaults.to_module()
+        .mixin(constants)
+        .mixin(loaded.to_module(), name="service_configuration")
+    )
     module = module.mixin(Module(ModuleName("cli_overrides"), expressions, masked_names=masks))
     if logger_role is not None:
         definitions = {

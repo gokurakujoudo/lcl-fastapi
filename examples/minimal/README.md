@@ -17,7 +17,7 @@ py -3.14 -m venv .venv
 ```
 
 Installation builds this downstream package and installs its pinned
-`lcl-fastapi==0.5.0` dependency from PyPI. Dependencies require package-index
+`lcl-fastapi>=0.5.0` dependency from PyPI. Dependencies require package-index
 access or a local wheel cache.
 
 On Linux, create the environment with `python3.14 -m venv .venv`, use
@@ -88,7 +88,7 @@ the isolated runtime files when complete. No external service or credentials
 are used. The environment must permit system temporary files, child processes,
 and loopback HTTP.
 
-Run `lcl-fastapi==0.5.0` in a clean independent environment on
+Run `lcl-fastapi>=0.5.0` in a clean independent environment on
 Windows or Linux with CPython 3.14. Expected final output:
 
 ```text
