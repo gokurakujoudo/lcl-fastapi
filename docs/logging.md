@@ -3,6 +3,45 @@
 For executable examples and captured logs from the main process, API handler,
 Worker, hot reload and exception boundaries, see [logging practices](logging-practices.md).
 
+## Record structure in unreleased source
+
+The layouts, request-ID names, `log_event()` and runtime file controls below are
+unreleased capabilities. Current source requires `lclang>=1.1.2`; installing the
+published lcl-fastapi 0.5.0 release alone does not provide them.
+
+With the native default formatter, a full business record has these columns:
+
+```text
+timestamp | level | thread_name(pid) | logger_name | module.py:line:function | message
+```
+
+A compact record omits the logger-name and caller columns:
+
+```text
+timestamp | level | thread_name(pid) | message
+```
+
+Within an HTTP request, the full record's `logger_name` is the server-generated
+request ID. Compact and native TRACE records place that ID at the start of the
+message, followed by ` | `. The ID appears once with either default layout.
+An explicit `logger.format` chooses its own columns and takes precedence over
+compact selection; including both `%(name)s` and a compact message can repeat the ID.
+
+| Record | Default layout | Identity and diagnostic content |
+| --- | --- | --- |
+| HTTP start/completion | Compact | Request-ID message prefix, method, actual path and client; completion adds status and duration. |
+| Business call | Full, or compact when explicitly selected | Request ID in the name column or message prefix; full records retain the business file, line and function. |
+| Native verbose evaluation | Compact, displayed as TRACE | Request-ID message prefix and native evaluation/failure identifiers, with a tree when available. |
+| Final HTTP exception | Compact | Request-ID message prefix and invocation title, followed by the native error tree and applicable Python traceback. |
+| Controller event | Compact | Controller PID in the header and observed service/worker identity in the message; no HTTP request ID. |
+| Managed Worker record | Full for business calls, compact for framework notices | Worker registration, attempt and entry identity; dedicated file routing without an HTTP request ID. |
+
+An event's indented fields, evaluation tree or exception report belong to the
+same record as its first line. They are formatted together by the native writer;
+rotation does not split them. For practical choices, see
+[choosing a logger](logging-practices.md#choose-a-logger) and
+[layout and diagnostic policy](logging-practices.md#choose-layout-and-diagnostic-policy).
+
 ## Native verbose control
 
 ### Unreleased source: runtime file diagnostics
@@ -51,7 +90,7 @@ and the deferred service's downstream scopes. The Boolean `__verbose__` binding
 is available to `.lclcfg` expressions and `get_config("__verbose__")`; it is
 framework-owned and cannot be redefined. Omitting the flag selects False.
 
-Enabled service sinks admit DEBUG records while preserving source filters,
+The CLI `--verbose` flag also lowers enabled service sinks to DEBUG while preserving source filters,
 timezone, exception style, and disabled sinks. Business lifespan, API requests
 and background Worker evaluation use public
 `use_verbose(logger, enabled=...)`. Requests retain their IDs on diagnostic
@@ -148,12 +187,32 @@ file is rejected. LCL computes the filename, while lclang owns permanent
 segments, rotation suffixes, writes, and flush. There is no `logger.log_dir` or
 `logger.filename` compatibility alias.
 
-Use `await get_logger(prefix="", emit_level=0)` inside an active lifespan or
-request. The prefix selects a stable source for levels, file filters and optional message
-prefixes. Inside a request, `logger.name` and queued record names are the current
-request ID. Outside requests they retain the stable source name. A reused logger
-reads identity on each emission; no per-request names enter the logger registry.
-`lcl_source_name` retains the routing source, including Worker routing namespaces.
+## Request-aware loggers
+
+Use `await get_logger()` inside an active lifespan or request. No argument is
+required to obtain request IDs. The full signature is
+`get_logger(prefix="", emit_level=0)`; `prefix` selects both a stable source and
+an optional message prefix:
+
+| Call | Stable source | Message prefix | `logger.name` inside a request |
+| --- | --- | --- | --- |
+| `await get_logger()` | `lcl_fastapi` | None | Current request ID |
+| `await get_logger("orders")` | `orders` | `orders` | Current request ID |
+
+Choose a stable business prefix only when it helps source filtering, source
+levels or human-readable classification. It does not name the request. Keep
+request IDs, paths and user IDs out of this argument: source loggers are
+registered for the process lifetime, whereas request IDs are record metadata.
+
+Inside a request, `logger.name` and queued record names are the current request
+ID. Outside requests, the wrapper's name returns to its stable source. A reused
+logger reads identity on each emission, so concurrent requests remain isolated
+without registering their IDs as loggers. `lcl_source_name` snapshots the stable
+routing source before the queued name changes. When background workers are
+registered, routing qualifies that source with `lcl_fastapi.api.` or
+`lcl_fastapi.background.<worker>.`; configure file filters with the original
+source, such as `logger.file.service.logger_names: ["orders"]`. The framework
+applies the role namespace for the sink.
 
 Compact request messages, including native TRACE records, receive a standard
 `request_id | ` prefix. Full business messages use the name column instead.
@@ -179,7 +238,7 @@ errors. No whole-record expansion or automatic request body logging occurs.
 Use the same API as `context.logger.log_event(...)` inside a managed Worker.
 
 This isolated example uses the active native writer. The service adds its
-request identity and role layouts when it owns that writer:
+request identity and routing metadata when it owns that writer:
 
 <!-- python-doc-exec -->
 ```python
@@ -231,7 +290,8 @@ service = LclFastAPI()
 async def work() -> dict[str, str]:
     context = get_request_context()
     assert context is not None
-    logger = await get_logger("example.work")
+    logger = await get_logger()
+    assert logger.name == context.request_id
     logger.info("work completed")
     return {"request_id": context.request_id}
 ```

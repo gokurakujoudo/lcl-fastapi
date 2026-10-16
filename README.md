@@ -23,6 +23,10 @@ uses native per-record compact logging, single-line HTTP invocation records and
 request-ID logger names with lclang >=1.1.2.
 See the [logging reference](https://gokurakujoudo.github.io/lcl-fastapi/logging/)
 for the configuration, authenticated HTTP controls and process observations.
+Start with `await get_logger()` in handlers: the current request ID supplies the
+displayed name. An optional business prefix selects a stable source and message
+label. The [logging guide](https://gokurakujoudo.github.io/lcl-fastapi/logging-practices/)
+explains record columns, compact choices, masked events and diagnostic policy.
 
 Version 0.5.0 composes native configuration Modules before evaluation, supports
 isolated configuration imports and lazy required values, and uses upstream
@@ -73,7 +77,7 @@ service = LclFastAPI()
 
 @service.get("/hello")
 async def hello() -> dict[str, str]:
-    logger = await get_logger(__name__)
+    logger = await get_logger()
     logger.info("hello requested")
     return {"message": "hello"}
 ```
