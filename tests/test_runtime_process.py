@@ -177,9 +177,9 @@ def test_native_workers_recover_and_finish_lifespans(tmp_path: Path) -> None:
             control_path = tmp_path / "run/logging-control.json"
             control_state = read_state(control_path)
             atomic_write(control_path, {"service_id": "invalid"})
-            token = (tmp_path / "run/control.token").read_text(encoding="ascii")
+            control_token_text = (tmp_path / "run/control.token").read_text(encoding="ascii")
             with httpx.Client() as client:
-                headers = {"X-LCL-Control-Token": token}
+                headers = {"X-LCL-Control-Token": control_token_text}
                 endpoint = f"http://127.0.0.1:{port}/_lcl/logging/verbose"
                 assert client.get(endpoint, headers=headers).status_code == 503
                 assert (
