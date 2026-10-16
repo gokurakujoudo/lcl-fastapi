@@ -431,8 +431,9 @@ records. Default Python tracebacks also hide lcl_fastapi helper frames. The
 historical capture below predates these unreleased changes: it retains the
 original multi-line trees and headers from lclang 1.1.0.
 
-The excerpts below come from one Windows/Uvicorn run of the files above with
-lclang 1.1.0. They retain the actual timestamps, identifiers, source locations
+The excerpts below come from one Windows/Uvicorn run of an earlier revision of
+this guide with lclang 1.1.0, before the default-logger and structured-event examples.
+They retain the actual timestamps, identifiers, source locations
 and diagnostic text. Only unrelated records and repeated poll requests are
 omitted. Linux uses Gunicorn's native process lifecycle and records different
 process IDs and paths.
