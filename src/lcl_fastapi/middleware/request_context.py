@@ -54,6 +54,8 @@ class RequestContextMiddleware:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         """Propagate response headers and emit paired invocation records.
 
+        Copy the incoming state mapping while borrowing its lifespan resource values.
+
         :param scope: ASGI connection scope.
         :param receive: Incoming ASGI messages.
         :param send: Outgoing ASGI messages.
@@ -68,7 +70,8 @@ class RequestContextMiddleware:
         context_token = REQUEST_CONTEXT.set(None)
         frame_token = CONFIG_FRAME.set(runtime.frame)
         scope_token = REQUEST_SCOPE.set(scope)
-        scope.setdefault("state", {}).pop("request_id", None)
+        scope["state"] = dict(scope.get("state", {}))
+        scope["state"].pop("request_id", None)
         status_code = 500
         failure_detail = ""
 

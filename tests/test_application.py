@@ -14,7 +14,7 @@ import pytest
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.testclient import TestClient
 from lclang.error import UtilityErrorCode
-from starlette.types import Message, Scope
+from starlette.types import Message, Receive, Scope, Send
 
 import lcl_fastapi.service as service_module
 from lcl_fastapi import LclFastAPI, get_config, get_logger, get_request_context
@@ -102,6 +102,46 @@ async def test_formal_configuration_defaults_and_worker_scope(configuration: Pat
         assert await frame.get("logger.file.service.filename") == "test-service.123.log"
     with pytest.raises(RuntimeError, match="active worker"):
         await get_config("business.value")
+
+
+async def test_shared_incoming_state_isolated_per_request_preserves_resource_references(
+    configuration: Path, observed_runtime: ObservedRuntime
+) -> None:
+    service = LclFastAPI(config_path=configuration)
+    resource = object()
+    inherited: dict[str, object] = {"resource": resource, "request_id": "lifespan-sentinel"}
+    ready = asyncio.Event()
+    arrivals = 0
+
+    @service.get("/state/{label}")
+    async def state(label: str, request: Request) -> dict[str, str]:
+        nonlocal arrivals
+        context = get_request_context()
+        assert context is not None and request.state.resource is resource
+        request.state.label = label
+        arrivals += 1
+        if arrivals == 2:
+            ready.set()
+        await asyncio.wait_for(ready.wait(), timeout=5)
+        assert get_request_context() is context
+        return {"request_id": request.state.request_id, "label": request.state.label}
+
+    async def incoming(scope: Scope, receive: Receive, send: Send) -> None:
+        scope["state"] = inherited
+        await service(scope, receive, send)
+
+    async with (
+        service.router.lifespan_context(service),
+        httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=incoming), base_url="http://local.test"
+        ) as client,
+    ):
+        responses = await asyncio.gather(client.get("/state/first"), client.get("/state/second"))
+    assert inherited == {"resource": resource, "request_id": "lifespan-sentinel"}
+    assert len({response.headers["X-Request-ID"] for response in responses}) == 2
+    for label, response in zip(("first", "second"), responses, strict=True):
+        assert response.status_code == 200
+        assert response.json() == {"request_id": response.headers["X-Request-ID"], "label": label}
 
 
 @pytest.mark.parametrize("origin", ["", "http://example.test", "https://example.test:8443"])

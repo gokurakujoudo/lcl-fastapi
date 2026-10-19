@@ -495,6 +495,11 @@ decimal string as the server ID. On success it binds that ID in the task-local
 framework leases concurrent worker IDs but does not implement Snowflake's
 timestamp, sequence, bit composition, clock handling, or locks.
 
+HTTP middleware shallow-copies the incoming state dictionary before binding the
+ID. Top-level request state stays independent even if a server supplies the same
+dictionary to concurrent requests. Lifespan-owned resources inside that dictionary
+remain shared by reference; this does not copy or take ownership of those resources.
+
 ## Observing active files
 
 ```console
