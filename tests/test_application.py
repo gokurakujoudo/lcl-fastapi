@@ -14,7 +14,7 @@ import pytest
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.testclient import TestClient
 from lclang.error import UtilityErrorCode
-from starlette.types import Message, Scope
+from starlette.types import Message, Receive, Scope, Send
 
 import lcl_fastapi.service as service_module
 from lcl_fastapi import LclFastAPI, get_config, get_logger, get_request_context
@@ -69,6 +69,21 @@ def observed_runtime(monkeypatch: pytest.MonkeyPatch) -> ObservedRuntime:
     @contextmanager
     def worker_scope(settings: Settings) -> Iterator[WorkerRuntime]:
         assert settings.app_name == "test-service"
+        from lcl_fastapi.runtime.state import process_identity
+        from lcl_fastapi.verbose.storage import write_target
+        from lcl_fastapi.verbose.types import FileVerboseState
+
+        if not hasattr(runtime, "directory"):
+            runtime.directory = settings.state_dir
+        if not hasattr(runtime, "identity"):
+            runtime.identity = process_identity()
+        if not hasattr(runtime, "service"):
+            runtime.service = {"service_id": "test-start", "configured_workers": 1}
+        write_target(
+            runtime.directory,
+            str(runtime.service["service_id"]),
+            FileVerboseState(settings.file_verbose or settings.verbose, 0),
+        )
         yield cast(WorkerRuntime, runtime)
 
     monkeypatch.setattr(service_module, "worker_runtime", worker_scope)
@@ -87,6 +102,46 @@ async def test_formal_configuration_defaults_and_worker_scope(configuration: Pat
         assert await frame.get("logger.file.service.filename") == "test-service.123.log"
     with pytest.raises(RuntimeError, match="active worker"):
         await get_config("business.value")
+
+
+async def test_shared_incoming_state_isolated_per_request_preserves_resource_references(
+    configuration: Path, observed_runtime: ObservedRuntime
+) -> None:
+    service = LclFastAPI(config_path=configuration)
+    resource = object()
+    inherited: dict[str, object] = {"resource": resource, "request_id": "lifespan-sentinel"}
+    ready = asyncio.Event()
+    arrivals = 0
+
+    @service.get("/state/{label}")
+    async def state(label: str, request: Request) -> dict[str, str]:
+        nonlocal arrivals
+        context = get_request_context()
+        assert context is not None and request.state.resource is resource
+        request.state.label = label
+        arrivals += 1
+        if arrivals == 2:
+            ready.set()
+        await asyncio.wait_for(ready.wait(), timeout=5)
+        assert get_request_context() is context
+        return {"request_id": request.state.request_id, "label": request.state.label}
+
+    async def incoming(scope: Scope, receive: Receive, send: Send) -> None:
+        scope["state"] = inherited
+        await service(scope, receive, send)
+
+    async with (
+        service.router.lifespan_context(service),
+        httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=incoming), base_url="http://local.test"
+        ) as client,
+    ):
+        responses = await asyncio.gather(client.get("/state/first"), client.get("/state/second"))
+    assert inherited == {"resource": resource, "request_id": "lifespan-sentinel"}
+    assert len({response.headers["X-Request-ID"] for response in responses}) == 2
+    for label, response in zip(("first", "second"), responses, strict=True):
+        assert response.status_code == 200
+        assert response.json() == {"request_id": response.headers["X-Request-ID"], "label": label}
 
 
 @pytest.mark.parametrize("origin", ["", "http://example.test", "https://example.test:8443"])
@@ -175,8 +230,8 @@ def test_lifespan_configuration_request_ids_and_logs(
         path.read_text(encoding="utf-8") for path in configuration.parent.rglob("*.log")
     )
     assert "business teardown flushed" in logs
-    assert f"request_id={first.headers['X-Request-ID']}" in logs
-    assert "method=GET path=/broken status_code=500" in logs
+    assert f"{first.headers['X-Request-ID']} |" in logs
+    assert "REST API Completed(500): HTTP GET /broken" in logs
 
 
 def test_business_routes_override_builtins(
@@ -431,7 +486,7 @@ async def test_expected_generator_failure_returns_503_without_borrowing_context(
     logs = "\n".join(
         path.read_text(encoding="utf-8") for path in configuration.parent.rglob("*.log")
     )
-    failures = [line for line in logs.splitlines() if "status_code=503" in line]
+    failures = [line for line in logs.splitlines() if "REST API Completed(503):" in line]
     assert len(failures) == 1
     error_name, error_code = {
         "rollback": (
@@ -447,6 +502,6 @@ async def test_expected_generator_failure_returns_503_without_borrowing_context(
     }[failure]
     assert f"id_generation_error={error_name}" in failures[0]
     assert f"id_generation_code={error_code}" in failures[0]
-    assert "request_id=unavailable" in failures[0]
+    assert "unavailable |" in failures[0]
     assert "previous-request" not in logs
     assert observed_runtime.observations

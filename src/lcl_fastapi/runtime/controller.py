@@ -19,6 +19,7 @@ from lcl_fastapi.logging import resolve_log_directories
 from lcl_fastapi.runtime.controller_writer import ControllerWriter
 from lcl_fastapi.runtime.state import is_live, live_workers
 from lcl_fastapi.sources import configuration_frame
+from lcl_fastapi.verbose.control import FileVerboseControl
 
 # Process-manager-loop binding; forked workers never advance the controller observer.
 CONTROLLER: ContextVar[ControllerLog | None] = ContextVar("lcl_fastapi_controller", default=None)
@@ -132,6 +133,10 @@ class ControllerLog:
         if not force and now < self.deadline:
             return
         self.deadline = now + self.settings.sample_interval_seconds
+        if self.writer.control is not None:
+            warning = self.writer.control.refresh_warning()
+            if warning:
+                self.writer.emit_records([(logging.WARNING, warning)])
         current = {
             (worker["pid"], worker["process_create_time"]): worker
             for worker in live_workers(self.settings.worker_state_dir, self.identity["service_id"])
@@ -206,7 +211,10 @@ def controller_logging(
     :raises OSError: If controller state or log storage fails.
     :raises BaseException: Propagates native manager failures after recording failure.
     """
-    writer = ControllerWriter(asyncio.run(controller_config(path)))
+    control = FileVerboseControl(settings.state_dir, str(identity["service_id"]), "controller")
+    writer = ControllerWriter(
+        asyncio.run(controller_config(path)), control=control, cli_verbose=settings.verbose
+    )
     writer.open()
     controller = ControllerLog(writer, settings, identity)
     token = CONTROLLER.set(controller)

@@ -20,10 +20,12 @@ class WarningRecorder:
     def __init__(self) -> None:
         self.messages: list[str] = []
 
-    def warning(self, message: str, *args: object) -> None:
+    def warning(self, message: str, *args: object, compact: bool = False) -> None:
+        assert compact is True
         self.messages.append(message % args)
 
-    def exception(self, message: str) -> None:
+    def exception(self, message: str, *, compact: bool = False) -> None:
+        assert compact is True
         self.messages.append(message)
 
 
@@ -80,7 +82,8 @@ async def test_sampler_start_stop_and_publication_failure(monkeypatch: pytest.Mo
     recorder = WarningRecorder()
     observations: list[float] = []
 
-    def warning(message: str, *args: object) -> None:
+    def warning(message: str, *args: object, compact: bool = False) -> None:
+        assert compact is True
         recorder.messages.append(message % args)
         failure_observed.set()
 

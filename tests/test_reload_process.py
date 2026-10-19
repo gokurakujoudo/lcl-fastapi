@@ -13,6 +13,7 @@ import psutil
 import pytest
 from coverage import Coverage
 from test_runtime_process import available_port
+from verbose_process_support import submit_file_verbose, wait_file_verbose
 
 from lcl_fastapi.runtime.common import stop
 from lcl_fastapi.runtime.state import read_state
@@ -101,6 +102,7 @@ def test_reload_roots_replacement_and_failure(tmp_path: Path, failure: str | Non
             time.sleep(2)  # Allow the native manager's first bounded watch iteration.
             master = read_state(tmp_path / "run/runtime.json")
             token = (tmp_path / "run/control.token").read_bytes()
+            verbose_revision = submit_file_verbose(port, tmp_path, True, 1)
             assert master["configured_workers"] == 1
             with httpx.Client() as client:
                 health = client.get(f"http://127.0.0.1:{port}/health").json()["service"]
@@ -130,6 +132,7 @@ def test_reload_roots_replacement_and_failure(tmp_path: Path, failure: str | Non
                 value.write_text("VALUE = 222\n", encoding="utf-8")
                 current = response(port, process, initial["pid"])
                 assert current["value"] == 222
+                wait_file_verbose(port, tmp_path, True, verbose_revision, 1)
                 for action in ["add", "modify", "delete"]:
                     trigger = nested / "trigger.py"
                     if action == "delete":

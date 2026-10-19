@@ -24,8 +24,9 @@ def validate_arguments(arguments: Sequence[str]) -> CliParams | None:
     )
     command = tokens[:option_start]
     params = parse_cli_params(parts, command or ("help",), tokens[option_start:])
-    if params.overrides.keys() & {"worker_pid", "lcl_fastapi_defaults"}:
-        raise ValueError("worker_pid and lcl_fastapi_defaults are provided by the framework")
+    reserved = {"worker_pid", "lcl_fastapi_defaults", "DEFAULT_TAKEOVER_LOGGERS"}
+    if params.overrides.keys() & reserved:
+        raise ValueError(f"{', '.join(sorted(reserved))} are provided by the framework")
     return params
 
 

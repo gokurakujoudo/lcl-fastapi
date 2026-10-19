@@ -17,7 +17,7 @@ from test_application import configuration as configuration
 from test_application import observed_runtime as observed_runtime
 from test_background import background_runtime as background_runtime
 
-from lcl_fastapi import BackgroundWorkerContext, LclFastAPI
+from lcl_fastapi import BackgroundWorkerContext, FileVerboseState, LclFastAPI
 from lcl_fastapi.background import thread
 from lcl_fastapi.background.config import WorkerPolicy
 from lcl_fastapi.background.journal import (
@@ -32,6 +32,7 @@ from lcl_fastapi.runtime import probe
 from lcl_fastapi.runtime.controller import controller_background_tick, controller_logging
 from lcl_fastapi.runtime.controller_writer import ControllerWriter
 from lcl_fastapi.runtime.state import process_identity
+from lcl_fastapi.verbose.storage import write_target
 
 
 def test_journal_partial_lines_foreign_start_malformed_and_dead_cleanup(
@@ -276,6 +277,7 @@ def test_controller_deadline_records_failure_before_kill(
     import lcl_fastapi.runtime.controller as controller
 
     settings = asyncio.run(load_settings(configuration))
+    write_target(settings.state_dir, "test", FileVerboseState(False, 0))
     identity = process_identity() | {"service_id": "test"}
     journal = BackgroundJournal(settings.state_dir, identity)
     journal.emit(logging.INFO, "background stopping", deadline=0)
@@ -308,6 +310,7 @@ def test_controller_retirement_does_not_require_journal_delivery(
     import lcl_fastapi.runtime.controller as controller
 
     settings = asyncio.run(load_settings(configuration))
+    write_target(settings.state_dir, "test", FileVerboseState(False, 0))
     identity = process_identity() | {"service_id": "test"}
     killed: list[dict[str, object]] = []
     monkeypatch.setattr(controller, "terminate_background_process", killed.append)
@@ -345,6 +348,11 @@ async def test_runtime_publication_failure_stops_workers_and_requests_shutdown(
             await manager.pump
         assert background_runtime.stopped
         assert manager.workers["job"].stop_event.is_set()
-    assert "background journal publication failed" in "".join(
+    logs = "".join(
         path.read_text(encoding="utf-8") for path in (configuration.parent / "logs").glob("*.log")
     )
+    header = next(
+        line for line in logs.splitlines() if "background journal publication failed" in line
+    )
+    assert "manager.py:" not in header
+    assert "runtime publication unavailable" in logs

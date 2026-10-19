@@ -10,6 +10,7 @@ from lclang.lang import Frame
 from lclang.utils import invoke, safe_repr
 from starlette.responses import JSONResponse, Response
 
+from lcl_fastapi.log_context import REPORTED_HTTP_FAILURE, http_request_description
 from lcl_fastapi.logging import RequestLogger
 
 
@@ -56,7 +57,12 @@ def report_error(message: str, context: UncaughtExceptionContext, error: Excepti
     :param error: Original exception whose traceback is retained for native formatting.
     """
     try:
-        context.logger.error(message, exc_info=(type(error), error, error.__traceback__))
+        context.logger.error(
+            message,
+            exc_info=(type(error), error, error.__traceback__),
+            compact=True,
+        )
+        REPORTED_HTTP_FAILURE.set((context.request_id, id(error)))
     except Exception as logging_error:
         try:
             if sys.__stderr__ is not None:
@@ -77,7 +83,7 @@ async def default_uncaught_exception_handler(
     :param context: Borrowed configuration, logger and service information.
     :returns: JSON 500 without exception details.
     """
-    report_error("uncaught HTTP exception", context, err)
+    report_error(f"Uncaught Exception in {http_request_description(request.scope)}:", context, err)
     return JSONResponse({"detail": "Internal Server Error"}, status_code=500)
 
 

@@ -104,6 +104,16 @@ They still share the process, GIL, CPU, memory and any application locks; arbitr
 CPU-bound or GIL-holding code can affect API responsiveness. This is not process
 isolation. Background work starts without an HTTP request ID or request context.
 
+Runtime file diagnostics are pinned when the registered callable starts an
+attempt, not on each iteration of an application-owned loop. A long-running
+callable keeps that policy until it exits. Querying `get_file_verbose()` does not
+refresh the attempt's policy, and public `use_verbose()` controls native tracing
+without replacing the framework's file-policy snapshot. There is no public
+work-unit policy-refresh scope. Process observations describe receipt of the
+target; they are not observations of each Worker's currently executing policy.
+Choose finite attempts when that lifecycle fits the work, or retain the pinned
+policy for a long-running callable. See [runtime file diagnostics](logging.md#runtime-file-diagnostics).
+
 ## Restart, shutdown and observations
 
 Business lifespan initializes first, then all enabled background thread resources

@@ -4,6 +4,14 @@ The current implementation provides the following capabilities. The verification
 column identifies the acceptance evidence that must remain green; it does not
 claim a successful release or validation on an operating system without a run.
 
+Version 0.6.0 adds explicit masked business events, request/Worker identity
+snapshots, extensible logger takeover defaults and runtime file diagnostics. It
+requires lclang >=1.1.2 for native per-record compact layouts and uses single-line
+HTTP invocation records with request-ID logger names. Mounted static GET requests
+use one compact completion summary, retaining final exception diagnostics.
+The file control is service-wide and applies at new execution boundaries;
+process observations describe receipt of a target rather than running work.
+
 Version 0.5.0 integrates lclang 1.1.0 configuration composition, configurable
 verbose scopes and native exception reports. Version 0.4.0 added synchronous HTTP exception
 callbacks and native local/UTC log timezone selection.
@@ -11,12 +19,12 @@ callbacks and native local/UTC log timezone selection.
 | Capability | Contract and evidence |
 | --- | --- |
 | Managed background workers | Code-only callables on dedicated threads/loops, service bridges, restart/shutdown, dedicated logs and controller events; unit and native-process tests. |
-| Uncaught HTTP exceptions | Typed synchronous/asynchronous callbacks, native compact/full exception trees and generic 500 fallback; response, precedence, cause/group, streaming and logging-failure tests. |
+| Uncaught HTTP exceptions | Typed synchronous/asynchronous callbacks, native compact/full exception trees and generic 500 fallback; response, precedence, cause/group, streaming and logging-failure tests. Native-process tests verify business exception consumption, original ASGI propagation after custom responses, default-only server deduplication and concurrent file/console reports. |
 | Scoped configuration Frames | `use_lcl_frame()` derives and owns nested task-local Frames; behavioral tests verify inheritance, restoration, concurrency and cancellation. |
 | LCL configuration and typed application | Native Module composition, isolated import namespaces, optional introductions, lazy required/runtime values, portable defaults and CLI precedence; configuration and application behavior tests. |
 | Request context and logs | Server-generated lclang Snowflake IDs, response headers, isolated context, and separate controller/worker upstream logging with lifecycle observations. Upstream clock/sequence failures return 503 without an ID and record one failure access log. |
 | Native verbose diagnostics | CLI `--verbose` and its protected `__verbose__` binding reach downstream expressions, lifespan, requests, Workers and playground traces; disabled/enabled, handoff, local-silencing and native reload tests. [Logging practices](logging-practices.md) execute exact example source and show captured logs. |
-| Focused service logs | Paired multiline REST start/completion trees with IDs and connection context, concise controller headers, and FastAPI/Starlette frame filtering in native reports; response, metadata privacy, original traceback/group preservation and captured-log tests. |
+| Focused service logs | Paired single-line REST records, native compact selection, request-ID names with stable source filters, and default lcl_fastapi/FastAPI/Starlette frame filtering; response, metadata privacy, original traceback/group preservation and captured-log tests. |
 | Native log timezones | Local timestamps by default or explicit UTC through configuration/CLI, shared by controller/API/background logs; deterministic timestamp and configuration tests. |
 | Windows and Linux service runtimes | Uvicorn with Winloop and Gunicorn respectively; real-process tests run separately on each platform. |
 | Development Python reload | `serve -o hot_reload`, explicit recursive `server.reload_dirs`, one effective worker, graceful native replacement, and cross-platform process tests. |

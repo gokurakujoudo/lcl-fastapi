@@ -49,6 +49,8 @@ snowflake.worker_id_base: 0
 snowflake.worker_id_count: 64
 
 # Logging and file destinations
+logging.file_verbose: False
+logger.takeover_loggers: DEFAULT_TAKEOVER_LOGGERS
 logger.timezone: "local"
 logger.traceback_style: "compact"
 logger.file.default.directory: "./logs"

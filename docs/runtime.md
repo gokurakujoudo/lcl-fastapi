@@ -6,6 +6,13 @@ private to the service account and dedicate it to this service. The framework
 coordinates one service on one machine; it does not coordinate separate services
 or machines.
 
+Keep runtime JSON, control tokens, locks and worker-ID leases in a host-local
+directory private to the service account. A shared NFS log directory does not
+extend that coordination to other hosts. When deployment uses shared log storage,
+separate files or directories by host and service instance; PID-based names alone
+are not a cross-host identity scheme. Log storage availability and access policy
+belong to the deployment. Local process tests do not establish NFS behavior.
+
 On [Windows](windows.md), Uvicorn owns worker creation and recovery. On
 [Linux](linux.md), Gunicorn's native ASGI worker and arbiter own them. A worker
 loads the current configuration and creates its own Frame, logger, Snowflake
@@ -162,7 +169,7 @@ The lease pool uses `snowflake.worker_id_base` and `snowflake.worker_id_count`.
 Concurrent live leases in this local service receive different numbers. This
 does not enlarge lclang's historical ID guarantees across rapid reuse, crashes,
 or clock rollback. The framework delegates Snowflake generation to
-`lclang>=1.1.0` and does not change its algorithm.
+`lclang>=1.1.2` and does not change its algorithm.
 
 For multiple machines, assign nonoverlapping ranges through LCL's environment
 configuration facilities. The runtime does not read environment variables as an

@@ -126,6 +126,47 @@ async def scoped() -> dict[str, object]:
 
 ## Uncaught HTTP exceptions
 
+Choose the boundary according to whether the application handles an expected
+outcome or selects a response for an unexpected failure:
+
+| Interface | Intended use | Exception propagation after a successful response |
+| --- | --- | --- |
+| `HTTPException`, validation, or a handler for a specific business exception | Expected HTTP outcomes such as a missing order or a business conflict. | The handled exception does not enter the generic 500 callback. |
+| A generic `Exception` or `500` handler | Select a fallback response for otherwise unhandled failures. | The original exception continues to the ASGI server. |
+| `uncaught_exception_handler` | Select that fallback response with the framework's borrowed request context. | The original exception continues to the ASGI server. |
+
+A handler for a concrete business exception consumes that expected failure when
+it successfully returns before response headers have started:
+
+<!-- python-doc-exec -->
+```python
+from fastapi import Request
+from starlette.responses import JSONResponse, Response
+
+from lcl_fastapi import LclFastAPI
+
+
+class OrderConflict(Exception):
+    pass
+
+
+service = LclFastAPI()
+
+
+@service.exception_handler(OrderConflict)
+async def order_conflict(request: Request, err: OrderConflict) -> Response:
+    return JSONResponse({"detail": "Order conflict"}, status_code=409)
+
+
+@service.post("/orders")
+async def create_order() -> None:
+    raise OrderConflict("application-owned business outcome")
+```
+
+Registering a handler for `Exception` or `500` does not have the same consumption
+semantics as the concrete handler above. A generic response is still produced by
+the server-error boundary, which preserves the original ASGI exception.
+
 `LclFastAPI(uncaught_exception_handler=callback)` accepts a synchronous or
 asynchronous `callback(err, request, *, context) -> Response`. A synchronous
 callback may also return an awaitable resolving to a Response. The callback is
@@ -149,12 +190,21 @@ from lcl_fastapi import LclFastAPI, UncaughtExceptionContext
 def service_unavailable(
     err: Exception, request: Request, *, context: UncaughtExceptionContext
 ) -> Response:
-    context.logger.error("service unavailable: %s", err)
+    context.logger.error("service unavailable; exception_type=%s", type(err).__name__)
     return JSONResponse({"request_id": context.request_id}, status_code=502)
 
 
 service = LclFastAPI(uncaught_exception_handler=service_unavailable)
 ```
+
+This callback chooses the content of its own record and response. It does not
+sanitize the original exception for the server: returning a `Response` does not
+consume the failure or confirm that a report has been written. The native server
+can still log the original message and traceback after the callback returns.
+Server output depends on its own error policy: Uvicorn reports an escaping
+exception, while Gunicorn can omit the details after a response has completed.
+The absence of a server traceback does not mean the callback consumed the error.
+See [log content boundaries](logging.md#log-content-boundaries).
 
 Use an asynchronous callback when it needs to await configuration or resource I/O.
 Synchronous callbacks must not start another event loop in the request task.
@@ -174,6 +224,9 @@ uses the default callback to log the original exception and return 500. The defa
 callback catches its own diagnostic failures, records a short summary without
 recursion, and still attempts the generic response. Cancellation and process-exit
 signals propagate. Request IDs and the paired invocation records remain intact.
+The callback-failure report can include the original exception through its cause
+or context chain; the subsequent default report describes the original failure
+itself. These are distinct reports, not a duplicate ASGI server emission.
 
 The exported `default_uncaught_exception_handler` lets a custom callback delegate
 selected errors explicitly. See the composed example's default/custom/callback
@@ -182,6 +235,11 @@ The callback handles HTTP failures, not WebSocket, lifespan or independent job
 failures. Once response headers have started, failures can only be logged and
 propagated: no replacement response is sent. Native ASGI propagation is retained,
 so TestClient can re-raise server errors unless `raise_server_exceptions=False`.
+After the framework successfully submits its default report, it suppresses one
+matching server duplicate. A custom callback that only returns its own response
+does not enter that confirmation path. There is no public report-confirmation
+interface. Request metadata on framework records does not imply that later
+server records, emitted after request-scope cleanup, retain the request ID.
 
 ## Offline API documentation
 
@@ -191,6 +249,14 @@ and an OpenAPI schema at `docs.openapi_path`, defaulting to `/docs` and
 `lcl_fastapi/static/swagger` and served from `/_lcl/static/swagger`. The HTML
 uses local URLs and disables the remote validator, so loading the schema and
 executing requests requires no CDN. ReDoc is not provided.
+
+Offline assets do not establish a Content Security Policy contract. The generated
+page includes an inline Swagger initializer, and this version exposes no public
+CSP hash or nonce API. Applications own their CSP headers and can override the
+GET documentation route while retaining the bundled assets. Derive any hash from
+the actual HTML served, or render an application-owned page; copying FastAPI's
+initializer construction can become stale after dependency changes. Test the
+chosen policy in a browser rather than assuming local asset URLs are sufficient.
 
 Setting `docs.enabled: False` removes all framework documentation routes and
 static resources; explicitly registered business routes remain available. The

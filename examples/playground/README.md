@@ -1,6 +1,6 @@
 # LCL Workbench
 
-An independent lcl-fastapi 0.5.0 application with a packaged static browser UI.
+An independent lcl-fastapi 0.6.0 application with a packaged static browser UI.
 Its [standalone JavaScript highlighter](playground_service/static/lcl-highlight.js)
 and [stylesheet](playground_service/static/lcl-highlight.css) can be copied into
 other projects under the included MIT license. They require no framework or CDN.

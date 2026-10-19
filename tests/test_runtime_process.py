@@ -18,9 +18,10 @@ import httpx
 import psutil
 import pytest
 from coverage import Coverage
+from verbose_process_support import submit_file_verbose, wait_file_verbose
 
 from lcl_fastapi.runtime.common import active_logs, inspect_status, stop
-from lcl_fastapi.runtime.state import file_lock, live_workers, read_state
+from lcl_fastapi.runtime.state import atomic_write, file_lock, live_workers, read_state
 
 CONFIG = """__LCL_VERSION__: 1
 app.name: "runtime-probe"
@@ -145,6 +146,8 @@ def test_native_workers_recover_and_finish_lifespans(tmp_path: Path) -> None:
             assert status["status"] == "RUNNING"
             initial = health["worker_pids"]
             assert isinstance(initial, list) and len(initial) == 2
+            wait_file_verbose(port, tmp_path, False, 0, 2)
+            verbose_revision = submit_file_verbose(port, tmp_path, True, 2)
             assert health["service_pid"] not in initial
             paths = (asyncio.run(active_logs(source)))["paths"]
             assert isinstance(paths, list) and len(paths) == 2
@@ -171,6 +174,31 @@ def test_native_workers_recover_and_finish_lifespans(tmp_path: Path) -> None:
                 )
                 assert denied.status_code == 403
             verify_idle_observations(tmp_path)
+            control_path = tmp_path / "run/logging-control.json"
+            control_state = read_state(control_path)
+            atomic_write(control_path, {"service_id": "invalid"})
+            control_token_text = (tmp_path / "run/control.token").read_text(encoding="ascii")
+            with httpx.Client() as client:
+                headers = {"X-LCL-Control-Token": control_token_text}
+                endpoint = f"http://127.0.0.1:{port}/_lcl/logging/verbose"
+                assert client.get(endpoint, headers=headers).status_code == 503
+                assert (
+                    client.put(endpoint, headers=headers, json={"enabled": False}).status_code
+                    == 503
+                )
+                assert client.get(f"http://127.0.0.1:{port}/hello").status_code == 200
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                reports = [
+                    path.read_text(encoding="utf-8") for path in (tmp_path / "logs").glob("*.log")
+                ]
+                if sum("file verbose refresh failed" in text for text in reports) >= 3:
+                    break
+                time.sleep(0.05)
+            else:
+                raise AssertionError("controller and workers did not report the failed refresh")
+            atomic_write(control_path, control_state)
+            wait_file_verbose(port, tmp_path, True, verbose_revision, 2)
             psutil.Process(initial[0]).kill()
             deadline = time.monotonic() + 20
             while time.monotonic() < deadline:
@@ -213,6 +241,7 @@ def test_native_workers_recover_and_finish_lifespans(tmp_path: Path) -> None:
                 paths = (asyncio.run(active_logs(source)))["paths"]
                 assert isinstance(paths, list) and len(paths) == 2
             current = health["worker_pids"]
+            wait_file_verbose(port, tmp_path, True, verbose_revision, 2)
             assert isinstance(current, list)
             with httpx.Client() as client:
                 response = client.get(f"http://127.0.0.1:{port}/hello")
@@ -248,6 +277,8 @@ def test_native_workers_recover_and_finish_lifespans(tmp_path: Path) -> None:
             assert not (tmp_path / "run/control.token").exists()
             assert not list((tmp_path / "run/workers").glob("*.json"))
             assert not list((tmp_path / "run/leases").glob("*.json"))
+            assert not (tmp_path / "run/logging-control.json").exists()
+            assert not list((tmp_path / "run/logging-observations").glob("*.json"))
             assert (asyncio.run(inspect_status(source)))["status"] == "STOPPED"
         except BaseException:
             print(output.read_text(encoding="utf-8", errors="replace"))

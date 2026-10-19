@@ -1,6 +1,5 @@
 """Observe paired request records with shared identities and safe metadata."""
 
-import re
 from pathlib import Path
 
 import httpx
@@ -28,19 +27,21 @@ async def test_request_start_and_end_are_paired_around_business_records(
             response = await client.get("/probe?secret=omit", headers={"Authorization": "omit"})
             missing = await client.get("/missing")
     logs = "\n".join(p.read_text(encoding="utf-8") for p in configuration.parent.glob("logs/*.log"))
-    assert logs.count("REST API started") == logs.count("REST API completed") == 2
+    assert logs.count("REST API Started") == logs.count("REST API Completed") == 2
     assert (
-        logs.index("REST API started")
+        logs.index("REST API Started")
         < logs.index("business action")
-        < logs.index("REST API completed")
+        < logs.index("REST API Completed")
     )
     for reply, path, status in ((response, "/probe", 200), (missing, "/missing", 404)):
         identifier = reply.headers["X-Request-ID"]
-        assert logs.count(f"request_id={identifier} REST API") == 2
-        assert f"method=GET path={path} status_code={status}" in logs
-    assert "├─" in logs and "worker_pid=" in logs and "client=" in logs
+        assert (
+            sum(f"{identifier} |" in line and "REST API " in line for line in logs.splitlines())
+            == 2
+        )
+        assert f"REST API Completed({status}): HTTP GET {path} from 127.0.0.1:123" in logs
     assert "duration_ms=" in logs
-    events = "\n".join(
-        re.findall(r"^[^\n]*REST API (?:started|completed)\n.*?(?=^\d{4}-|\Z)", logs, re.M | re.S)
-    )
+    events = "\n".join(line for line in logs.splitlines() if "REST API " in line)
+    assert len(events.splitlines()) == 4
     assert "secret=omit" not in events and "Authorization" not in events
+    assert "worker_pid=" not in events and "├─" not in events

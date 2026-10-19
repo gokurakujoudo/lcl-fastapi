@@ -28,7 +28,10 @@ class WorkerLogFilter(logging.Filter):
         selected = copy.copy(record)
         worker = BACKGROUND_NAME.get()
         role = "api" if worker is None else f"background.{worker}"
-        selected.name = f"lcl_fastapi.{role}.{record.name}"
+        source = f"lcl_fastapi.{role}.{getattr(record, 'lcl_source_name', record.name)}"
+        selected.lcl_source_name = source
+        if not hasattr(selected, "request_id"):
+            selected.name = source
         return selected
 
 

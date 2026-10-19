@@ -3,13 +3,14 @@
 import asyncio
 import os
 import secrets
+import sys
 from collections.abc import AsyncIterator, Mapping
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from lclang.logger import resolve_logger_config, use_logger_handler, use_verbose
+from lclang.logger import resolve_logger_config, use_logger_handler
 from lclang.logger.frame_logger_config import verbose_config
 from lclang.utils import SnowflakeGenerator
 from starlette.background import BackgroundTask
@@ -39,7 +40,10 @@ from lcl_fastapi.logging import (
     suppress_server_access_logs,
 )
 from lcl_fastapi.middleware.request_context import RequestContextMiddleware, RequestRuntime
+from lcl_fastapi.routes import register_internal_routes
 from lcl_fastapi.runtime.common import WorkerRuntime, worker_runtime
+from lcl_fastapi.verbose.control import FileVerboseControl, use_file_control
+from lcl_fastapi.verbose.policy import install_verbose_output, use_service_verbose
 
 
 class LclFastAPI(FastAPI):
@@ -93,6 +97,7 @@ class LclFastAPI(FastAPI):
         self.request_middleware = RequestContextMiddleware(
             super().__call__,
             self.current_request_runtime,
+            self.router,
         )
 
     def build_middleware_stack(self) -> ASGIApp:
@@ -226,11 +231,16 @@ class LclFastAPI(FastAPI):
             logger_config = resolve_log_directories(logger_config, config_path.parent)
             logger_runtime = await stack.enter_async_context(use_logger_handler(logger_config))
             install_service_formatters(logger_runtime, logger_config)
+            install_verbose_output(logger_runtime, logger_config, settings.verbose)
             stack.enter_context(background_log_routing(logger_runtime, bool(policies)))
             stack.enter_context(suppress_server_access_logs())
             runtime = stack.enter_context(worker_runtime(settings))
-            logger = await get_logger("lcl_fastapi")
-            stack.enter_context(use_verbose(logger, enabled=settings.verbose))
+            file_control = await asyncio.to_thread(
+                FileVerboseControl, runtime.directory, str(runtime.service["service_id"]), "api"
+            )
+            stack.enter_context(use_file_control(file_control))
+            logger = await get_logger()
+            stack.enter_context(use_service_verbose(logger, settings.verbose))
             self.worker_identity = runtime
             self.worker_requests = RequestRuntime(
                 frame,
@@ -247,6 +257,9 @@ class LclFastAPI(FastAPI):
                 """
                 if self.background_manager is not None:
                     runtime.background_workers = self.background_manager.snapshot()
+                warning = file_control.refresh_warning()
+                if warning:
+                    logger.warning("%s", warning, compact=True)
                 runtime.publish(active_log_paths(logger_runtime), observed_at)
 
             self.health_sampler = HealthSampler(
@@ -259,27 +272,17 @@ class LclFastAPI(FastAPI):
             try:
                 await self.health_sampler.start()
                 self.title, self.version = settings.app_name, settings.app_version
-                for path, method, endpoint, enabled in (
-                    (settings.health_path, "GET", self.health, settings.health_enabled),
-                    ("/_lcl/shutdown", "POST", self.shutdown, True),
-                ):
-                    if enabled and not any(
-                        getattr(route, "path", None) == path
-                        and method in getattr(route, "methods", set())
-                        for route in self.routes
-                    ):
-                        self.add_api_route(
-                            path,
-                            endpoint,
-                            methods=[method],
-                            include_in_schema=False,
-                        )
+                register_internal_routes(self, settings, self.health, self.shutdown)
                 register_documentation(self, settings)
                 self.openapi_schema = None
-                async with AsyncExitStack() as business:
+                business = AsyncExitStack()
+                with use_service_verbose(logger, settings.verbose):
+                    await business.__aenter__()
+                try:
                     state = None
                     if self.business_lifespan is not None:
-                        state = await business.enter_async_context(self.business_lifespan(app))
+                        with use_service_verbose(logger, settings.verbose):
+                            state = await business.enter_async_context(self.business_lifespan(app))
                     if self.background_workers:
                         if int(str(runtime.service["configured_workers"])) != 1:
                             raise RuntimeError(
@@ -302,6 +305,13 @@ class LclFastAPI(FastAPI):
                         business.push_async_callback(self.background_manager.stop)
                         await self.background_manager.start()
                     yield state
+                except BaseException:
+                    with use_service_verbose(logger, settings.verbose):
+                        if not await business.__aexit__(*sys.exc_info()):
+                            raise
+                else:
+                    with use_service_verbose(logger, settings.verbose):
+                        await business.__aexit__(None, None, None)
             finally:
                 self.background_manager = None
                 self.worker_requests = None

@@ -11,10 +11,24 @@
 [Changelog](https://github.com/gokurakujoudo/lcl-fastapi/blob/main/CHANGELOG.md)
 
 `lcl-fastapi` is a small Python 3.14+ service framework combining FastAPI with
-`lclang>=1.1.0` configuration, logging, CLI infrastructure, and Snowflake IDs.
+`lclang>=1.1.2` configuration, logging, CLI infrastructure, and Snowflake IDs.
 Write business routes, a trusted `.lclcfg` file, and an optional business lifespan.
 The framework owns worker startup, request IDs, health sampling, local operations,
 and bundled offline Swagger UI.
+
+Version 0.6.0 adds explicit, masked business events with `logger.log_event()`
+and service-wide runtime file diagnostics through `get_file_verbose()` and
+`set_file_verbose()`. Each new request or Worker attempt pins its logging policy. Current source also
+uses native per-record compact logging, single-line HTTP invocation records and
+request-ID logger names with lclang >=1.1.2.
+Mounted static GET requests use one compact completion summary with the resource
+path, client endpoint and status; unhandled failures retain exception diagnostics.
+See the [logging reference](https://gokurakujoudo.github.io/lcl-fastapi/logging/)
+for the configuration, authenticated HTTP controls and process observations.
+Start with `await get_logger()` in handlers: the current request ID supplies the
+displayed name. An optional business prefix selects a stable source and message
+label. The [logging guide](https://gokurakujoudo.github.io/lcl-fastapi/logging-practices/)
+explains record columns, compact choices, masked events and diagnostic policy.
 
 Version 0.5.0 composes native configuration Modules before evaluation, supports
 isolated configuration imports and lazy required values, and uses upstream
@@ -50,7 +64,7 @@ step by step, with configuration, resource ownership and executable checks.
 The playground includes standalone reusable LCL highlighting assets for other UIs.
 
 Use a Python 3.14+ virtual environment. Install from PyPI with
-`python -m pip install lcl-fastapi==0.5.0`. Dependencies must
+`python -m pip install "lcl-fastapi>=0.6.0"`. Dependencies must
 also be installed; offline Swagger means that documentation serving does not
 require a CDN after installation.
 
@@ -65,7 +79,7 @@ service = LclFastAPI()
 
 @service.get("/hello")
 async def hello() -> dict[str, str]:
-    logger = await get_logger(__name__)
+    logger = await get_logger()
     logger.info("hello requested")
     return {"message": "hello"}
 ```

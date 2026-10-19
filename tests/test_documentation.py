@@ -48,7 +48,7 @@ def test_downstream_examples_require_current_release() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["project"]
     for path in (ROOT / "examples").glob("*/pyproject.toml"):
         example = tomllib.loads(path.read_text(encoding="utf-8"))["project"]
-        assert f"lcl-fastapi=={project['version']}" in example["dependencies"], path
+        assert f"lcl-fastapi>={project['version']}" in example["dependencies"], path
 
 
 @pytest.mark.documentation

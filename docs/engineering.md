@@ -24,14 +24,14 @@ authentication subsystem, management service, configuration restart mechanism, o
 backend. The [development plan](development-plan.md) maps the accepted scope to
 reference pages and behavioral acceptance evidence.
 
-## lclang 1.1.0 integration
+## lclang 1.1.2 integration
 
-Current source requires `lclang>=1.1.0`, without an upper bound. The upstream
+Current source requires `lclang>=1.1.2`, without an upper bound. The upstream
 [1.1.0 release notes](https://github.com/gokurakujoudo/lclang/releases/tag/1.1.0)
 describe configuration composition, public verbose scopes and structured errors.
 Language APIs come from `lclang.lang`, errors from `lclang.error`, and Python
 helpers from `lclang.utils`. Separate Windows/Linux compatibility jobs run the
-complete tests with `lclang==1.1.0`; quality and installed-example jobs resolve the
+complete tests with `lclang==1.1.2`; quality and installed-example jobs resolve the
 current stable version. Passing checks establish evidence for those resolved versions.
 
 Configuration Modules compose with `Module.mixin()` before evaluation, in default,
@@ -133,7 +133,7 @@ contain the wheel hash, platform, commands, output, and failure diagnostics.
 
 The build metadata declares Python >=3.14. The initial evidence matrix is
 CPython 3.14 on Windows and Linux; future interpreters are not yet verified.
-Version `0.5.0` is maintained in pyproject.toml. Later releases use PEP 440
+Version `0.6.0` is maintained in pyproject.toml. Later releases use PEP 440
 versions with compatibility-aware increments and exact version tags without a
 `v` prefix, following the root release policy.
 
