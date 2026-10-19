@@ -133,7 +133,7 @@ in a service file or CLI override is rejected. The separate short-lived CLI
 logger retains its own configuration.
 
 The runtime file switch does not change `__verbose__`: that binding continues to
-describe the launch-time native CLI flag. See [runtime file diagnostics](logging.md#unreleased-source-runtime-file-diagnostics)
+describe the launch-time native CLI flag. See [runtime file diagnostics](logging.md#runtime-file-diagnostics)
 for execution boundaries, console independence and synchronization.
 
 There is no `api.prefix`. Configure prefixes on business Routers.

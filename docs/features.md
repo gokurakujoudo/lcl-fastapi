@@ -4,7 +4,7 @@ The current implementation provides the following capabilities. The verification
 column identifies the acceptance evidence that must remain green; it does not
 claim a successful release or validation on an operating system without a run.
 
-Unreleased source adds explicit masked business events, request/Worker identity
+Version 0.6.0 adds explicit masked business events, request/Worker identity
 snapshots, extensible logger takeover defaults and runtime file diagnostics. It
 requires lclang >=1.1.2 for native per-record compact layouts and uses single-line
 HTTP invocation records with request-ID logger names. Mounted static GET requests

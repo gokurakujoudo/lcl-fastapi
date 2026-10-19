@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.0 - 2026-10-19
+
 - Emit one compact completion summary for mounted static GETs, including resource
   path, client endpoint and response status while retaining exception diagnostics.
 
@@ -20,6 +22,8 @@
   attribution, business call-site headers and deferred ordinary message formatting.
 - Suppress the ASGI runtime's duplicate report after the framework successfully
   reports the same escaping HTTP exception; preserve unrelated runtime errors.
+- Isolate each HTTP request's state mapping, preserving shared lifespan resources
+  while preventing request-ID leakage between concurrent native server requests.
 
 ## 0.5.0 - 2026-10-11
 

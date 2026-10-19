@@ -3,11 +3,10 @@
 For executable examples and captured logs from the main process, API handler,
 Worker, hot reload and exception boundaries, see [logging practices](logging-practices.md).
 
-## Record structure in unreleased source
+## Record structure
 
 The layouts, request-ID names, `log_event()` and runtime file controls below are
-unreleased capabilities. Current source requires `lclang>=1.1.2`; installing the
-published lcl-fastapi 0.5.0 release alone does not provide them.
+available from lcl-fastapi 0.6.0, which requires `lclang>=1.1.2`.
 
 With the native default formatter, a full business record has these columns:
 
@@ -70,7 +69,7 @@ See [exception ownership](application.md#uncaught-http-exceptions).
 
 ## Native verbose control
 
-### Unreleased source: runtime file diagnostics
+### Runtime file diagnostics
 
 `logging.file_verbose` is a strict Boolean with a default of False. The native
 CLI `--verbose` flag also enables its initial value. Runtime file controls affect
@@ -269,7 +268,7 @@ They are not repeated in every business message. Worker records retain their
 registration, attempt and entry identity. Execution metadata adds no requests or
 configuration Frames to queued records.
 
-### Explicit business events in unreleased source
+### Explicit business events
 
 `RequestLogger.log_event(event, *, level=logging.INFO, record=None, fields=(),
 masked_fields=(), compact=False, **values)` emits one record. The bounded, escaped title is

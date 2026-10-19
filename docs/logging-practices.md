@@ -12,7 +12,7 @@ and the `job` Worker writes its own file. A Worker is a managed thread inside th
 API process; hot reload replaces that whole process and starts a new Worker.
 
 The request-ID layouts, `compact`, `log_event()` and runtime file controls in
-this guide describe unreleased source with lclang >=1.1.2. The historical output
+this guide describe lcl-fastapi 0.6.0 with lclang >=1.1.2. The historical output
 at the end is separately labeled with its original version.
 
 ## Choose a logger
@@ -53,7 +53,7 @@ Compact layout does not change a record's severity or turn diagnostics on or off
 The file verbose API does not remove caller columns from business records.
 Exception reports remain enabled with verbose off. An explicit `logger.format`
 controls the output columns, so use the native defaults to obtain the two layouts
-shown in the [record structure reference](logging.md#record-structure-in-unreleased-source).
+shown in the [record structure reference](logging.md#record-structure).
 
 For a running service, use the token-authenticated
 `GET /_lcl/logging/verbose` and `PUT /_lcl/logging/verbose` controls, or the async
@@ -64,7 +64,7 @@ diagnostics on leaves console policy unchanged. New requests and Worker attempts
 pin the observed policy; existing requests, SSE streams and long-running attempts
 keep their earlier value. Check the target revision and process observations,
 then issue a new request. An observation confirms receipt, not a change to work
-already running. See [runtime file diagnostics](logging.md#unreleased-source-runtime-file-diagnostics).
+already running. See [runtime file diagnostics](logging.md#runtime-file-diagnostics).
 
 ## Select business fields and report errors at their boundary
 
@@ -109,20 +109,11 @@ format assertions.
 
 ## Install and create the service
 
-Use a Python 3.14 virtual environment on Windows or Linux. For these unreleased
-capabilities, build a wheel from the current framework checkout:
+Use a Python 3.14 virtual environment on Windows or Linux and install the
+framework in the example environment:
 
 ```console
-python -m pip install "build>=1.2"
-python -m build --wheel
-```
-
-In a separate example environment, install that wheel, replacing the path below
-with its absolute location. Its unchanged version is 0.5.0; the published PyPI
-0.5.0 wheel does not contain these source additions.
-
-```console
-python -m pip install /absolute/path/to/lcl_fastapi-0.5.0-py3-none-any.whl
+python -m pip install "lcl-fastapi>=0.6.0"
 ```
 
 Save these files in an empty directory. Run one service at a time on the machine.
@@ -454,7 +445,7 @@ may arrange the columns differently.
 
 Current source uses native compact messages and single-line HTTP start/completion
 records. Default Python tracebacks also hide lcl_fastapi helper frames. The
-historical capture below predates these unreleased changes: it retains the
+historical capture below predates version 0.6.0: it retains the
 original multi-line trees and headers from lclang 1.1.0.
 
 The excerpts below come from one Windows/Uvicorn run of an earlier revision of

@@ -16,7 +16,7 @@ Write business routes, a trusted `.lclcfg` file, and an optional business lifesp
 The framework owns worker startup, request IDs, health sampling, local operations,
 and bundled offline Swagger UI.
 
-Unreleased source adds explicit, masked business events with `logger.log_event()`
+Version 0.6.0 adds explicit, masked business events with `logger.log_event()`
 and service-wide runtime file diagnostics through `get_file_verbose()` and
 `set_file_verbose()`. Each new request or Worker attempt pins its logging policy. Current source also
 uses native per-record compact logging, single-line HTTP invocation records and
@@ -64,7 +64,7 @@ step by step, with configuration, resource ownership and executable checks.
 The playground includes standalone reusable LCL highlighting assets for other UIs.
 
 Use a Python 3.14+ virtual environment. Install from PyPI with
-`python -m pip install "lcl-fastapi>=0.5.0"`. Dependencies must
+`python -m pip install "lcl-fastapi>=0.6.0"`. Dependencies must
 also be installed; offline Swagger means that documentation serving does not
 require a CDN after installation.
 

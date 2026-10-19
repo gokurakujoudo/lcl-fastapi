@@ -9,7 +9,12 @@ reviewing and squash-merging the release changes into `main`.
 
 Version increments reflect compatibility. During the 0.x series, a minor
 increment introduces new features or incompatible public behavior; patch releases
-contain compatible fixes. Version 0.5.0 requires lclang >=1.1.0, adopts native
+contain compatible fixes. Version 0.6.0 requires lclang >=1.1.2 and adds native
+compact records, explicit masked business events and runtime file diagnostics.
+HTTP access messages change to single-line start/completion records; mounted
+static GETs have one completion summary. Tests that inspect human-readable
+layouts should follow the [logging reference](logging.md).
+Version 0.5.0 requires lclang >=1.1.0, adopts native
 configuration composition and compact/full diagnostic contracts, and carries
 the native CLI verbose mode into service scopes and downstream expressions.
 Version 0.4.0 adds synchronous/awaitable HTTP exception

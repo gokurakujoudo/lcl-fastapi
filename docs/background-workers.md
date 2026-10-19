@@ -112,7 +112,7 @@ without replacing the framework's file-policy snapshot. There is no public
 work-unit policy-refresh scope. Process observations describe receipt of the
 target; they are not observations of each Worker's currently executing policy.
 Choose finite attempts when that lifecycle fits the work, or retain the pinned
-policy for a long-running callable. See [runtime file diagnostics](logging.md#unreleased-source-runtime-file-diagnostics).
+policy for a long-running callable. See [runtime file diagnostics](logging.md#runtime-file-diagnostics).
 
 ## Restart, shutdown and observations
 

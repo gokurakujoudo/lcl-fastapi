@@ -1,6 +1,6 @@
 # Directory Observatory
 
-An independent lcl-fastapi 0.5.0 application with a packaged static browser UI.
+An independent lcl-fastapi 0.6.0 application with a packaged static browser UI.
 Follow [the complete tutorial](../../docs/build-a-service/02-directory-monitor.md) for the
 configuration, API, resource ownership, operation commands and limitations.
 

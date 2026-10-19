@@ -117,7 +117,7 @@ a security boundary against the operator supplying them.
 
 The current command tree does not include a runtime file-verbose command. The
 available Python and authenticated HTTP controls are documented in
-[runtime file diagnostics](logging.md#unreleased-source-runtime-file-diagnostics).
+[runtime file diagnostics](logging.md#runtime-file-diagnostics).
 Their target revision and process observations do not imply a change to work
 already in progress.
 
