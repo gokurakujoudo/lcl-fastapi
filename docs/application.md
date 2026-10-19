@@ -201,6 +201,9 @@ This callback chooses the content of its own record and response. It does not
 sanitize the original exception for the server: returning a `Response` does not
 consume the failure or confirm that a report has been written. The native server
 can still log the original message and traceback after the callback returns.
+Server output depends on its own error policy: Uvicorn reports an escaping
+exception, while Gunicorn can omit the details after a response has completed.
+The absence of a server traceback does not mean the callback consumed the error.
 See [log content boundaries](logging.md#log-content-boundaries).
 
 Use an asynchronous callback when it needs to await configuration or resource I/O.

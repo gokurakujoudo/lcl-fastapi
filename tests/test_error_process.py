@@ -1,6 +1,7 @@
 """Verify error ownership through the real CLI and native ASGI server."""
 
 import asyncio
+import json
 import os
 import re
 import subprocess
@@ -19,15 +20,35 @@ from test_runtime_process import available_port
 from lcl_fastapi.runtime.common import stop
 
 APP = """import asyncio
+import json
 import logging
 import os
+from pathlib import Path
 from starlette.responses import JSONResponse
 from lcl_fastapi import LclFastAPI, default_uncaught_exception_handler, get_logger
 
 class BusinessConflict(Exception):
     pass
 
+# Observe the public ASGI exit without intercepting native server logging.
+class ObservedService(LclFastAPI):
+    async def __call__(self, scope, receive, send):
+        try:
+            await super().__call__(scope, receive, send)
+        except Exception as error:
+            if scope["type"] == "http":
+                state = scope["state"]
+                observation = {
+                    "path": scope["path"], "request_id": state["request_id"],
+                    "type": type(error).__name__, "message": str(error),
+                    "same_error": error is state.get("callback_error"),
+                }
+                with Path(__file__).with_suffix(".jsonl").open("a", encoding="utf-8") as stream:
+                    stream.write(json.dumps(observation) + "\\n")
+            raise
+
 def callback(error, request, *, context):
+    request.state.callback_error = error
     mode = request.path_params["mode"]
     case_id = request.path_params["case_id"]
     if mode == "default":
@@ -44,12 +65,13 @@ def callback(error, request, *, context):
     )
 
 async def async_callback(error, request, *, context):
+    request.state.callback_error = error
     await asyncio.sleep(0)
     if request.path_params["mode"] == "default":
         return await default_uncaught_exception_handler(error, request, context=context)
     return callback(error, request, context=context)
 
-service = LclFastAPI(uncaught_exception_handler=(
+service = ObservedService(uncaught_exception_handler=(
     callback if os.environ["LCL_TEST_CALLBACK_STYLE"] == "sync" else async_callback
 ))
 
@@ -122,6 +144,23 @@ async def mixed_requests(port: int) -> list[tuple[str, str, httpx.Response]]:
     ] + [("independent", "", independent)]
 
 
+def verify_propagation(text: str, replies: list[tuple[str, str, httpx.Response]]) -> None:
+    observations = [json.loads(line) for line in text.splitlines()]
+    expected = {
+        response.request.url.path: {
+            "path": response.request.url.path,
+            "request_id": response.headers["X-Request-ID"],
+            "type": "RuntimeError",
+            "message": f"original:{mode}:{case_id}",
+            "same_error": True,
+        }
+        for mode, case_id, response in replies
+        if mode not in {"handled", "independent"}
+    }
+    assert len(observations) == len(expected)
+    assert {observation["path"]: observation for observation in observations} == expected
+
+
 def verify_reports(text: str, replies: list[tuple[str, str, httpx.Response]]) -> None:
     records = log_records(text)
     identifiers = {response.headers["X-Request-ID"] for _, _, response in replies}
@@ -163,14 +202,20 @@ def verify_reports(text: str, replies: list[tuple[str, str, httpx.Response]]) ->
             if original in record
             and "uncaught_exception_handler failed:" not in record.splitlines()[0]
         ]
-        assert len(original_reports) == 1
         if mode == "custom":
             assert response.json() == {"detail": "Custom error", "request_id": identifier}
             assert not final_reports
             custom = [record for record in selected if "custom callback selected" in record]
             assert len(custom) == 1 and "RuntimeError" in custom[0]
             assert re.search(r"case_id\s*: '" + case_id + "'", custom[0])
+            # Uvicorn reports escaping errors; Gunicorn can omit details once the
+            # response is complete. The outer ASGI observation verifies propagation.
+            if sys.platform == "win32":
+                assert len(original_reports) == 1
+            else:
+                assert len(original_reports) <= 1
         else:
+            assert len(original_reports) == 1
             assert response.json() == {"detail": "Internal Server Error"}
             assert len(final_reports) == 1 and original in final_reports[0]
             failures = [
@@ -225,6 +270,7 @@ def test_native_callback_responses_preserve_error_propagation_and_report_ownersh
                 process.kill()
                 process.wait(timeout=5)
     assert not (tmp_path / "run/runtime.json").exists()
+    verify_propagation((tmp_path / "error_app.jsonl").read_text(encoding="utf-8"), replies)
     files = [path for path in (tmp_path / "logs").glob("*.log") if ".controller." not in path.name]
     assert files
     verify_reports("\n".join(path.read_text(encoding="utf-8") for path in files), replies)
