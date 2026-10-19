@@ -7,7 +7,8 @@ claim a successful release or validation on an operating system without a run.
 Unreleased source adds explicit masked business events, request/Worker identity
 snapshots, extensible logger takeover defaults and runtime file diagnostics. It
 requires lclang >=1.1.2 for native per-record compact layouts and uses single-line
-HTTP invocation records with request-ID logger names.
+HTTP invocation records with request-ID logger names. Mounted static GET requests
+use one compact completion summary, retaining final exception diagnostics.
 The file control is service-wide and applies at new execution boundaries;
 process observations describe receipt of a target rather than running work.
 

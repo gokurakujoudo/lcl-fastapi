@@ -8,12 +8,14 @@ from lclang.error import LclStateError, LclUtilityError, LclValidationError
 from lclang.lang import Frame
 from lclang.utils import SnowflakeGenerator
 from starlette.responses import JSONResponse
+from starlette.routing import Router
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from lcl_fastapi.context import CONFIG_FRAME, REQUEST_CONTEXT, RequestContext
 from lcl_fastapi.log_context import REPORTED_HTTP_FAILURE, REQUEST_SCOPE
 from lcl_fastapi.logging import RequestLogger
 from lcl_fastapi.middleware.request_logging import log_request_event
+from lcl_fastapi.middleware.static_logging import is_static_get
 from lcl_fastapi.verbose.policy import use_service_verbose
 
 
@@ -40,19 +42,22 @@ class RequestContextMiddleware:
 
     :param app: Complete downstream ASGI application, including its error handler.
     :param runtime: Function returning resources for the current worker lifespan.
+    :param router: Live route table used for conservative static GET classification.
     """
 
-    def __init__(self, app: ASGIApp, runtime: Callable[[], RequestRuntime]) -> None:
+    def __init__(self, app: ASGIApp, runtime: Callable[[], RequestRuntime], router: Router) -> None:
         """Retain downstream behavior without starting runtime resources.
 
         :param app: Downstream ASGI callable.
         :param runtime: Worker resource accessor.
+        :param router: Live route table, including routes registered during startup.
         """
         self.app = app
         self.runtime = runtime
+        self.router = router
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        """Propagate response headers and emit paired invocation records.
+        """Propagate response headers and emit request invocation records.
 
         Copy the incoming state mapping while borrowing its lifespan resource values.
 
@@ -74,6 +79,7 @@ class RequestContextMiddleware:
         scope["state"].pop("request_id", None)
         status_code = 500
         failure_detail = ""
+        static_resource = False
 
         async def send_response(message: Message) -> None:
             """Replace the configured identity header on the response start.
@@ -95,6 +101,7 @@ class RequestContextMiddleware:
             await send(message)
 
         try:
+            static_resource = is_static_get(self.router, scope)
             try:
                 request_id = str(runtime.generator.next_id())
             except (LclValidationError, LclStateError, LclUtilityError) as error:
@@ -102,7 +109,9 @@ class RequestContextMiddleware:
                 failure_detail = (
                     f"id_generation_error={type(error).__name__} id_generation_code={error.code} "
                 )
-                log_request_event(runtime.logger, scope, started_ns)
+                log_request_event(
+                    runtime.logger, scope, started_ns, static_resource=static_resource
+                )
                 await JSONResponse(
                     {"detail": "Request ID generation unavailable"},
                     status_code=503,
@@ -111,7 +120,7 @@ class RequestContextMiddleware:
             context = RequestContext(request_id, scope["method"], scope["path"], started_ns)
             REQUEST_CONTEXT.set(context)
             scope["state"]["request_id"] = request_id
-            log_request_event(runtime.logger, scope, started_ns)
+            log_request_event(runtime.logger, scope, started_ns, static_resource=static_resource)
             with use_service_verbose(runtime.logger, runtime.verbose):
                 await self.app(scope, receive, send_response)
         except BaseException as error:
@@ -128,6 +137,7 @@ class RequestContextMiddleware:
                     started_ns,
                     status_code=status_code,
                     failure_detail=failure_detail,
+                    static_resource=static_resource,
                 )
             finally:
                 CONFIG_FRAME.reset(frame_token)

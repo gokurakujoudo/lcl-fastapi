@@ -1,4 +1,4 @@
-"""Emit paired single-line HTTP invocation records through native compact logging."""
+"""Emit REST boundaries or one static GET summary through native compact logging."""
 
 from time import perf_counter_ns
 
@@ -15,6 +15,7 @@ def log_request_event(
     *,
     status_code: int | None = None,
     failure_detail: str = "",
+    static_resource: bool = False,
 ) -> None:
     """Record one invocation boundary without reading request headers or its body.
 
@@ -23,13 +24,19 @@ def log_request_event(
     :param started_ns: Monotonic start time in nanoseconds.
     :param status_code: Observed response status, or None for the start boundary.
     :param failure_detail: Native allocation failure fields for a completion record.
+    :param static_resource: Whether this request uses a single static GET completion summary.
     :raises LclStateError: If the service logger runtime has closed.
     """
+    if static_resource and status_code is None:
+        return
     request = http_request_description(scope)
-    message = f"REST API Started: {request}"
-    if status_code is not None:
+    if static_resource:
+        message = f"Static Resource({status_code}): {request}"
+    elif status_code is not None:
         duration_ms = (perf_counter_ns() - started_ns) / 1_000_000
         message = f"REST API Completed({status_code}): {request} [duration_ms={duration_ms:.3f}]"
-        if failure_detail:
-            message += f" [{failure_detail.strip()}]"
+    else:
+        message = f"REST API Started: {request}"
+    if status_code is not None and failure_detail:
+        message += f" [{failure_detail.strip()}]"
     logger.info("%s", message, compact=True)

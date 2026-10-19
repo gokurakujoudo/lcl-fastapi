@@ -97,6 +97,7 @@ class LclFastAPI(FastAPI):
         self.request_middleware = RequestContextMiddleware(
             super().__call__,
             self.current_request_runtime,
+            self.router,
         )
 
     def build_middleware_stack(self) -> ASGIApp:

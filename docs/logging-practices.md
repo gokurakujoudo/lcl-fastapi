@@ -35,6 +35,12 @@ use `context.logger` to retain their registration, attempt and dedicated file.
 
 ## Choose layout and diagnostic policy
 
+Mounted static GETs have one compact `Static Resource(status)` completion summary.
+Use its request ID, resource path, client endpoint and status to investigate asset
+requests; there is no separate start record or duration. This applies to bundled
+Swagger assets as well. Internal serving failures still produce their final
+exception report, and verbose controls retain their existing diagnostic policy.
+
 | Choice | What it controls | Suggested use |
 | --- | --- | --- |
 | `compact=False` on a business call | Retains logger name and business caller columns; this is the default. | Business decisions and records where the emitting file, line and function help investigation. |

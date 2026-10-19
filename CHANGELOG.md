@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Emit one compact completion summary for mounted static GETs, including resource
+  path, client endpoint and response status while retaining exception diagnostics.
+
 - Require lclang >=1.1.2 and use its native per-record compact layouts for framework
   messages while letting business code select compact or full caller information.
 - Emit single-line HTTP start/completion records and compact exception titles.

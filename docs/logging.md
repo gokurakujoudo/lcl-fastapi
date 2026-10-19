@@ -30,6 +30,7 @@ compact selection; including both `%(name)s` and a compact message can repeat th
 | Record | Default layout | Identity and diagnostic content |
 | --- | --- | --- |
 | HTTP start/completion | Compact | Request-ID message prefix, method, actual path and client; completion adds status and duration. |
+| Mounted static GET | Compact | One completion summary with request ID, actual path, client and status; no duration. |
 | Business call | Full, or compact when explicitly selected | Request ID in the name column or message prefix; full records retain the business file, line and function. |
 | Native verbose evaluation | Compact, displayed as TRACE | Request-ID message prefix and native evaluation/failure identifiers, with a tree when available. |
 | Final HTTP exception | Compact | Request-ID message prefix and invocation title, followed by the native error tree and applicable Python traceback. |
@@ -138,12 +139,33 @@ Business calls default to `compact=False` and can select either layout per recor
 An explicit `logger.format` remains authoritative. Native display labels include
 WARN, CRIT, UNSET and TRACE without changing numeric severities or filtering.
 
-Each HTTP invocation emits one single-line start and one single-line completion:
+Ordinary HTTP invocations emit one single-line start and one single-line completion:
 
 ```text
 369400111685435392 | REST API Started: HTTP GET /orders/42 from 127.0.0.1:65311
 369400111685435392 | REST API Completed(200): HTTP GET /orders/42 from 127.0.0.1:65311 [duration_ms=0.420]
 ```
+
+GET requests routed to mounted `StaticFiles` instances or subclasses emit one
+compact INFO summary at completion instead of the REST start/completion pair:
+
+```text
+369400111685435392 | Static Resource(200): HTTP GET /assets/app.js from 127.0.0.1:65311
+```
+
+This includes bundled Swagger assets and standard nested mounts. Classification
+uses the current route order, including business overrides, without opening files
+or invoking handlers. Classification failures retain ordinary REST logging.
+The summary includes the observed status and omits duration. Conditional, range,
+missing-file and redirect responses use the same rule. HEAD, other methods,
+ordinary mounted applications, business `FileResponse` endpoints, Swagger HTML
+and OpenAPI retain their existing invocation records.
+
+The compact summary retains the request-ID prefix and existing client/path
+formatting. Verbose settings do not change the access-record count. Unhandled
+static-serving failures still receive full exception diagnostics, and request-ID
+allocation failures retain their 503, `unavailable` identity and native error
+fields. Custom `logger.format` remains authoritative.
 
 These are message payloads; the header supplies the PID. Paths exclude queries,
 control characters are escaped, IPv6 clients use `[address]:port`, and absent

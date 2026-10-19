@@ -21,6 +21,8 @@ and service-wide runtime file diagnostics through `get_file_verbose()` and
 `set_file_verbose()`. Each new request or Worker attempt pins its logging policy. Current source also
 uses native per-record compact logging, single-line HTTP invocation records and
 request-ID logger names with lclang >=1.1.2.
+Mounted static GET requests use one compact completion summary with the resource
+path, client endpoint and status; unhandled failures retain exception diagnostics.
 See the [logging reference](https://gokurakujoudo.github.io/lcl-fastapi/logging/)
 for the configuration, authenticated HTTP controls and process observations.
 Start with `await get_logger()` in handlers: the current request ID supplies the
