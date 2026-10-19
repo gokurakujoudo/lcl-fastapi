@@ -104,6 +104,23 @@ installed framework metadata. It is a synchronous process entrance: call it
 outside an event loop and serialize invocations within a process. Its event loop
 and CLI logger close before native process management begins.
 
+`version_text` changes CLI help/version display; it does not bind or protect the
+service's `app.version` configuration. Ordinary CLI overrides retain their
+documented precedence. There is no public fixed-runtime-values injection hook.
+Application environment names, deployment directories and startup validation
+belong to the downstream wrapper or service. Avoid unconditional environment
+validation at wrapper import if help/version must work without a deployed
+environment; defer validation to the operation that needs it. Use formal LCL
+environment expressions for configuration inputs and keep a fixed wrapper-owned
+configuration location absolute. Trusted configuration and CLI overrides are not
+a security boundary against the operator supplying them.
+
+The current command tree does not include a runtime file-verbose command. The
+available Python and authenticated HTTP controls are documented in
+[runtime file diagnostics](logging.md#unreleased-source-runtime-file-diagnostics).
+Their target revision and process observations do not imply a change to work
+already in progress.
+
 ## Output and errors
 
 Successful `status` and `logs` output consists of exactly one JSON object on

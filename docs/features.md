@@ -18,7 +18,7 @@ callbacks and native local/UTC log timezone selection.
 | Capability | Contract and evidence |
 | --- | --- |
 | Managed background workers | Code-only callables on dedicated threads/loops, service bridges, restart/shutdown, dedicated logs and controller events; unit and native-process tests. |
-| Uncaught HTTP exceptions | Typed synchronous/asynchronous callbacks, native compact/full exception trees and generic 500 fallback; response, precedence, cause/group, streaming and logging-failure tests. |
+| Uncaught HTTP exceptions | Typed synchronous/asynchronous callbacks, native compact/full exception trees and generic 500 fallback; response, precedence, cause/group, streaming and logging-failure tests. Native-process tests verify business exception consumption, original ASGI propagation after custom responses, default-only server deduplication and concurrent file/console reports. |
 | Scoped configuration Frames | `use_lcl_frame()` derives and owns nested task-local Frames; behavioral tests verify inheritance, restoration, concurrency and cancellation. |
 | LCL configuration and typed application | Native Module composition, isolated import namespaces, optional introductions, lazy required/runtime values, portable defaults and CLI precedence; configuration and application behavior tests. |
 | Request context and logs | Server-generated lclang Snowflake IDs, response headers, isolated context, and separate controller/worker upstream logging with lifecycle observations. Upstream clock/sequence failures return 503 without an ID and record one failure access log. |

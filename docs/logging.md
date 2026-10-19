@@ -42,6 +42,31 @@ rotation does not split them. For practical choices, see
 [choosing a logger](logging-practices.md#choose-a-logger) and
 [layout and diagnostic policy](logging-practices.md#choose-layout-and-diagnostic-policy).
 
+## Log content boundaries
+
+The logger preserves diagnostic evidence; it does not enforce an application's
+global secret-removal policy. The controls have separate purposes:
+
+| Control | What it changes | What it does not redact |
+| --- | --- | --- |
+| Per-record `compact` | Default header columns and caller display. | Message text, fields or attached exceptions. |
+| `logger.traceback_style` | Which Python helper frames appear. | Exception messages, business source excerpts, causes or group members. |
+| Native verbose scopes and runtime file controls | Whether execution diagnostics are produced/admitted. | Ordinary business records or final exception reports. |
+| `log_event(..., masked_fields=...)` and declared LCL masks | Explicitly selected values in that event or native diagnostic. | Other records, arbitrary exception text or third-party output. |
+
+Access records contain the actual URL path and client endpoint. Omitting query
+parameters, headers and bodies does not make every path safe for application
+policy. Keep credentials out of paths and choose safe identifiers. Escaping
+control characters prevents multiline text injection; bounded representations
+and `safe_repr` do not identify secrets.
+
+Applications with stricter requirements must own content selection across their
+business records, exception boundaries and third-party logging. A generic HTTP
+response protects the response body, not all later server diagnostics. Producer
+and writer failures can also report diagnostic text to stderr. Neither compact
+reports nor a custom HTTP callback establishes a process-wide redaction policy.
+See [exception ownership](application.md#uncaught-http-exceptions).
+
 ## Native verbose control
 
 ### Unreleased source: runtime file diagnostics
@@ -329,6 +354,10 @@ excerpt and correlation identifiers. Native diagnostics preserve declared masks.
 After successful default reporting, the escaping ASGI boundary confirms that
 same exception for one-time suppression of the runtime's duplicate error record.
 Unrelated runtime errors and failures not reported by the framework still pass.
+Returning a custom response alone does not confirm reporting or suppress the
+server's original exception. When a callback fails, its report may contain the
+original error as an exception-chain member before the default original-error
+report; server deduplication does not remove evidence from those distinct failures.
 Masks protect named LCL diagnostic values; exception messages and application
 text follow their producers' policies.
 

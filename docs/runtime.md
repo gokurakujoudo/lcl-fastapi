@@ -6,6 +6,13 @@ private to the service account and dedicate it to this service. The framework
 coordinates one service on one machine; it does not coordinate separate services
 or machines.
 
+Keep runtime JSON, control tokens, locks and worker-ID leases in a host-local
+directory private to the service account. A shared NFS log directory does not
+extend that coordination to other hosts. When deployment uses shared log storage,
+separate files or directories by host and service instance; PID-based names alone
+are not a cross-host identity scheme. Log storage availability and access policy
+belong to the deployment. Local process tests do not establish NFS behavior.
+
 On [Windows](windows.md), Uvicorn owns worker creation and recovery. On
 [Linux](linux.md), Gunicorn's native ASGI worker and arbiter own them. A worker
 loads the current configuration and creates its own Frame, logger, Snowflake

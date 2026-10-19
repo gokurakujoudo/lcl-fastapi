@@ -81,6 +81,26 @@ boundary produces two business reports, so let the owner of the final outcome
 report it. `use_verbose(..., enabled=False)` suppresses the expected calculation's
 execution diagnostics while preserving its final error tree and traceback.
 
+For expected business outcomes, use a specific exception handler or an explicit
+HTTP response. A generic `Exception`/500 handler and `uncaught_exception_handler`
+select responses for failures that still propagate to the native ASGI server.
+Writing a filtered record in that callback does not stop the server from reporting
+the original exception. The framework suppresses a matching server duplicate
+only after its own default report. Compare the
+[exception handling examples](application.md#uncaught-http-exceptions).
+
+Keep exception messages and source excerpts in mind when selecting fields:
+`masked_fields` protects that event, not a separate exception report. Credentials
+must also stay out of URL paths, which the invocation records include. Applications
+owning a stricter logging policy must account for business, native server,
+third-party and fallback stderr output. See [log content boundaries](logging.md#log-content-boundaries).
+
+When upgrading, business tests should check response status, correlation, event
+content and prohibited data. Keep exact header/layout assertions in dedicated
+format tests; a changed human-readable layout alone is not evidence of changed
+business behavior. Rerun the application's complete tests after updating old
+format assertions.
+
 ## Install and create the service
 
 Use a Python 3.14 virtual environment on Windows or Linux. For these unreleased
